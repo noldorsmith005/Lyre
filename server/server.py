@@ -1,5 +1,6 @@
 import os
 import json
+import sqlite3
 import base64
 import random
 import hashlib
@@ -10,6 +11,7 @@ from primes import genPrime
 
 app = Flask(__name__)
 
+DATABASE_URL = "./data.db"
 
 
 # Helpers
@@ -119,8 +121,31 @@ def decrypt(ciphertext, key):
 
 
 # User creation and authentication
-def authUser():
-    return true
+def authUser(signature):
+    parsed = signature.split("-")
+    userID = parsed[0]
+
+    user = getUser(userID)
+    if user == False:
+        return False
+
+    secret = parsed[1]
+    encoded_cypher = parsed[2]
+    message_len = int(parsed[3])
+
+    hashed = hash(secret)
+    decoded_cypher = decode(encoded_cypher)
+    key = (int(user['sig_key']['public']), int(user['sig_key']['mod']))
+    decrypted = decrypt(decoded_cypher, key)
+    match = unpad(decrypted, message_len)
+
+    if match == False:
+        return False
+
+    if hashed == match:
+        return True
+    else :
+        return False
 
 @app.post("/auth/register")
 def createUser():
@@ -168,8 +193,8 @@ def createUser():
 
 
 # GET methods
-@app.get("/tracks/<string:filter>")
-def getTracks(filter):
+@app.get("/tracks/<string:filter_text>")
+def searchTracks(filter_text):
     auth_token = request.headers.get("AppToken")
     signature = request.headers.get("Signature")
 
@@ -177,27 +202,30 @@ def getTracks(filter):
         data = json.load(file)
 
         if (auth_token == data['AppToken']):
-            parsed = signature.split("-")
-            userID = parsed[0]
+            if authUser(signature):
+                sql = "SELECT * FROM Tracks WHERE title LIKE ? ORDER BY title ASC"
+                tracks = []
 
-            user = getUser(userID)
-            if user == False:
-                return "User not found", 400
+                try:
+                    with sqlite3.connect(DATABASE_URL) as conn:
+                        cursor = conn.cursor()
+                        cursor.execute(sql, (f"%{filter_text}%",))
 
-            secret = parsed[1]
-            encoded_cypher = parsed[2]
-            message_len = int(parsed[3])
+                        for row in cursor.fetchall():
+                            track = {
+                                "track_id": row[0],
+                                "title": row[1],
+                                "artist": row[2],
+                                "duration": row[3],
+                                "contributor": row[4]
+                            }
+                            tracks.append(track)
 
-            hashed = hash(secret)
-            decoded_cypher = decode(encoded_cypher)
-            key = (int(user['sig_key']['public']), int(user['sig_key']['mod']))
-            decrypted = decrypt(decoded_cypher, key)
-            match = unpad(decrypted, message_len)
+                except sqlite3.Error as e:
+                    print(f"Could not load tracks: {e}")
 
-            if match == False:
-                return "Invalid Signature", 401
+                return tracks
 
-            if hashed == match:
                 return "Success", 200
             else :
                 return "Invalid Signature", 401

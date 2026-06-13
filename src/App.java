@@ -1105,6 +1105,22 @@ public class App extends Application {
             "-fx-text-fill: #ffffff;"
         );
 
+        TextField urlField = new TextField();
+        urlField.setPromptText("Enter server url...");
+        urlField.setPrefWidth(260);
+        urlField.setPrefHeight(38);
+        urlField.setStyle(
+            "-fx-background-color: #1e1e1e;" +
+            "-fx-text-fill: #ffffff;" +
+            "-fx-prompt-text-fill: #555555;" +
+            "-fx-border-color: #2a2a2a;" +
+            "-fx-border-radius: 6;" +
+            "-fx-background-radius: 6;" +
+            "-fx-border-width: 1.5;" +
+            "-fx-font-size: 14px;" +
+            "-fx-padding: 0 12;"
+        );
+
         TextField authField = new TextField();
         authField.setPromptText("Enter server access token...");
         authField.setPrefWidth(260);
@@ -1149,7 +1165,7 @@ public class App extends Application {
         );
         submitBtn.setDefaultButton(true);
 
-        VBox inputs = new VBox(10, authField, inputField);
+        VBox inputs = new VBox(10, urlField, authField, inputField);
         HBox inputRow = new HBox(10, inputs, submitBtn);
         inputRow.setAlignment(Pos.CENTER_LEFT);
         HBox.setHgrow(inputField, Priority.ALWAYS);
@@ -1187,6 +1203,8 @@ public class App extends Application {
         Runnable handleSubmit = () -> {
             String username = inputField.getText().trim();
             String token = authField.getText().trim();
+            String url = urlField.getText().trim();
+
             if (username.isEmpty()) {
                 inputField.setStyle(
                     "-fx-background-color: #1e1e1e;" +
@@ -1202,7 +1220,7 @@ public class App extends Application {
                 return;
             }
             try {
-                String message = serverClient.createAndRegister(token, username);
+                String message = serverClient.createAndRegister(url, token, username);
                 if (message == null) {
                     rootPane.getChildren().remove(glass);
                     rootContent.setEffect(null);
@@ -1223,8 +1241,7 @@ public class App extends Application {
         };
 
         submitBtn.setOnAction(e -> handleSubmit.run());
-        inputField.setOnAction(e -> handleSubmit.run());
-        inputField.requestFocus();
+        urlField.requestFocus();
     }
     
     public static void main(String[] args) {

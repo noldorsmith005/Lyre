@@ -1,10 +1,11 @@
 #!/bin/bash
 JFX=../lib/javafx-sdk-26.0.1/lib
 SQLite=../lib/sqlite-jdbc/sqlite-jdbc-3.53.1.0.jar
+GSON=../lib/gson-2.11.0/gson-2.11.0.jar
 MODS=javafx.controls,javafx.fxml,javafx.media
 
 echo "Compiling..."
-javac --module-path "$JFX" --add-modules $MODS -classpath "$SQLite" ./App.java ./MediaHandler.java ./DragHandler.java ./ServerClient.java -d ../bin 2>&1 | head -20
+javac --module-path "$JFX" --add-modules $MODS -classpath "$SQLite:$GSON" ./App.java ./MediaHandler.java ./DragHandler.java ./ServerClient.java -d ../bin 2>&1 | head -20
 
 if [ ${PIPESTATUS[0]} -eq 0 ]; then
     echo "Packaging..."
@@ -12,7 +13,7 @@ if [ ${PIPESTATUS[0]} -eq 0 ]; then
 
     echo "Running..."
     java --module-path "$JFX" --add-modules $MODS \
-    -cp "./Napster.jar:$SQLite" \
+    -cp "./Napster.jar:$SQLite:$GSON" \
     --enable-native-access=javafx.graphics,javafx.media,ALL-UNNAMED \
     Napster.App
 else

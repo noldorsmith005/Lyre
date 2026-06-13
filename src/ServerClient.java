@@ -14,15 +14,16 @@ import java.math.BigInteger;
 import java.security.SecureRandom;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import com.google.gson.Gson;
 
 
 
 
 class ServerClient {
-    static String SERVER_URL = "http://127.0.0.1:8080";
     static String CONFIG_FILE = "client.config";
     HttpClient client = HttpClient.newHttpClient();
 
+    private static String appUrl = null;
     private static String appKey = null;
     private static BigInteger userID = BigInteger.ZERO;
     private static BigInteger serverKeyPublic = BigInteger.ZERO;
@@ -33,6 +34,48 @@ class ServerClient {
     public ServerClient() {
         loadRLSConfig();
     }
+
+
+    // RLS Client Configuration File
+    private static void saveRLSConfig() {
+        Properties prop = new Properties();
+
+        prop.setProperty("appUrl", appUrl != null ? appUrl : "");
+        prop.setProperty("appKey", appKey != null ? appKey : "");
+        prop.setProperty("user-id", userID.toString());
+        prop.setProperty("server-key-public", serverKeyPublic.toString());
+        prop.setProperty("server-key-mod", serverKeyMod.toString());
+        prop.setProperty("sig-key-private", sigKeyPrivate.toString());
+        prop.setProperty("sig-key-mod", sigKeyMod.toString());
+
+        try (FileOutputStream out = new FileOutputStream(CONFIG_FILE)) {
+            prop.store(out, "RLS Client Configuration File");
+        } catch (IOException e) {
+            System.err.println("Error saving file: " + e.getMessage());
+        }
+    }
+
+    private static void loadRLSConfig() {
+        Properties prop = new Properties();
+
+        try (FileInputStream in = new FileInputStream(CONFIG_FILE)) {
+            prop.load(in);
+
+            appUrl = prop.getProperty("appUrl");
+            appKey = prop.getProperty("appKey");
+            userID = new BigInteger(prop.getProperty("user-id"));
+            serverKeyPublic = new BigInteger(prop.getProperty("server-key-public"));
+            serverKeyMod = new BigInteger(prop.getProperty("server-key-mod"));
+            sigKeyPrivate = new BigInteger(prop.getProperty("sig-key-private"));
+            sigKeyMod = new BigInteger(prop.getProperty("sig-key-mod"));
+
+        } catch (IOException e) {
+            System.err.println("File not found, using zero defaults. ");
+        } catch (NumberFormatException e) {
+            System.err.println("Invalid config file format. ");
+        }
+    }
+
 
     // Cryptography Helpers
     private record Key(BigInteger publicKey, BigInteger privateKey, BigInteger mod) {}
@@ -156,52 +199,13 @@ class ServerClient {
     }
 
 
-    // RLS Client Configuration File
-    private static void saveRLSConfig() {
-        Properties prop = new Properties();
-
-        prop.setProperty("appkey", appKey != null ? appKey : "");
-        prop.setProperty("user-id", userID.toString());
-        prop.setProperty("server-key-public", serverKeyPublic.toString());
-        prop.setProperty("server-key-mod", serverKeyMod.toString());
-        prop.setProperty("sig-key-private", sigKeyPrivate.toString());
-        prop.setProperty("sig-key-mod", sigKeyMod.toString());
-
-        try (FileOutputStream out = new FileOutputStream(CONFIG_FILE)) {
-            prop.store(out, "RLS Client Configuration File");
-        } catch (IOException e) {
-            System.err.println("Error saving file: " + e.getMessage());
-        }
-    }
-
-    private static void loadRLSConfig() {
-        Properties prop = new Properties();
-
-        try (FileInputStream in = new FileInputStream(CONFIG_FILE)) {
-            prop.load(in);
-
-            appKey = prop.getProperty("appkey");
-            userID = new BigInteger(prop.getProperty("user-id"));
-            serverKeyPublic = new BigInteger(prop.getProperty("server-key-public"));
-            serverKeyMod = new BigInteger(prop.getProperty("server-key-mod"));
-            sigKeyPrivate = new BigInteger(prop.getProperty("sig-key-private"));
-            sigKeyMod = new BigInteger(prop.getProperty("sig-key-mod"));
-
-        } catch (IOException e) {
-            System.err.println("File not found, using zero defaults. ");
-        } catch (NumberFormatException e) {
-            System.err.println("Invalid config file format. ");
-        }
-    }
-
-
     // User registration and authentication
     public boolean registered() {
         return appKey != null && !appKey.isEmpty();
     }
 
-    public String createAndRegister(String appToken, String username) throws Exception {
-        String targetUrl = SERVER_URL + "/auth/register";
+    public String createAndRegister(String serverUrl, String appToken, String username) throws Exception {
+        String targetUrl = serverUrl + "/auth/register";
 
         Key key = genKey();
 
@@ -227,6 +231,7 @@ class ServerClient {
             return "Username already exists. ";
         }
 
+        appUrl = serverUrl;
         appKey = appToken;
         userID = new BigInteger(parsed[0]);
         serverKeyPublic = new BigInteger(parsed[1]);
@@ -241,7 +246,7 @@ class ServerClient {
 
     // GET methods
     public void searchTracks(String filter) throws Exception {
-        String targetUrl = SERVER_URL + "/tracks/" + filter;
+        String targetUrl = appUrl + "/tracks/" + filter;
         HttpRequest request = HttpRequest.newBuilder()
             .uri(URI.create(targetUrl))
             .header("AppToken", appKey)
@@ -266,7 +271,7 @@ class ServerClient {
     }
 
     public void download(String type, int id) throws Exception {
-        String targetUrl = SERVER_URL + "/tracks/" + id + "/download/" + type;
+        String targetUrl = appUrl + "/tracks/" + id + "/download/" + type;
         Path targetLocalFile = Paths.get("prod.txt");
 
         HttpRequest request = HttpRequest.newBuilder()
