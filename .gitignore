@@ -1,0 +1,11 @@
+server/audio/
+server/cover/
+server/__pycache__/
+server/data.db
+server/sqlite.py
+server/reader.py
+
+lib/
+
+*.DS_Store
+
