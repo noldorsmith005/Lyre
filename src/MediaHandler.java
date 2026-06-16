@@ -24,8 +24,8 @@ import javafx.scene.image.ImageView;
 
 
 public class MediaHandler {
-	private String databaseUrl = "jdbc:sqlite:" + System.getProperty("user.home") + "/Library/Application Support/Napster/data.db";
-	private String assetsUrl = System.getProperty("user.home") + "/Library/Application Support/Napster";
+	private static String databaseUrl = "jdbc:sqlite:" + System.getProperty("user.home") + "/Library/Application Support/Napster/data.db";
+	private static String assetsUrl = System.getProperty("user.home") + "/Library/Application Support/Napster";
 
 	private void log(String message) {
 	    try (java.io.FileWriter fw = new java.io.FileWriter("/tmp/Napster-debug.log", true)) {
@@ -37,13 +37,16 @@ public class MediaHandler {
 
     public static class Track {
 		int trackID;
-		String title, artist, duration;
+		boolean downloaded;
+		String title, artist, duration, contributor;
 
-		Track(int trackID, String title, String artist, String duration) {
+		Track(int trackID, String title, String artist, String duration, boolean downloaded, String contributor) {
 		    this.trackID = trackID;
 		    this.title = title;
 		    this.artist = artist;
 		    this.duration = duration;
+		    this.downloaded = downloaded;
+		    this.contributor = contributor;
 		}
     }
 
@@ -560,6 +563,8 @@ public class MediaHandler {
 			return playing;
 		}
     }
+
+    // Database methods
     
 	public ArrayList<Track> searchTracks(String filter) { 
 	    String sql = "SELECT * FROM Tracks WHERE title LIKE ? ORDER BY title ASC"; 
@@ -576,7 +581,9 @@ public class MediaHandler {
 	                    rs.getInt("track_id"), 
 	                    rs.getString("title"), 
 	                    rs.getString("artist"),
-	                    rs.getString("duration") 
+	                    rs.getString("duration"),
+	                    true,
+	                    ""
 	                )); 
 	            } 
 	        }
@@ -635,7 +642,9 @@ public class MediaHandler {
 	                    rs.getInt("track_id"),
 	                    rs.getString("title"),
 	                    rs.getString("artist"),
-	                    rs.getString("duration")
+	                    rs.getString("duration"),
+	                    true,
+	                    ""
 	                ));
 	            }
 	        } catch (java.sql.SQLException e) {
@@ -793,6 +802,21 @@ public class MediaHandler {
 
 	    } catch (java.sql.SQLException e) {
 	        System.err.println("Could not edit playlist title: " + e.getMessage());
+	    }
+	}
+
+	public static void newTrack(Track track) {
+		String sql = "INSERT OR IGNORE INTO Tracks (track_id, title, artist, duration) VALUES (?, ?, ?, ?)";
+	    try (java.sql.Connection conn = java.sql.DriverManager.getConnection(databaseUrl);
+	        java.sql.PreparedStatement pstmt = conn.prepareStatement(sql)) {
+	        pstmt.setInt(1, track.trackID);
+	        pstmt.setString(2, track.title);
+	        pstmt.setString(3, track.artist);
+	        pstmt.setString(4, track.duration);
+	        pstmt.executeUpdate();
+
+	    } catch (java.sql.SQLException e) {
+	        System.err.println("Could not add track: " + e.getMessage());
 	    }
 	}
 

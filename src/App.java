@@ -43,8 +43,8 @@ public class App extends Application {
 
     private MediaHandler mediaHandler = new MediaHandler();
     private MediaHandler.AudioPlayer audioPlayer = mediaHandler.new AudioPlayer(() -> refresh());
-    private DragHandler dragHandler;
     private ServerClient serverClient = new ServerClient();
+    private DragHandler dragHandler;
 
     private Stage mainStage = new Stage();
     private HBox rootContent = new HBox();
@@ -214,7 +214,7 @@ public class App extends Application {
             String query = search.getText();
             if (serverConnection == true) {
                 try {
-                    serverClient.searchTracks(query);
+                    playlist_tracks = serverClient.searchTracks(query);
                 } catch (Exception e) {
                     System.out.println("Something went wrong with the search: " + e.getMessage());
                     e.printStackTrace();
@@ -222,8 +222,8 @@ public class App extends Application {
             }
             else {
                 playlist_tracks = mediaHandler.searchTracks(query);
-                displayAll();
             }
+            displayAll();
         });
 
         Image searchImg = new Image(new File("./resources/search.png").toURI().toString());
@@ -722,7 +722,7 @@ public class App extends Application {
     }
 
     public void refresh() {
-        if (currPlaylist != null) rebuildCards();
+        rebuildCards();
     }
 
     private void refreshTrackList(MediaHandler.Playlist playlist) {
@@ -819,6 +819,12 @@ public class App extends Application {
         Label artistLabel = new Label(track.artist);
         artistLabel.setStyle(
             "-fx-text-fill: #555555;" +
+            "-fx-font-size: 15px;"
+        );
+
+        Label contribLabel = new Label("Uploaded by:  " + track.contributor);
+        contribLabel.setStyle(
+            "-fx-text-fill: #ffffff;" +
             "-fx-font-size: 15px;"
         );
 
@@ -988,11 +994,31 @@ public class App extends Application {
             }
         });
 
+        // Download Button
+        Button downloadBtn = new Button();
+        Image downloadImg = new Image(new File("./resources/download.png").toURI().toString());
+        ImageView downloadGraphic = new ImageView(downloadImg);
+        downloadGraphic.setFitWidth(22);
+        downloadGraphic.setFitHeight(22);
+        downloadGraphic.setPreserveRatio(true);
+        downloadBtn.setGraphic(downloadGraphic);
+        downloadBtn.setStyle("-fx-background-color: transparent; -fx-cursor: hand; -fx-padding: 3;"); 
+        downloadBtn.setOnAction(e -> {
+            serverClient.downloadTrack(track);
+            track.downloaded = true;
+            refresh();
+        });
+
         final HBox card;
-        if (audioPlayer.isPlaying() && audioPlayer.trackPlaying(track)) {
-            card = new HBox(12, playButton, thumbCover, textBlock, buildPlayBars(), spacer, addToQueueBtn, addToPlaylistBtn, space, durationLabel);
-        } else {
-            card = new HBox(12, playButton, thumbCover, textBlock, spacer, addToQueueBtn, addToPlaylistBtn, space, durationLabel);
+        if (track.downloaded == true) {
+            if (audioPlayer.isPlaying() && audioPlayer.trackPlaying(track)) {
+                card = new HBox(12, playButton, thumbCover, textBlock, buildPlayBars(), spacer, addToQueueBtn, addToPlaylistBtn, space, durationLabel);
+            } else {
+                card = new HBox(12, playButton, thumbCover, textBlock, spacer, addToQueueBtn, addToPlaylistBtn, space, durationLabel);
+            }
+        }
+        else {
+            card = new HBox(12, downloadBtn, thumbCover, textBlock, spacer, contribLabel);
         }
 
         card.setAlignment(Pos.CENTER_LEFT);

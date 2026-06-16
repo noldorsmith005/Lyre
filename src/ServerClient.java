@@ -1,27 +1,37 @@
 package Napster;
 
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.*;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.Files;
+import java.nio.file.StandardCopyOption;
 import java.nio.charset.StandardCharsets;
 import java.io.IOException;
 import java.io.FileOutputStream;
 import java.io.FileInputStream;
 import java.util.Base64;
 import java.util.Properties;
+import java.util.ArrayList;
+import java.util.List;
 import java.math.BigInteger;
 import java.security.SecureRandom;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import com.google.gson.Gson;
-
+import com.google.gson.JsonObject;
+import com.google.gson.reflect.TypeToken;
+import java.lang.reflect.Type;
 
 
 
 class ServerClient {
-    static String CONFIG_FILE = "client.config";
+    private static String CONFIG_FILE = "client.config";
+    private static String assetsUrl = System.getProperty("user.home") + "/Library/Application Support/Napster/";
     HttpClient client = HttpClient.newHttpClient();
+
+    Gson gson = new Gson();
 
     private static String appUrl = null;
     private static String appKey = null;
@@ -30,6 +40,7 @@ class ServerClient {
     private static BigInteger serverKeyMod = BigInteger.ZERO;
     private static BigInteger sigKeyPrivate = BigInteger.ZERO;
     private static BigInteger sigKeyMod = BigInteger.ZERO;
+
 
     public ServerClient() {
         loadRLSConfig();
@@ -209,7 +220,11 @@ class ServerClient {
 
         Key key = genKey();
 
-        String jsonBody = "{\"username\":\"" + username + "\",\"public\":\"" + key.publicKey + "\",\"mod\":\"" + key.mod + "\"}";
+        JsonObject json = new JsonObject();
+        json.addProperty("username", username);
+        json.addProperty("public", key.publicKey);
+        json.addProperty("mod", key.mod);
+        String jsonBody = json.toString();
         HttpRequest request = HttpRequest.newBuilder()
             .uri(URI.create(targetUrl))
             .header("Content-Type", "application/json")
@@ -244,9 +259,51 @@ class ServerClient {
         return null;
     }
 
-    // GET methods
-    public void searchTracks(String filter) throws Exception {
-        String targetUrl = appUrl + "/tracks/" + filter;
+    // API Helpers
+    private void download(String type, int id) throws Exception {
+        String targetUrl = appUrl + "/tracks/" + id + "/download/" + type;
+        String ext = type.equals("audio") ? "wav" : "jpg";
+        Path targetLocalFile = Paths.get(assetsUrl + type + "/" + id + "." + ext);
+        Path tmpFile = Paths.get(targetLocalFile + ".part");
+
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(targetUrl))
+            .header("AppToken", appKey)
+            .header("Signature", genSignature())
+            .GET()
+            .build();
+
+        try {
+            HttpResponse<Path> response = client.send(request, HttpResponse.BodyHandlers.ofFile(tmpFile));
+
+            if (response.statusCode() == 200) {
+                Files.move(tmpFile, targetLocalFile, StandardCopyOption.REPLACE_EXISTING);
+            } else {
+                System.err.println("Download failed for " + type + "/" + id +
+                    ": HTTP " + response.statusCode() + " - " + Files.readString(tmpFile));
+                Files.deleteIfExists(tmpFile);
+            }
+        } catch (IOException | InterruptedException e) {
+            System.err.println("An error occurred during transmission: " + e.getMessage());
+        }
+    }
+
+    private void updateDownloads(int id) throws Exception {
+        String targetUrl = appUrl + "/tracks/downloads/update/" + id;
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(targetUrl))
+            .header("AppToken", appKey)
+            .header("Signature", genSignature())
+            .POST(HttpRequest.BodyPublishers.noBody())
+            .build();
+        
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    // API methods
+    public ArrayList<MediaHandler.Track> searchTracks(String filter) throws Exception {
+        String encodedFilter = URLEncoder.encode(filter, StandardCharsets.UTF_8.toString());
+        String targetUrl = appUrl + "/tracks/" + encodedFilter;
         HttpRequest request = HttpRequest.newBuilder()
             .uri(URI.create(targetUrl))
             .header("AppToken", appKey)
@@ -255,44 +312,23 @@ class ServerClient {
             .build();
         
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-        System.out.println(response.statusCode());
-        System.out.println(response.body());
+
+        Type tracksType = new TypeToken<ArrayList<MediaHandler.Track>>(){}.getType();
+        ArrayList<MediaHandler.Track> tracks = gson.fromJson(response.body(), tracksType);
+
+        return tracks;
     }
 
-    public void getTrack(int id) throws Exception {
-        HttpRequest request = HttpRequest.newBuilder()
-            .uri(URI.create("http://127.0.0.1:8080/tracks/filter"))
-            .GET()
-            .build();
-        
-        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-        System.out.println(response.statusCode());
-        System.out.println(response.body());
-    }
-
-    public void download(String type, int id) throws Exception {
-        String targetUrl = appUrl + "/tracks/" + id + "/download/" + type;
-        Path targetLocalFile = Paths.get("prod.txt");
-
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create(targetUrl))
-                .GET()
-                .build();
-
+    public void downloadTrack(MediaHandler.Track track) {
         try {
-            System.out.println("Downloading track from the RLS...");
-            
-            HttpResponse<Path> response = client.send(request, HttpResponse.BodyHandlers.ofFile(targetLocalFile));
-
-            if (response.statusCode() == 200) {
-                System.out.println("Download complete! Saved to: " + response.body().toAbsolutePath());
-            } else {
-                System.err.println("Failed to download. HTTP Error Status: " + response.statusCode());
-            }
-
-        } catch (IOException | InterruptedException e) {
-            System.err.println("An error occurred during transmission: " + e.getMessage());
+            download("audio", track.trackID);
+            download("cover", track.trackID);
+            updateDownloads(track.trackID);
+            MediaHandler.newTrack(track);
+        } catch (Exception e) {
+            System.err.println("Track download failed. ");
         }
+        
     }
 
 }
