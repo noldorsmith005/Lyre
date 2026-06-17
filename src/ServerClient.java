@@ -300,6 +300,19 @@ class ServerClient {
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
+    private void updateRemoveDownloads(int id) throws Exception {
+        String targetUrl = appUrl + "/tracks/downloads/remove/" + id;
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(targetUrl))
+            .header("AppToken", appKey)
+            .header("Signature", genSignature())
+            .POST(HttpRequest.BodyPublishers.noBody())
+            .build();
+        
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+
     // API methods
     public ArrayList<MediaHandler.Track> searchTracks(String filter) throws Exception {
         String encodedFilter = URLEncoder.encode(filter, StandardCharsets.UTF_8.toString());
@@ -329,6 +342,24 @@ class ServerClient {
             System.err.println("Track download failed. ");
         }
         
+    }
+
+    public void removeDownload(MediaHandler.Track track) {
+        Path audioFile = Paths.get(assetsUrl + "audio/" + track.trackID + ".wav");
+        Path coverFile = Paths.get(assetsUrl + "cover/" + track.trackID + ".jpg");
+        try {
+            Files.deleteIfExists(audioFile);
+            Files.deleteIfExists(coverFile);
+        } catch (Exception e) {
+            System.err.println("Error deleting track asset files. ");
+        }
+        MediaHandler.deleteTrack(track);
+
+        try {
+            updateRemoveDownloads(track.trackID);
+        } catch (Exception e) {
+            System.err.println("Remove track from downloads failed. ");
+        }
     }
 
 }

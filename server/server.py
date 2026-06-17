@@ -4,6 +4,7 @@ import sqlite3
 import base64
 import random
 import hashlib
+import urllib.parse
 from flask import Flask, send_file, request, jsonify
 
 from primes import genPrime
@@ -45,6 +46,12 @@ def userExists(username):
             if (user['username'] == username):
                 return True
 
+        return False
+
+def userDownloaded(ids, id):
+    if id in ids:
+        return True 
+    else :
         return False
 
 
@@ -143,7 +150,7 @@ def authUser(signature):
         return False
 
     if hashed == match:
-        return True
+        return userID
     else :
         return False
 
@@ -192,9 +199,10 @@ def createUser():
     return f"{str(id)}-{str(key_pair['public'])}-{str(key_pair['mod'])}", 201
 
 
-# GET methods
+# API methods
 @app.get("/tracks/<string:filter_text>")
 def searchTracks(filter_text):
+    filter_text = urllib.parse.unquote_plus(filter_text)
     auth_token = request.headers.get("AppToken")
     signature = request.headers.get("Signature")
 
@@ -202,63 +210,181 @@ def searchTracks(filter_text):
         data = json.load(file)
 
         if (auth_token == data['AppToken']):
-            if authUser(signature):
+            authorized = authUser(signature)
+            if authorized != False:
+                userID = int(authorized)
+
                 sql = "SELECT * FROM Tracks WHERE title LIKE ? ORDER BY title ASC"
                 tracks = []
-
                 try:
                     with sqlite3.connect(DATABASE_URL) as conn:
                         cursor = conn.cursor()
                         cursor.execute(sql, (f"%{filter_text}%",))
 
                         for row in cursor.fetchall():
+                            contributor = getUser(row[4])['username']
+                            downloaded = userDownloaded(json.loads(row[5]), userID)
+
                             track = {
-                                "track_id": row[0],
+                                "trackID": row[0],
                                 "title": row[1],
                                 "artist": row[2],
                                 "duration": row[3],
-                                "contributor": row[4]
+                                "contributor": contributor,
+                                "downloaded": downloaded
                             }
                             tracks.append(track)
 
                 except sqlite3.Error as e:
                     print(f"Could not load tracks: {e}")
 
-                return tracks
+                return tracks, 200
 
-                return "Success", 200
             else :
                 return "Invalid Signature", 401
 
+        else :
+            return "Invalid App Token", 401
+
+@app.get("/tracks/<int:id>/download/audio")
+def downloadAudioFile(id):
+    auth_token = request.headers.get("AppToken")
+    signature = request.headers.get("Signature")
+
+    with open('./sessions.json', 'r+') as file:
+        data = json.load(file)
+
+        if (auth_token == data['AppToken']):
+            authorized = authUser(signature)
+            if authorized != False:
+                file_path = f"./audio/{id}.wav"
+    
+                if not os.path.exists(file_path):
+                    return {"error": "Audio file not found"}, 404
+                    
+                return send_file(file_path, mimetype="audio/wav")
+
+            else :
+                return "Invalid Signature", 401
+
+        else :
+            return "Invalid App Token", 401
+
+@app.get("/tracks/<int:id>/download/cover")
+def downloadCoverFile(id):
+    auth_token = request.headers.get("AppToken")
+    signature = request.headers.get("Signature")
+
+    with open('./sessions.json', 'r+') as file:
+        data = json.load(file)
+
+        if (auth_token == data['AppToken']):
+            authorized = authUser(signature)
+            if authorized != False:
+                file_path = f"./cover/{id}.jpg"
+                
+                if not os.path.exists(file_path):
+                    return {"error": "Cover file not found"}, 404
+                    
+                return send_file(file_path, mimetype="image/jpeg")
+
+            else :
+                return "Invalid Signature", 401
+
+        else :
+            return "Invalid App Token", 401
+
+@app.post("/tracks/downloads/update/<int:id>")
+def addDownloaded(id):
+    auth_token = request.headers.get("AppToken")
+    signature = request.headers.get("Signature")
+
+    with open('./sessions.json', 'r+') as file:
+        data = json.load(file)
+
+        if (auth_token == data['AppToken']):
+            authorized = authUser(signature)
+            if authorized != False:
+                userID = int(authorized)
+
+                sql1 = "SELECT downloaded_by FROM Tracks WHERE track_id = ?"
+                sql2 = "UPDATE Tracks SET downloaded_by = ? WHERE track_id = ?"
+
+                try:
+                    with sqlite3.connect(DATABASE_URL) as conn:
+                        cursor = conn.cursor()
+
+                        cursor.execute(sql1, (id,))
+                        row = cursor.fetchone()
+
+                        if row is not None:
+                            raw_json = row[0]
+                            if raw_json:
+                                curr_list = json.loads(raw_json)
+                            else:
+                                curr_list = []
+
+                            curr_list.append(userID)
+                            json_string = json.dumps(curr_list)
+                            cursor.execute(sql2, (json_string, id))
+
+                except sqlite3.Error as e:
+                    print(f"Could not load tracks: {e}")
+
+                return "Downloads updated", 201
+
+            else :
+                return "Invalid Signature", 401
+
+        else :
+            return "Invalid App Token", 401
+
+@app.post("/tracks/downloads/remove/<int:id>")
+def removeDownloaded(id):
+    auth_token = request.headers.get("AppToken")
+    signature = request.headers.get("Signature")
+
+    with open('./sessions.json', 'r+') as file:
+        data = json.load(file)
+
+        if (auth_token == data['AppToken']):
+            authorized = authUser(signature)
+            if authorized != False:
+                userID = int(authorized)
+
+                sql1 = "SELECT downloaded_by FROM Tracks WHERE track_id = ?"
+                sql2 = "UPDATE Tracks SET downloaded_by = ? WHERE track_id = ?"
+
+                try:
+                    with sqlite3.connect(DATABASE_URL) as conn:
+                        cursor = conn.cursor()
+
+                        cursor.execute(sql1, (id,))
+                        row = cursor.fetchone()
+
+                        if row is not None:
+                            raw_json = row[0]
+                            if raw_json:
+                                curr_list = json.loads(raw_json)
+                            else:
+                                curr_list = []
+
+                            curr_list.remove(userID)
+                            json_string = json.dumps(curr_list)
+                            cursor.execute(sql2, (json_string, id))
+
+                except sqlite3.Error as e:
+                    print(f"Could not load tracks: {e}")
+
+                return "Downloads updated", 201
+
+            else :
+                return "Invalid Signature", 401
 
         else :
             return "Invalid App Token", 401
 
 
-@app.get("/track/<int:id>")
-def getTrack(id):
-    return {
-        "id": id,
-        "name": "test track",
-    }, 200
-
-@app.get("/tracks/<int:id>/download/audio")
-def downloadAudioFile(id):
-    file_path = f"./assets/audio/{id}.wav"
-    
-    if not os.path.exists(file_path):
-        return {"error": "Audio file not found"}, 404
-        
-    return send_file(file_path, mimetype="audio/wav")
-
-@app.get("/tracks/<int:id>/download/cover")
-def downloadCoverFile(id):
-    file_path = f"./assets/cover/{id}.png"
-    
-    if not os.path.exists(file_path):
-        return {"error": "Cover file not found"}, 404
-        
-    return send_file(file_path, mimetype="image/png")
 
 
 if __name__ == "__main__":

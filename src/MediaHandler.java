@@ -198,6 +198,7 @@ public class MediaHandler {
 	        Region queueSpacer = new Region();
 		    HBox.setHgrow(queueSpacer, Priority.ALWAYS);
 
+		    // Clear Queue Button
 		    clearBtn = new Button("Clear Queue");
 		    clearBtn.setStyle("""
 			-fx-background-color: transparent;
@@ -566,7 +567,7 @@ public class MediaHandler {
 
     // Database methods
     
-	public ArrayList<Track> searchTracks(String filter) { 
+	public static ArrayList<Track> searchTracks(String filter) { 
 	    String sql = "SELECT * FROM Tracks WHERE title LIKE ? ORDER BY title ASC"; 
 	    ArrayList<Track> tracks = new ArrayList<>(); 
 	    
@@ -594,7 +595,7 @@ public class MediaHandler {
 	}
 
 
-    public ArrayList<Playlist> loadPlaylists() {
+    public static ArrayList<Playlist> loadPlaylists() {
 		String sql = "SELECT * FROM Playlists";
 		ArrayList<Playlist> tracks = new ArrayList<>();
 
@@ -616,7 +617,7 @@ public class MediaHandler {
 		return tracks;
     }
     
-	public ArrayList<Track> loadPlaylistTracks(Integer playlistID) {
+	public static ArrayList<Track> loadPlaylistTracks(Integer playlistID) {
 	    List<Integer> ids = new ArrayList<>();
 	    String tableName = "playlist_" + playlistID;
 	    String getTrackIDs = "SELECT * FROM " + tableName + " ORDER BY [order] ASC";
@@ -654,7 +655,7 @@ public class MediaHandler {
 	    return tracks;
 	}
 
-	public void addToPlaylist(Integer playlist_id, Integer track_id) {
+	public static void addToPlaylist(Integer playlist_id, Integer track_id) {
 	    String tableName = "playlist_" + playlist_id;
 	    String sql = "INSERT INTO " + tableName + " ([order], track_id) VALUES ((SELECT COALESCE(MAX([order]), 0) + 1 FROM " + tableName + "), ?);";
 	    try (java.sql.Connection conn = java.sql.DriverManager.getConnection(databaseUrl);
@@ -668,7 +669,7 @@ public class MediaHandler {
 	    }
 	}
 
-	public void removeFromPlaylist(Integer playlist_id, Integer track_id) {
+	public static void removeFromPlaylist(Integer playlist_id, Integer track_id) {
 	    String tableName = "playlist_" + playlist_id;
 	    String sql = "DELETE FROM " + tableName + " WHERE track_id = ?;";
 	    try (java.sql.Connection conn = java.sql.DriverManager.getConnection(databaseUrl);
@@ -682,7 +683,7 @@ public class MediaHandler {
 	    }
 	}
 
-	public void changeTrackOrder(Integer playlist_id, Integer track_id, Integer new_order) {
+	public static void changeTrackOrder(Integer playlist_id, Integer track_id, Integer new_order) {
 	    String tableName = "playlist_" + playlist_id;
 	    String sql = "UPDATE " + tableName + " SET [order] = ? WHERE track_id = ?;";
 	    try (java.sql.Connection conn = java.sql.DriverManager.getConnection(databaseUrl);
@@ -695,7 +696,7 @@ public class MediaHandler {
 	    }
 	}
 
-	public boolean isInPlaylist(Integer playlist_id, Integer track_id) {
+	public static boolean isInPlaylist(Integer playlist_id, Integer track_id) {
 	    String tableName = "playlist_" + playlist_id;
 	    String sql = "SELECT 1 FROM " + tableName + " WHERE track_id = ? LIMIT 1;";
 
@@ -713,7 +714,7 @@ public class MediaHandler {
 	    }
 	}
 
-	public void createPlaylist() {
+	public static void createPlaylist() {
 		// String dbPath = databaseUrl.replace("jdbc:sqlite:", "");
 	    // java.io.File dbFile = new java.io.File(dbPath);
 	    // log("DB exists: " + dbFile.exists());
@@ -765,7 +766,7 @@ public class MediaHandler {
 	    }
 	}
 
-	public void deletePlaylist(Integer playlist_id) {
+	public static void deletePlaylist(Integer playlist_id) {
 	    String tableName = "playlist_" + playlist_id;
 
 	    try (java.sql.Connection conn = java.sql.DriverManager.getConnection(databaseUrl)) {
@@ -792,7 +793,7 @@ public class MediaHandler {
 	    }
 	}
 
-	public void editPlaylistTitle(Integer playlist_id, String newTitle) {
+	public static void editPlaylistTitle(Integer playlist_id, String newTitle) {
 	    String sql = "UPDATE Playlists SET title = ? WHERE playlist_id = ?;";
 	    try (java.sql.Connection conn = java.sql.DriverManager.getConnection(databaseUrl);
 	        java.sql.PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -817,6 +818,37 @@ public class MediaHandler {
 
 	    } catch (java.sql.SQLException e) {
 	        System.err.println("Could not add track: " + e.getMessage());
+	    }
+	}
+
+	public static void deleteTrack(Track track) {
+		String sql_get = "SELECT playlist_id FROM Playlists";
+		String sql = "DELETE FROM Tracks WHERE track_id=?";
+		List<Integer> playlist_ids = new ArrayList<>();
+
+		try (java.sql.Connection conn = java.sql.DriverManager.getConnection(databaseUrl);
+		     java.sql.PreparedStatement pstmt = conn.prepareStatement(sql_get);
+		     java.sql.ResultSet rs = pstmt.executeQuery()) {
+
+		    while (rs.next()) {
+		        playlist_ids.add(rs.getInt("playlist_id"));
+		    }
+
+		} catch (java.sql.SQLException e) {
+		    System.err.println("Could not retrieve playlist ids: " + e.getMessage());
+		}
+
+		for (Integer id : playlist_ids) {
+		    removeFromPlaylist(id, track.trackID);
+		}
+
+	    try (java.sql.Connection conn = java.sql.DriverManager.getConnection(databaseUrl);
+	        java.sql.PreparedStatement pstmt = conn.prepareStatement(sql)) {
+	        pstmt.setInt(1, track.trackID);
+	        pstmt.executeUpdate();
+
+	    } catch (java.sql.SQLException e) {
+	        System.err.println("Could not delete track: " + e.getMessage());
 	    }
 	}
 

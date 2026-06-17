@@ -912,6 +912,22 @@ public class App extends Application {
             playlistContainer.getChildren().add(row);
         }
 
+        // Remove Download Button
+        Button removeBtn = new Button("Remove Download");
+        removeBtn.setStyle("""
+            -fx-background-color: transparent;
+            -fx-background-radius: 50%;
+            -fx-min-width: 20px;
+            -fx-min-height: 20px;
+            -fx-cursor: hand;
+            -fx-text-fill: #ff0000;
+        """);
+        removeBtn.setOnAction(e -> {
+            serverClient.removeDownload(track);
+            playlist_tracks.removeIf(item -> item.trackID == track.trackID);
+            refresh();
+        });
+
         ScrollPane scrollPane = new ScrollPane(playlistContainer);
         scrollPane.setFitToWidth(true);
         scrollPane.setPrefViewportHeight(150);
@@ -924,7 +940,14 @@ public class App extends Application {
             "-fx-padding: 0;" +
             "-fx-border-width: 0;"
         );
-        playlistPopup.getContent().add(scrollPane);
+
+        VBox popupActions = new VBox(12, scrollPane, removeBtn);
+        popupActions.setStyle(
+            "-fx-background-color: #2b2b2b;" +
+            "-fx-padding: 10px;" +
+            "-fx-background-radius: 5px;"
+        );
+        playlistPopup.getContent().add(popupActions);
 
         // Play Button
         Button playButton = new Button();
