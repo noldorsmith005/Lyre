@@ -1,7 +1,7 @@
 # Napster
 
 To Do:
-	-Remaining server features: upload, reauthentication, and change servers
+	-Remaining server features: ping, and clear server config; encrypt any remaining raw
 	-Disable empty queries
 	-No drag on track search
 	-Fix vanishing lines on main screen press

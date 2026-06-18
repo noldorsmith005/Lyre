@@ -1,5 +1,9 @@
 package Napster;
 
+import java.io.File;
+import java.io.IOException;
+import java.io.FileOutputStream;
+import java.io.FileInputStream;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.*;
@@ -8,9 +12,6 @@ import java.nio.file.Paths;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.nio.charset.StandardCharsets;
-import java.io.IOException;
-import java.io.FileOutputStream;
-import java.io.FileInputStream;
 import java.util.Base64;
 import java.util.Properties;
 import java.util.ArrayList;
@@ -23,6 +24,9 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.reflect.TypeToken;
 import java.lang.reflect.Type;
+import javafx.scene.media.Media;
+import javafx.scene.media.MediaPlayer;
+
 
 
 
@@ -35,7 +39,7 @@ class ServerClient {
 
     private static String appUrl = null;
     private static String appKey = null;
-    private static BigInteger userID = BigInteger.ZERO;
+    private static String userID = null;
     private static BigInteger serverKeyPublic = BigInteger.ZERO;
     private static BigInteger serverKeyMod = BigInteger.ZERO;
     private static BigInteger sigKeyPrivate = BigInteger.ZERO;
@@ -53,7 +57,7 @@ class ServerClient {
 
         prop.setProperty("appUrl", appUrl != null ? appUrl : "");
         prop.setProperty("appKey", appKey != null ? appKey : "");
-        prop.setProperty("user-id", userID.toString());
+        prop.setProperty("user-id", userID != null ? userID : "");
         prop.setProperty("server-key-public", serverKeyPublic.toString());
         prop.setProperty("server-key-mod", serverKeyMod.toString());
         prop.setProperty("sig-key-private", sigKeyPrivate.toString());
@@ -74,7 +78,7 @@ class ServerClient {
 
             appUrl = prop.getProperty("appUrl");
             appKey = prop.getProperty("appKey");
-            userID = new BigInteger(prop.getProperty("user-id"));
+            userID = prop.getProperty("user-id");
             serverKeyPublic = new BigInteger(prop.getProperty("server-key-public"));
             serverKeyMod = new BigInteger(prop.getProperty("server-key-mod"));
             sigKeyPrivate = new BigInteger(prop.getProperty("sig-key-private"));
@@ -204,7 +208,7 @@ class ServerClient {
         String secret = genSecret();
         String hashed = hash(secret);
 
-        String signature = userID.toString() + "-" + secret + "-" + sign(hashed);
+        String signature = userID + "-" + secret + "-" + sign(hashed);
 
         return signature;
     }
@@ -248,7 +252,7 @@ class ServerClient {
 
         appUrl = serverUrl;
         appKey = appToken;
-        userID = new BigInteger(parsed[0]);
+        userID = parsed[0];
         serverKeyPublic = new BigInteger(parsed[1]);
         serverKeyMod = new BigInteger(parsed[2]);
         sigKeyPrivate = key.privateKey;
@@ -279,9 +283,34 @@ class ServerClient {
             if (response.statusCode() == 200) {
                 Files.move(tmpFile, targetLocalFile, StandardCopyOption.REPLACE_EXISTING);
             } else {
-                System.err.println("Download failed for " + type + "/" + id +
-                    ": HTTP " + response.statusCode() + " - " + Files.readString(tmpFile));
+                System.err.println("Download failed for " + type + "/" + id + ": HTTP " + response.statusCode() + " - " + Files.readString(tmpFile));
                 Files.deleteIfExists(tmpFile);
+            }
+        } catch (IOException | InterruptedException e) {
+            System.err.println("An error occurred during transmission: " + e.getMessage());
+        }
+    }
+
+    private void upload(String type, String path, String id) throws Exception {
+        String targetUrl = appUrl + "/tracks/" + id + "/upload/" + type;
+        String ext = type.equals("audio") ? "wav" : "jpg";
+        Path localFile = Paths.get(path);
+        String contentType = type.equals("audio") ? "audio/wav" : "image/jpeg";
+
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(targetUrl))
+            .header("AppToken", appKey)
+            .header("Signature", genSignature())
+            .header("Content-Type", contentType)
+            .POST(HttpRequest.BodyPublishers.ofFile(localFile))
+            .build();
+
+        try {
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() == 200) {
+                System.out.println("Upload succeeded for " + type + "/" + id);
+            } else {
+                System.err.println("Upload failed for " + type + "/" + id + ": HTTP " + response.statusCode() + " - " + response.body());
             }
         } catch (IOException | InterruptedException e) {
             System.err.println("An error occurred during transmission: " + e.getMessage());
@@ -300,6 +329,21 @@ class ServerClient {
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
+    private String updateUploads(MediaHandler.Track track) throws Exception {
+        String targetUrl = appUrl + "/tracks/uploads/update";
+        String jsonString = gson.toJson(track);
+        HttpRequest request = HttpRequest.newBuilder()
+            .uri(URI.create(targetUrl))
+            .header("AppToken", appKey)
+            .header("Signature", genSignature())
+            .header("Content-Type", "application/json")
+            .POST(HttpRequest.BodyPublishers.ofString(jsonString))
+            .build();
+        
+        HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+        return response.body();
+    }
+
     private void updateRemoveDownloads(int id) throws Exception {
         String targetUrl = appUrl + "/tracks/downloads/remove/" + id;
         HttpRequest request = HttpRequest.newBuilder()
@@ -310,6 +354,34 @@ class ServerClient {
             .build();
         
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+    }
+
+    private void completeAndUpload(MediaHandler.Track track, String audioPath, String coverPath) {
+        Path filePath = Paths.get(audioPath);
+        File file = filePath.toFile(); 
+        Media media = new Media(file.toURI().toString());
+        MediaPlayer mediaPlayer = new MediaPlayer(media);
+
+        mediaPlayer.setOnReady(() -> {
+            double totalSeconds = media.getDuration().toSeconds();
+
+            long minutes = (long) (totalSeconds / 60);
+            long seconds = (long) (totalSeconds % 60);
+
+            String formattedDuration = String.format("%02d:%02d", minutes, seconds);
+
+            mediaPlayer.dispose();
+
+            track.duration = formattedDuration;
+            try {
+                String newId = updateUploads(track);
+                upload("audio", audioPath, newId);
+                upload("cover", coverPath, newId);
+            } catch (Exception e) {
+                System.err.println("Track upload failed. ");
+            }
+            
+        });
     }
 
 
@@ -341,7 +413,10 @@ class ServerClient {
         } catch (Exception e) {
             System.err.println("Track download failed. ");
         }
-        
+    }
+
+    public void uploadTrack(MediaHandler.Track track, String audioPath, String coverPath) {
+        completeAndUpload(track, audioPath, coverPath);
     }
 
     public void removeDownload(MediaHandler.Track track) {

@@ -13,20 +13,40 @@ from primes import genPrime
 app = Flask(__name__)
 
 DATABASE_URL = "./data.db"
+TRACK_FILE_TYPES = {
+    "cover": {"ext": "jpg", "mimetype": "image/jpeg"},
+    "audio": {"ext": "wav", "mimetype": "audio/wav"},
+}
 
 
 # Helpers
 def genID():
-    id = None
     with open('./sessions.json', 'r') as file:
         data = json.load(file)
         IDs = data['UserIDs']
         while True:
-            id = random.randint(10000, 19999)
+            id = random.randint(10000, 99999)
             if id not in IDs:
                 break
 
     return id
+
+def genTrackID():
+    with sqlite3.connect(DATABASE_URL) as conn:
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT track_id FROM Tracks")
+        
+        existing_ids = {int(row[0]) for row in cursor.fetchall()}
+        
+    while True:
+        new_id = random.randint(10000, 99999)
+        
+        if new_id not in existing_ids:
+            break
+
+    return new_id
+
 
 def getUser(id):
     with open('./sessions.json', 'r') as file:
@@ -246,53 +266,59 @@ def searchTracks(filter_text):
         else :
             return "Invalid App Token", 401
 
-@app.get("/tracks/<int:id>/download/audio")
-def downloadAudioFile(id):
+@app.get("/tracks/<int:id>/download/<any(cover, audio):type>")
+def download(id, type):
     auth_token = request.headers.get("AppToken")
     signature = request.headers.get("Signature")
-
     with open('./sessions.json', 'r+') as file:
         data = json.load(file)
-
-        if (auth_token == data['AppToken']):
-            authorized = authUser(signature)
-            if authorized != False:
-                file_path = f"./audio/{id}.wav"
-    
-                if not os.path.exists(file_path):
-                    return {"error": "Audio file not found"}, 404
-                    
-                return send_file(file_path, mimetype="audio/wav")
-
-            else :
-                return "Invalid Signature", 401
-
-        else :
+        if auth_token != data['AppToken']:
             return "Invalid App Token", 401
+        if authUser(signature) == False:
+            return "Invalid Signature", 401
 
-@app.get("/tracks/<int:id>/download/cover")
-def downloadCoverFile(id):
+    file_info = TRACK_FILE_TYPES[type]
+    file_path = f"./{type}/{id}.{file_info['ext']}"
+
+    if not os.path.exists(file_path):
+        return {"error": f"{type.capitalize()} file not found"}, 404
+
+    return send_file(file_path, mimetype=file_info["mimetype"])
+
+@app.route("/tracks/<int:id>/upload/<type>", methods=["POST"])
+def uploadFile(id, type):
+    if type not in TRACK_FILE_TYPES:
+        return {"error": "Invalid type"}, 400
+
     auth_token = request.headers.get("AppToken")
     signature = request.headers.get("Signature")
-
     with open('./sessions.json', 'r+') as file:
         data = json.load(file)
-
-        if (auth_token == data['AppToken']):
-            authorized = authUser(signature)
-            if authorized != False:
-                file_path = f"./cover/{id}.jpg"
-                
-                if not os.path.exists(file_path):
-                    return {"error": "Cover file not found"}, 404
-                    
-                return send_file(file_path, mimetype="image/jpeg")
-
-            else :
-                return "Invalid Signature", 401
-
-        else :
+        if auth_token != data['AppToken']:
             return "Invalid App Token", 401
+        if authUser(signature) == False:
+            return "Invalid Signature", 401
+
+    ext = TRACK_FILE_TYPES[type]["ext"]
+    dest_dir = f"./{type}"
+    os.makedirs(dest_dir, exist_ok=True)
+    final_path = os.path.join(dest_dir, f"{id}.{ext}")
+    tmp_path = final_path + ".part"
+
+    try:
+        with open(tmp_path, "wb") as f:
+            while True:
+                chunk = request.stream.read(8192)
+                if not chunk:
+                    break
+                f.write(chunk)
+        os.replace(tmp_path, final_path)
+    except Exception as e:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+        return {"error": f"Upload failed: {e}"}, 500
+
+    return {"status": "ok"}, 200
 
 @app.post("/tracks/downloads/update/<int:id>")
 def addDownloaded(id):
@@ -332,6 +358,38 @@ def addDownloaded(id):
                     print(f"Could not load tracks: {e}")
 
                 return "Downloads updated", 201
+
+            else :
+                return "Invalid Signature", 401
+
+        else :
+            return "Invalid App Token", 401
+
+@app.post("/tracks/uploads/update")
+def addUpload():
+    auth_token = request.headers.get("AppToken")
+    signature = request.headers.get("Signature")
+    user_data = request.get_json()
+
+    with open('./sessions.json', 'r+') as file:
+        data = json.load(file)
+
+        if (auth_token == data['AppToken']):
+            authorized = authUser(signature)
+            if authorized != False:
+                userID = int(authorized)
+
+                sql = "INSERT OR IGNORE INTO Tracks (track_id, title, artist, duration, contributor, downloaded_by) VALUES (?, ?, ?, ?, ?, ?)";
+                new_id = genTrackID()
+                try:
+                    with sqlite3.connect(DATABASE_URL) as conn:
+                        cursor = conn.cursor()
+                        cursor.execute(sql, (new_id, user_data['title'], user_data['artist'], user_data['duration'], userID, '[]'))
+
+                except sqlite3.Error as e:
+                    print(f"Could not add track to database: {e}")
+
+                return str(new_id), 201
 
             else :
                 return "Invalid Signature", 401

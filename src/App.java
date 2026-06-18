@@ -6,8 +6,10 @@ import java.util.Optional;
 import java.util.ArrayList;
 import java.util.Random;
 import java.util.concurrent.*;
-import javafx.util.Duration;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
+import java.nio.file.Path;
+import javafx.util.Duration;
 import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -21,11 +23,14 @@ import javafx.scene.input.KeyCode;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.input.MouseEvent;
 import javafx.scene.effect.GaussianBlur;
+import javafx.scene.control.Alert;
+import javafx.scene.control.Alert.AlertType;
 import javafx.scene.Node;
 import javafx.scene.paint.Color;
 import javafx.scene.canvas.Canvas;
 import javafx.stage.Stage;
 import javafx.stage.Popup;
+import javafx.stage.FileChooser;
 import javafx.animation.Timeline;
 import javafx.animation.KeyFrame;
 import javafx.animation.KeyValue;
@@ -67,6 +72,9 @@ public class App extends Application {
 
     private ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private ScheduledFuture<?> hoverTask;
+
+    String audioPath = "";
+    String coverPath = "";
 
 
 
@@ -291,7 +299,7 @@ public class App extends Application {
         );
         rlsBtn.setOnAction(event -> {
             if (serverConnection == false && serverClient.registered() == false) {
-                openModal(mainStage, root);
+                openRegisterModal(mainStage, root);
             }
             else {
                 serverConnection = !serverConnection;
@@ -317,20 +325,47 @@ public class App extends Application {
         );
         updateRlsButtonStyle(serverConnection);
 
-        HBox searchBar = new HBox(8, searchWrapper, rlsBtn);
-        searchBar.setAlignment(Pos.CENTER_LEFT);
-
-        StackPane searchContainer = new StackPane(searchBar);
-        StackPane.setAlignment(clearBtn, Pos.CENTER_RIGHT);
-        StackPane.setMargin(clearBtn, new Insets(0, 8, 0, 0));
+        // Upload Button
+        Button uploadBtn = new Button();
+        Image uploadImg = new Image(new File("./resources/upload.png").toURI().toString());
+        ImageView uploadGraphic = new ImageView(uploadImg);
+        uploadGraphic.setFitWidth(25);
+        uploadGraphic.setFitHeight(25);
+        uploadGraphic.setPreserveRatio(true);
+        uploadBtn.setGraphic(uploadGraphic);
+        uploadBtn.setStyle(
+            "-fx-background-color: transparent;" +
+            "-fx-border-color: transparent;" +
+            "-fx-cursor: hand;" +
+            "-fx-padding: 6;"
+        );
+        uploadBtn.setOnAction(e -> {
+            if (serverConnection == true) {
+                coverPath = "";
+                audioPath = "";
+                openUploadModal(mainStage, root);
+            }
+            else {
+                triggerAlert("Server Error", "Connect to server");
+            }
+        });
 
         // Spacers
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
+        Region searchSpacer = new Region();
+        HBox.setHgrow(searchSpacer, Priority.ALWAYS);
         Region vSpacer = new Region();
         VBox.setVgrow(vSpacer, Priority.ALWAYS);
 
-        // Main Top Bar with search and RLS button
+        HBox searchBar = new HBox(8, searchWrapper, rlsBtn, searchSpacer, uploadBtn);
+        searchBar.setAlignment(Pos.CENTER_LEFT);
+        searchBar.setMaxWidth(Double.MAX_VALUE);
+
+        StackPane searchContainer = new StackPane(searchBar, clearBtn);
+        StackPane.setAlignment(clearBtn, Pos.CENTER_RIGHT);
+        StackPane.setMargin(clearBtn, new Insets(0, 8, 0, 0));
+
         HBox topBar = new HBox(searchContainer);
         topBar.setAlignment(Pos.CENTER_LEFT);
         topBar.setPadding(new Insets(16, 32, 16, 32));
@@ -338,6 +373,7 @@ public class App extends Application {
             "-fx-border-color: transparent transparent #2a2a2a transparent;" +
             "-fx-border-width: 0 0 1 0;"
         );
+        HBox.setHgrow(searchContainer, Priority.ALWAYS);
 
         // Edit Playlist Popup
         Popup editPopup = new Popup();
@@ -652,6 +688,68 @@ public class App extends Application {
 
 
     // ── Helpers ───────────────────────────────────────────────────
+    private void triggerAlert(String titleMsg, String headerMsg) {
+        Alert alert = new Alert(AlertType.ERROR);
+
+        alert.setTitle(titleMsg);
+        alert.setHeaderText(headerMsg);
+        alert.setContentText(null); 
+
+        alert.setContentText(""); 
+
+        DialogPane dialogPane = alert.getDialogPane();
+        dialogPane.setGraphic(null);
+
+        dialogPane.setStyle("-fx-background-color: #2b2b2b;");
+
+        Node headerPanel = dialogPane.lookup(".header-panel");
+        if (headerPanel != null) {
+            headerPanel.setStyle("-fx-background-color: #2b2b2b;");
+        }
+
+        Node contentRegion = dialogPane.lookup(".content-region");
+        if (contentRegion != null) {
+            contentRegion.setStyle("-fx-padding: 0; -fx-max-height: 0; -fx-pref-height: 0; -fx-min-height: 0;");
+            contentRegion.setVisible(false);
+            contentRegion.setManaged(false);
+        }
+
+        Platform.runLater(() -> {
+            dialogPane.lookupAll(".label").forEach(node -> node.setStyle("-fx-text-fill: white;"));
+            
+            Node buttonBar = dialogPane.lookup(".button-bar");
+            if (buttonBar != null) {
+                buttonBar.setStyle("-fx-background-color: #2b2b2b;");
+            }
+
+            Button okButton = (Button) dialogPane.lookupButton(ButtonType.OK);
+            if (okButton != null) {
+                String baseStyle = 
+                    "-fx-background-color: #b32424; " + 
+                    "-fx-text-fill: white; " +
+                    "-fx-border-color: #d32f2f; " +
+                    "-fx-border-radius: 3; " +
+                    "-fx-background-radius: 3; " +
+                    "-fx-font-weight: bold;";
+                    
+                String hoverStyle = 
+                    "-fx-background-color: #d32f2f; " + 
+                    "-fx-text-fill: white; " + 
+                    "-fx-border-color: #ff5252; " + 
+                    "-fx-border-radius: 3; " + 
+                    "-fx-background-radius: 3; " + 
+                    "-fx-font-weight: bold;";
+
+                okButton.setStyle(baseStyle);
+                
+                okButton.setOnMouseEntered(e -> okButton.setStyle(hoverStyle));
+                okButton.setOnMouseExited(e -> okButton.setStyle(baseStyle));
+            }
+        });
+
+        alert.showAndWait();
+    }
+
     private void updateShuffleButtonStyle(boolean isSelected) {
         if (isSelected) {
             shuffleImg = new Image(new File("./resources/shuffle_selected.png").toURI().toString());
@@ -1027,8 +1125,10 @@ public class App extends Application {
         downloadBtn.setGraphic(downloadGraphic);
         downloadBtn.setStyle("-fx-background-color: transparent; -fx-cursor: hand; -fx-padding: 3;"); 
         downloadBtn.setOnAction(e -> {
+            downloadBtn.setDisable(true);
             serverClient.downloadTrack(track);
             track.downloaded = true;
+            downloadBtn.setDisable(false);
             refresh();
         });
 
@@ -1138,13 +1238,15 @@ public class App extends Application {
         return bars;
     }
 
-    private void openModal(Stage owner, StackPane rootPane) {
+    // RLS Registration Modal
+    private void openRegisterModal(Stage owner, StackPane rootPane) {
+        AtomicBoolean dismissable = new AtomicBoolean(true);
+
         Rectangle overlay = new Rectangle();
         overlay.widthProperty().bind(rootPane.widthProperty());
         overlay.heightProperty().bind(rootPane.heightProperty());
         overlay.setFill(Color.rgb(0, 0, 0, 0.65));
         overlay.setMouseTransparent(false);
-        overlay.setOnMouseClicked(e -> e.consume());
         rootContent.setEffect(new GaussianBlur(4));
 
         Label title = new Label("Register a user with the RLS: ");
@@ -1254,7 +1356,7 @@ public class App extends Application {
             String token = authField.getText().trim();
             String url = urlField.getText().trim();
 
-            if (username.isEmpty()) {
+            if (username.isEmpty() || token.isEmpty() || url.isEmpty()) {
                 inputField.setStyle(
                     "-fx-background-color: #1e1e1e;" +
                     "-fx-text-fill: #ffffff;" +
@@ -1289,8 +1391,206 @@ public class App extends Application {
             }
         };
 
-        submitBtn.setOnAction(e -> handleSubmit.run());
+        submitBtn.setOnAction(e -> {
+            dismissable.set(false);
+            submitBtn.setDisable(true);
+            handleSubmit.run();
+            submitBtn.setDisable(false);
+            dismissable.set(true);
+        });
+
         urlField.requestFocus();
+    }
+
+    // Upload Track Modal
+    private void openUploadModal(Stage owner, StackPane rootPane) {
+        AtomicBoolean dismissable = new AtomicBoolean(true);
+        FileChooser fileChooser = new FileChooser();
+        fileChooser.setTitle("Select a File");
+
+        Rectangle overlay = new Rectangle();
+        overlay.widthProperty().bind(rootPane.widthProperty());
+        overlay.heightProperty().bind(rootPane.heightProperty());
+        overlay.setFill(Color.rgb(0, 0, 0, 0.65));
+        overlay.setMouseTransparent(false);
+        rootContent.setEffect(new GaussianBlur(4));
+
+        Label titleLabel = new Label("Upload Track");
+        titleLabel.setStyle(
+            "-fx-font-size: 16px;" +
+            "-fx-font-weight: bold;" +
+            "-fx-text-fill: #ffffff;"
+        );
+
+        TextField titleField = new TextField();
+        titleField.setPromptText("Enter track title...");
+        titleField.setPrefWidth(260);
+        titleField.setPrefHeight(38);
+        titleField.setStyle(
+            "-fx-background-color: #1e1e1e;" +
+            "-fx-text-fill: #ffffff;" +
+            "-fx-prompt-text-fill: #555555;" +
+            "-fx-border-color: #2a2a2a;" +
+            "-fx-border-radius: 6;" +
+            "-fx-background-radius: 6;" +
+            "-fx-border-width: 1.5;" +
+            "-fx-font-size: 14px;" +
+            "-fx-padding: 0 12;"
+        );
+
+        TextField artistField = new TextField();
+        artistField.setPromptText("Enter track artist...");
+        artistField.setPrefWidth(260);
+        artistField.setPrefHeight(38);
+        artistField.setStyle(
+            "-fx-background-color: #1e1e1e;" +
+            "-fx-text-fill: #ffffff;" +
+            "-fx-prompt-text-fill: #555555;" +
+            "-fx-border-color: #2a2a2a;" +
+            "-fx-border-radius: 6;" +
+            "-fx-background-radius: 6;" +
+            "-fx-border-width: 1.5;" +
+            "-fx-font-size: 14px;" +
+            "-fx-padding: 0 12;"
+        );
+
+        Button selectMediaBtn = new Button("Select a media file. ");
+        selectMediaBtn.setPrefHeight(38);
+        selectMediaBtn.setStyle(
+            "-fx-background-color: #808080;" +
+            "-fx-text-fill: white;" +
+            "-fx-font-size: 14px;" +
+            "-fx-padding: 4px 5px;" +
+            "-fx-background-radius: 6;" +
+            "-fx-cursor: hand;"
+        );
+        selectMediaBtn.setOnAction(e -> {
+            fileChooser.getExtensionFilters().clear();
+            FileChooser.ExtensionFilter mediaFilter = new FileChooser.ExtensionFilter("Audio", "*.wav");
+            fileChooser.getExtensionFilters().add(mediaFilter);
+            File selectedFile = fileChooser.showOpenDialog(owner);
+            if (selectedFile != null) {
+                audioPath = selectedFile.toPath().toString();
+            }
+        });
+
+        Button selectCoverBtn = new Button("Select a cover file. ");
+        selectCoverBtn.setPrefHeight(38);
+        selectCoverBtn.setStyle(
+            "-fx-background-color: #808080;" +
+            "-fx-text-fill: white;" +
+            "-fx-font-size: 14px;" +
+            "-fx-padding: 4px 5px;" +
+            "-fx-background-radius: 6;" +
+            "-fx-cursor: hand;"
+        );
+        selectCoverBtn.setOnAction(e -> {
+            fileChooser.getExtensionFilters().clear();
+            FileChooser.ExtensionFilter coverFilter = new FileChooser.ExtensionFilter("Cover", "*.jpg");
+            fileChooser.getExtensionFilters().add(coverFilter);
+            File selectedFile = fileChooser.showOpenDialog(owner);
+            if (selectedFile != null) {
+                coverPath = selectedFile.toPath().toString();
+            }
+        });
+
+        HBox selectRow = new HBox(10, selectMediaBtn, selectCoverBtn);
+
+        Button submitBtn = new Button("Upload");
+        submitBtn.setPrefHeight(38);
+        submitBtn.setStyle(
+            "-fx-background-color: #cc0000;" +
+            "-fx-text-fill: white;" +
+            "-fx-font-size: 14px;" +
+            "-fx-padding: 0 20;" +
+            "-fx-background-radius: 6;" +
+            "-fx-cursor: hand;"
+        );
+        submitBtn.setDefaultButton(true);
+
+        VBox inputs = new VBox(10, titleField, artistField, selectRow);
+        HBox inputRow = new HBox(10, inputs, submitBtn);
+        inputRow.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(titleField, Priority.ALWAYS);
+        titleField.setMaxWidth(Double.MAX_VALUE);
+
+        Label statusLabel = new Label();
+        statusLabel.setVisible(false);
+        statusLabel.setManaged(false);
+        statusLabel.setStyle(
+            "-fx-font-size: 12px;" +
+            "-fx-text-fill: " + ("#ff4444") + ";"
+        );
+
+        VBox card = new VBox(10, titleLabel, inputRow, statusLabel);
+        card.setAlignment(Pos.CENTER_LEFT);
+        card.setPadding(new Insets(24, 28, 24, 28));
+        card.setStyle(
+            "-fx-background-color: #111111;" +
+            "-fx-background-radius: 10;" +
+            "-fx-border-color: #2a2a2a;" +
+            "-fx-border-radius: 10;" +
+            "-fx-border-width: 1;"
+        );
+        card.setMaxSize(600, 300);
+        card.setEffect(null);
+
+        StackPane glass = new StackPane(overlay, card);
+        StackPane.setAlignment(card, Pos.CENTER);
+        glass.prefWidthProperty().bind(rootPane.widthProperty());
+        glass.prefHeightProperty().bind(rootPane.heightProperty());
+        glass.setOnKeyPressed(e -> e.consume());
+        glass.setMouseTransparent(false);
+        rootPane.getChildren().add(glass);
+
+        overlay.setOnMouseClicked(event -> {
+            if (!dismissable.get()) {
+                event.consume();
+                return;
+            }
+            rootPane.getChildren().remove(glass);
+            rootContent.setEffect(null);
+        });
+
+        Runnable handleSubmit = () -> {
+            String title = titleField.getText().trim();
+            String artist = artistField.getText().trim();
+
+            if (title.isEmpty() || artist.isEmpty() || coverPath.equals("") || audioPath.equals("")) {
+                titleField.setStyle(
+                    "-fx-background-color: #1e1e1e;" +
+                    "-fx-text-fill: #ffffff;" +
+                    "-fx-prompt-text-fill: #555555;" +
+                    "-fx-border-color: #cc0000;" +
+                    "-fx-border-radius: 6;" +
+                    "-fx-background-radius: 6;" +
+                    "-fx-border-width: 1.5;" +
+                    "-fx-font-size: 14px;" +
+                    "-fx-padding: 0 12;"
+                );
+                return;
+            }
+            try {
+                MediaHandler.Track newTrack = new MediaHandler.Track(0, title, artist, "", false, "");
+                serverClient.uploadTrack(newTrack, audioPath, coverPath);
+                rootPane.getChildren().remove(glass);
+                rootContent.setEffect(null);
+            } catch (Exception e) {
+                statusLabel.setText(e.getMessage());
+                statusLabel.setVisible(true);
+                statusLabel.setManaged(true);
+            }
+        };
+
+        submitBtn.setOnAction(e -> {
+            dismissable.set(false);
+            submitBtn.setDisable(true);
+            handleSubmit.run();
+            submitBtn.setDisable(false);
+            dismissable.set(true);
+        });
+
+        titleField.requestFocus();
     }
     
     public static void main(String[] args) {
