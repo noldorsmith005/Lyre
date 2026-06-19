@@ -238,29 +238,33 @@ def searchTracks(filter_text):
             if authorized != False:
                 userID = int(authorized)
 
-                sql = "SELECT * FROM Tracks WHERE title LIKE ? ORDER BY title ASC"
-                tracks = []
-                try:
-                    with sqlite3.connect(DATABASE_URL) as conn:
-                        cursor = conn.cursor()
-                        cursor.execute(sql, (f"%{filter_text}%",))
+                if len(filter_text) > 2:
+                    sql = "SELECT * FROM Tracks WHERE title LIKE ? ORDER BY title ASC"
+                    tracks = []
+                    try:
+                        with sqlite3.connect(DATABASE_URL) as conn:
+                            cursor = conn.cursor()
+                            cursor.execute(sql, (f"%{filter_text}%",))
 
-                        for row in cursor.fetchall():
-                            contributor = getUser(row[4])['username']
-                            downloaded = userDownloaded(json.loads(row[5]), userID)
+                            for row in cursor.fetchall():
+                                contributor = getUser(row[4])['username']
+                                downloaded = userDownloaded(json.loads(row[5]), userID)
 
-                            track = {
-                                "trackID": row[0],
-                                "title": row[1],
-                                "artist": row[2],
-                                "duration": row[3],
-                                "contributor": contributor,
-                                "downloaded": downloaded
-                            }
-                            tracks.append(track)
+                                track = {
+                                    "trackID": row[0],
+                                    "title": row[1],
+                                    "artist": row[2],
+                                    "duration": row[3],
+                                    "contributor": contributor,
+                                    "downloaded": downloaded
+                                }
+                                tracks.append(track)
 
-                except sqlite3.Error as e:
-                    print(f"Could not load tracks: {e}")
+                    except sqlite3.Error as e:
+                        print(f"Could not load tracks: {e}")
+
+                else :
+                    return [], 200
 
                 return tracks, 200
 
