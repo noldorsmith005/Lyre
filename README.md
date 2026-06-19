@@ -1,10 +1,9 @@
 # Napster
 
 To Do:
-	-Remaining server features: clear server config; encrypt any remaining raw
+	-Remaining server features: encrypt any remaining raw
 	-Disable empty queries
 	-No drag on track search
-	-Fix vanishing lines on main screen press
 	-Scroll up/down when song dragged out of bounds
 	-Fix search limitations, work around special characters, etc
 	-Support for .mp3, .png, .jpeg

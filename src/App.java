@@ -298,17 +298,17 @@ public class App extends Application {
             "-fx-padding: 6;"
         );
         rlsBtn.setOnAction(event -> {
-            if (serverClient.ping() == true) {
-                if (serverConnection == false && serverClient.registered() == false) {
+            if (serverConnection == false && serverClient.registered() == false) {
                 openRegisterModal(mainStage, root);
-                }
-                else {
+            }
+            else {
+                if (serverClient.ping() == true) {
                     serverConnection = !serverConnection;
                     updateRlsButtonStyle(serverConnection);
                 }
-            }
-            else {
-                triggerAlert("Server Error", "Server Offline");
+                else {
+                    triggerAlert("Server Error", "Server Offline");
+                }
             }
         });
         rlsBtn.setOnMouseEntered(e ->
@@ -355,6 +355,61 @@ public class App extends Application {
             }
         });
 
+        // Clear Server Config Button
+        Button clearConfigBtn = new Button();
+        Image clearConfigImg = new Image(new File("./resources/clear_config.png").toURI().toString());
+        ImageView clearConfigGraphic = new ImageView(clearConfigImg);
+        clearConfigGraphic.setFitWidth(30);
+        clearConfigGraphic.setFitHeight(30);
+        clearConfigGraphic.setPreserveRatio(true);
+        clearConfigBtn.setGraphic(clearConfigGraphic);
+        clearConfigBtn.setStyle(
+            "-fx-background-color: transparent;" +
+            "-fx-border-color: transparent;" +
+            "-fx-cursor: hand;" +
+            "-fx-padding: 6;"
+        );
+        clearConfigBtn.setOnAction(e -> {
+            Alert alert = new Alert(Alert.AlertType.CONFIRMATION);
+            alert.setTitle("Confirm");
+            alert.setHeaderText(null);
+            alert.setGraphic(null);
+            alert.setContentText("Are you sure you want to clear your server configuration? You will have to re-authenticate. ");
+
+            DialogPane dialogPane = alert.getDialogPane();
+            dialogPane.setStyle("-fx-background-color: #2b2b2b;");
+
+            alert.setOnShown(ev -> {
+                Node content = dialogPane.lookup(".content.label");
+                if (content != null) content.setStyle("-fx-text-fill: white;");
+                for (ButtonType bt : dialogPane.getButtonTypes()) {
+                    Button btn = (Button) dialogPane.lookupButton(bt);
+                    if (btn != null) {
+                        if (bt == ButtonType.CANCEL) {
+                            btn.setStyle(
+                                "-fx-background-color: #808080;" +
+                                "-fx-text-fill: white;" +
+                                "-fx-background-radius: 3px;" +
+                                "-fx-cursor: hand;"
+                            );
+                        } else {
+                            btn.setStyle(
+                                "-fx-background-color: #FF0000;" +
+                                "-fx-text-fill: white;" +
+                                "-fx-background-radius: 3px;" +
+                                "-fx-cursor: hand;"
+                            );
+                        }
+                    }
+                }
+            });
+
+            Optional<ButtonType> result = alert.showAndWait();
+            if (result.isPresent() && result.get() == ButtonType.OK) {
+                serverClient.clearRLSConfig();
+            }
+        });
+
         // Spacers
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -363,7 +418,7 @@ public class App extends Application {
         Region vSpacer = new Region();
         VBox.setVgrow(vSpacer, Priority.ALWAYS);
 
-        HBox searchBar = new HBox(8, searchWrapper, rlsBtn, searchSpacer, uploadBtn);
+        HBox searchBar = new HBox(8, searchWrapper, rlsBtn, searchSpacer, uploadBtn, clearConfigBtn);
         searchBar.setAlignment(Pos.CENTER_LEFT);
         searchBar.setMaxWidth(Double.MAX_VALUE);
 

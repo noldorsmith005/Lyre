@@ -92,6 +92,26 @@ class ServerClient {
         }
     }
 
+    public static void clearRLSConfig() {
+        Properties prop = new Properties();
+
+        prop.setProperty("appUrl", "");
+        prop.setProperty("appKey", "");
+        prop.setProperty("user-id", "");
+        prop.setProperty("server-key-public", "0");
+        prop.setProperty("server-key-mod", "0");
+        prop.setProperty("sig-key-private", "0");
+        prop.setProperty("sig-key-mod", "0");
+
+        try (FileOutputStream out = new FileOutputStream(CONFIG_FILE)) {
+            prop.store(out, "RLS Client Configuration File");
+        } catch (IOException e) {
+            System.err.println("Error saving file: " + e.getMessage());
+        }
+        
+        loadRLSConfig();
+    }
+
 
     // Cryptography Helpers
     private record Key(BigInteger publicKey, BigInteger privateKey, BigInteger mod) {}
