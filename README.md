@@ -1,12 +1,13 @@
 # Napster
 
 To Do:
-	-Remaining server features: ping, and clear server config; encrypt any remaining raw
+	-Remaining server features: clear server config; encrypt any remaining raw
 	-Disable empty queries
 	-No drag on track search
 	-Fix vanishing lines on main screen press
 	-Scroll up/down when song dragged out of bounds
 	-Fix search limitations, work around special characters, etc
+	-Support for .mp3, .png, .jpeg
 	-Compressed asset files -> uncompress on load
 	-Optimization: 
 		-Use GraalVM native image to compile the package into a binary, reducing memory and improving speed

@@ -628,7 +628,8 @@ public class App extends Application {
             ".list-view .scroll-bar:vertical { -fx-opacity: 0; -fx-pref-width: 0; }" +
             ".list-view .scroll-bar:vertical .track { -fx-pref-width: 0; }" +
             ".list-view .scroll-bar:vertical .thumb { -fx-pref-width: 0; }" +
-            ".list-view { -fx-focus-color: transparent; -fx-faint-focus-color: transparent; }" +
+            ".list-view { -fx-focus-color: transparent; -fx-faint-focus-color: transparent; -fx-background-insets: 0; }" +
+            ".list-view:focused { -fx-background-insets: 0; }" +
             ".list-view .list-cell { -fx-background-color: #0f0f0f; }" +
             ".list-view .list-cell:filled:selected { -fx-background-color: #0f0f0f; }" +
             ".list-view .list-cell:filled:hover { -fx-background-color: #0f0f0f; }",
