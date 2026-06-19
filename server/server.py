@@ -47,7 +47,6 @@ def genTrackID():
 
     return new_id
 
-
 def getUser(id):
     with open('./sessions.json', 'r') as file:
         data = json.load(file)
@@ -173,6 +172,11 @@ def authUser(signature):
         return userID
     else :
         return False
+
+# Routes
+@app.route('/ping')
+def ping():
+    return 'pong', 200
 
 @app.post("/auth/register")
 def createUser():
@@ -318,7 +322,7 @@ def uploadFile(id, type):
             os.remove(tmp_path)
         return {"error": f"Upload failed: {e}"}, 500
 
-    return {"status": "ok"}, 200
+    return {"status": "ok"}, 201
 
 @app.post("/tracks/downloads/update/<int:id>")
 def addDownloaded(id):

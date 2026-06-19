@@ -10,6 +10,8 @@ To Do:
 	-Compressed asset files -> uncompress on load
 	-Optimization: 
 		-Use GraalVM native image to compile the package into a binary, reducing memory and improving speed
+	-Config/setup scripts
+	-Style README
 
 Napster is an application for sharing, downloading, and playing music. It implements all the classic music streaming service features, like playlist customization, queues, and more. Users can create a group server, connect to it, and upload and download music.
 

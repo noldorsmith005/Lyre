@@ -298,12 +298,17 @@ public class App extends Application {
             "-fx-padding: 6;"
         );
         rlsBtn.setOnAction(event -> {
-            if (serverConnection == false && serverClient.registered() == false) {
+            if (serverClient.ping() == true) {
+                if (serverConnection == false && serverClient.registered() == false) {
                 openRegisterModal(mainStage, root);
+                }
+                else {
+                    serverConnection = !serverConnection;
+                    updateRlsButtonStyle(serverConnection);
+                }
             }
             else {
-                serverConnection = !serverConnection;
-                updateRlsButtonStyle(serverConnection);
+                triggerAlert("Server Error", "Server Offline");
             }
         });
         rlsBtn.setOnMouseEntered(e ->
@@ -1021,9 +1026,14 @@ public class App extends Application {
             -fx-text-fill: #ff0000;
         """);
         removeBtn.setOnAction(e -> {
-            serverClient.removeDownload(track);
-            playlist_tracks.removeIf(item -> item.trackID == track.trackID);
-            refresh();
+            if (serverClient.ping() == true) {
+                serverClient.removeDownload(track);
+                playlist_tracks.removeIf(item -> item.trackID == track.trackID);
+                refresh();
+            }
+            else {
+                triggerAlert("Server Error", "Server Offline");
+            }
         });
 
         ScrollPane scrollPane = new ScrollPane(playlistContainer);

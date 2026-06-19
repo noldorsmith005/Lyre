@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.FileOutputStream;
 import java.io.FileInputStream;
+import java.time.Duration;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.*;
@@ -386,6 +387,23 @@ class ServerClient {
 
 
     // API methods
+    public boolean ping() {
+        try {
+            String targetUrl = appUrl + "/ping";
+            HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create(targetUrl))
+                .header("AppToken", appKey)
+                .GET()
+                .timeout(Duration.ofSeconds(3))
+                .build();
+
+            HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
+            return response.statusCode() == 200;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     public ArrayList<MediaHandler.Track> searchTracks(String filter) throws Exception {
         String encodedFilter = URLEncoder.encode(filter, StandardCharsets.UTF_8.toString());
         String targetUrl = appUrl + "/tracks/" + encodedFilter;
