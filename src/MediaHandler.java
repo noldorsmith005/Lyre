@@ -566,32 +566,56 @@ public class MediaHandler {
     }
 
     // Database methods
-    
-	public static ArrayList<Track> searchTracks(String filter) { 
-	    String sql = "SELECT * FROM Tracks WHERE title LIKE ? ORDER BY title ASC"; 
-	    ArrayList<Track> tracks = new ArrayList<>(); 
-	    
-	    try (java.sql.Connection conn = java.sql.DriverManager.getConnection(databaseUrl); 
-	         java.sql.PreparedStatement pstmt = conn.prepareStatement(sql)) { 
-	        
-	        pstmt.setString(1, "%" + filter + "%");
-	        
-	        try (java.sql.ResultSet rs = pstmt.executeQuery()) {
-	            while (rs.next()) { 
-	                tracks.add(new Track(
-	                    rs.getInt("track_id"), 
-	                    rs.getString("title"), 
-	                    rs.getString("artist"),
-	                    rs.getString("duration"),
-	                    true,
-	                    ""
-	                )); 
-	            } 
+	public static ArrayList<Track> searchTracks(String filter) {
+	    ArrayList<Track> tracks = new ArrayList<>();
+
+	    String normalizedFilter = filter.replaceAll("[^a-zA-Z]", "").toLowerCase();
+
+	    if (normalizedFilter.isEmpty()) {
+	        return tracks;
+	    }
+
+	    String sql = "SELECT * FROM Tracks WHERE NORMALIZE(title) LIKE ? OR NORMALIZE(artist) LIKE ? ORDER BY title ASC";
+
+	    try (java.sql.Connection conn = java.sql.DriverManager.getConnection(databaseUrl)) {
+	        org.sqlite.Function.create(conn, "NORMALIZE", new org.sqlite.Function() {
+			    @Override
+			    protected void xFunc() throws org.sqlite.SQLiteException {
+			        try {
+			            String value = value_text(0);
+			            if (value == null) {
+			                result((String) null);
+			            } else {
+			                result(value.replaceAll("[^a-zA-Z]", "").toLowerCase());
+			            }
+			        } catch (java.sql.SQLException e) {
+			            throw new org.sqlite.SQLiteException("NORMALIZE error: " + e.getMessage(), 
+			                org.sqlite.SQLiteErrorCode.SQLITE_ERROR);
+			        }
+			    }
+			});
+
+	        try (java.sql.PreparedStatement pstmt = conn.prepareStatement(sql)) {
+	            pstmt.setString(1, "%" + normalizedFilter + "%");
+	            pstmt.setString(2, "%" + normalizedFilter + "%");
+
+	            try (java.sql.ResultSet rs = pstmt.executeQuery()) {
+	                while (rs.next()) {
+	                    tracks.add(new Track(
+	                        rs.getInt("track_id"),
+	                        rs.getString("title"),
+	                        rs.getString("artist"),
+	                        rs.getString("duration"),
+	                        true,
+	                        ""
+	                    ));
+	                }
+	            }
 	        }
-	    } catch (java.sql.SQLException e) { 
-	        System.err.println("Could not load tracks: " + e.getMessage()); 
-	    } 
-	    return tracks; 
+	    } catch (java.sql.SQLException e) {
+	        System.err.println("Could not load tracks: " + e.getMessage());
+	    }
+	    return tracks;
 	}
 
 
