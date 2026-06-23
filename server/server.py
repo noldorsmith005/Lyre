@@ -1,4 +1,5 @@
 import os
+import re
 import json
 import sqlite3
 import base64
@@ -239,17 +240,23 @@ def searchTracks(filter_text):
                 userID = int(authorized)
 
                 if len(filter_text) > 2:
-                    sql = "SELECT * FROM Tracks WHERE title LIKE ? ORDER BY title ASC"
+                    def normalize(value):
+                        if value is None:
+                            return None
+                        return re.sub(r'[^a-zA-Z]', '', value).lower()
+
+                    normalized_filter = normalize(filter_text)
+
+                    sql = "SELECT * FROM Tracks WHERE NORMALIZE(title) LIKE ? OR NORMALIZE(artist) LIKE ? ORDER BY title ASC"
                     tracks = []
                     try:
                         with sqlite3.connect(DATABASE_URL) as conn:
+                            conn.create_function("NORMALIZE", 1, normalize)
                             cursor = conn.cursor()
-                            cursor.execute(sql, (f"%{filter_text}%",))
-
+                            cursor.execute(sql, (f"%{normalized_filter}%", f"%{normalized_filter}%"))
                             for row in cursor.fetchall():
                                 contributor = getUser(row[4])['username']
                                 downloaded = userDownloaded(json.loads(row[5]), userID)
-
                                 track = {
                                     "trackID": row[0],
                                     "title": row[1],
@@ -259,7 +266,6 @@ def searchTracks(filter_text):
                                     "downloaded": downloaded
                                 }
                                 tracks.append(track)
-
                     except sqlite3.Error as e:
                         print(f"Could not load tracks: {e}")
 

@@ -1,9 +1,6 @@
 # Napster
 
 To Do:
-	-No drag on track search
-	-Scroll up/down when song dragged out of bounds
-	-Fix search limitations, work around special characters, etc
 	-Support for .mp3, .png, .jpeg
 	-Compressed asset files -> uncompress on load
 	-Optimization: 
