@@ -1,7 +1,6 @@
 # Napster
 
 To Do:
-	-Remaining server features: encrypt any remaining raw
 	-No drag on track search
 	-Scroll up/down when song dragged out of bounds
 	-Fix search limitations, work around special characters, etc

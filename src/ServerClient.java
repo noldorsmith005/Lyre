@@ -377,34 +377,6 @@ class ServerClient {
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
-    private void completeAndUpload(MediaHandler.Track track, String audioPath, String coverPath) {
-        Path filePath = Paths.get(audioPath);
-        File file = filePath.toFile(); 
-        Media media = new Media(file.toURI().toString());
-        MediaPlayer mediaPlayer = new MediaPlayer(media);
-
-        mediaPlayer.setOnReady(() -> {
-            double totalSeconds = media.getDuration().toSeconds();
-
-            long minutes = (long) (totalSeconds / 60);
-            long seconds = (long) (totalSeconds % 60);
-
-            String formattedDuration = String.format("%02d:%02d", minutes, seconds);
-
-            mediaPlayer.dispose();
-
-            track.duration = formattedDuration;
-            try {
-                String newId = updateUploads(track);
-                upload("audio", audioPath, newId);
-                upload("cover", coverPath, newId);
-            } catch (Exception e) {
-                System.err.println("Track upload failed. ");
-            }
-            
-        });
-    }
-
 
     // API methods
     public boolean ping() {
@@ -454,7 +426,31 @@ class ServerClient {
     }
 
     public void uploadTrack(MediaHandler.Track track, String audioPath, String coverPath) {
-        completeAndUpload(track, audioPath, coverPath);
+        Path filePath = Paths.get(audioPath);
+        File file = filePath.toFile(); 
+        Media media = new Media(file.toURI().toString());
+        MediaPlayer mediaPlayer = new MediaPlayer(media);
+
+        mediaPlayer.setOnReady(() -> {
+            double totalSeconds = media.getDuration().toSeconds();
+
+            long minutes = (long) (totalSeconds / 60);
+            long seconds = (long) (totalSeconds % 60);
+
+            String formattedDuration = String.format("%02d:%02d", minutes, seconds);
+
+            mediaPlayer.dispose();
+
+            track.duration = formattedDuration;
+            try {
+                String newId = updateUploads(track);
+                upload("audio", audioPath, newId);
+                upload("cover", coverPath, newId);
+            } catch (Exception e) {
+                System.err.println("Track upload failed. ");
+            }
+            
+        });
     }
 
     public void removeDownload(MediaHandler.Track track) {

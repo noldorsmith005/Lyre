@@ -13,6 +13,7 @@ import javafx.util.Duration;
 import javafx.application.Application;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.geometry.Bounds;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.layout.*;
@@ -72,6 +73,7 @@ public class App extends Application {
 
     private ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private ScheduledFuture<?> hoverTask;
+    private AnimationTimer activeScrollTimer = null;
 
     String audioPath = "";
     String coverPath = "";
@@ -596,7 +598,7 @@ public class App extends Application {
         dragHandler = new DragHandler(() -> {
             updateOrder(currPlaylist.playlistID);
             refreshTrackList(currPlaylist);
-        }, dropCanvas);
+        }, this::autoScroll, dropCanvas);
 
         VBox panel;
         if (currPlaylist != null) {
@@ -667,7 +669,9 @@ public class App extends Application {
                         trackRow.getChildren().add(card);
                     }
 
-                    dragHandler.setupCardDrag(trackRow, track, listView, playlist_tracks);
+                    if (currPlaylist != null) {
+                        dragHandler.setupCardDrag(trackRow, track, listView, playlist_tracks);
+                    }
                     setGraphic(trackRow);
                     setText(null);
                     setStyle(
@@ -882,6 +886,76 @@ public class App extends Application {
 
     public void refresh() {
         rebuildCards();
+    }
+
+    public void autoScroll(String mode) {
+        if (mode.equals("up")) {
+            scrollByCard(track_list, false);
+        }
+        else if (mode.equals("down")) {
+            scrollByCard(track_list, true);
+        }
+        else {
+            System.out.println("Invalid mode. ");
+        }
+    }
+
+    private void scrollByCard(ListView<MediaHandler.Track> listView, boolean scrollDown) {
+        if (activeScrollTimer != null) return;
+
+        final double CARD_HEIGHT = listView.getFixedCellSize();
+
+        Node virtualFlow = listView.lookup(".virtual-flow");
+        if (virtualFlow == null) return;
+
+        try {
+            Method scrollMethod = virtualFlow.getClass().getMethod("scrollPixels", double.class);
+
+            final double[] remaining = { scrollDown ? CARD_HEIGHT : -CARD_HEIGHT };
+            final double STEP = CARD_HEIGHT / 12.0;
+            final double[] lastY = { -1 };
+
+            activeScrollTimer = new AnimationTimer() {
+                @Override
+                public void handle(long now) {
+                    ScrollBar scrollBar = (ScrollBar) listView.lookup(".scroll-bar:vertical");
+                    if (scrollBar != null) {
+                        double currentVal = scrollBar.getValue();
+                        if (lastY[0] != -1 && currentVal == lastY[0] && Math.abs(remaining[0]) > STEP) {
+                            stop();
+                            activeScrollTimer = null;
+                            return;
+                        }
+                        lastY[0] = currentVal;
+                    }
+
+                    double step = Math.copySign(Math.min(Math.abs(remaining[0]), STEP), remaining[0]);
+                    try {
+                        scrollMethod.invoke(virtualFlow, step);
+                    } catch (Exception e) {
+                        stop();
+                        activeScrollTimer = null;
+                        return;
+                    }
+                    remaining[0] -= step;
+                    if (Math.abs(remaining[0]) < 0.5) {
+                        stop();
+                        activeScrollTimer = null;
+                    }
+                }
+            };
+            activeScrollTimer.start();
+
+        } catch (NoSuchMethodException e) {
+            listView.lookupAll(".list-cell").stream()
+                .filter(n -> n instanceof ListCell<?> cell && !cell.isEmpty())
+                .map(n -> (ListCell<?>) n)
+                .mapToInt(ListCell::getIndex)
+                .min()
+                .ifPresent(firstVisible ->
+                    listView.scrollTo(scrollDown ? firstVisible + 1 : Math.max(0, firstVisible - 1))
+                );
+        }
     }
 
     private void refreshTrackList(MediaHandler.Playlist playlist) {
