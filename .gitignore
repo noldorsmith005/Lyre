@@ -6,6 +6,7 @@ server/sqlite.py
 server/reader.py
 
 lib/
+bin/
 
 *.DS_Store
 

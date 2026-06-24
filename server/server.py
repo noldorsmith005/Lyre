@@ -6,7 +6,9 @@ import base64
 import random
 import hashlib
 import urllib.parse
-from flask import Flask, send_file, request, jsonify
+import subprocess
+import shutil
+from flask import Flask, send_file, request, jsonify, after_this_request
 
 from primes import genPrime
 from utils import Utils
@@ -80,6 +82,22 @@ def userDownloaded(ids, id):
         return True 
     else :
         return False
+
+def compressFLAC(wav_path, flac_path):
+    os.makedirs(os.path.dirname(flac_path), exist_ok=True)
+    flac_bin = shutil.which("flac")
+    if not flac_bin:
+        if os.path.exists("/opt/homebrew/bin/flac"):
+            flac_bin = "/opt/homebrew/bin/flac"
+        else:
+            raise FileNotFoundError("flac command-line tool not found on the system.")
+    result = subprocess.run(
+        [flac_bin, "-f", "--silent", wav_path, "-o", flac_path],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.PIPE
+    )
+    if result.returncode != 0:
+        raise Exception(f"FLAC conversion failed with exit code {result.returncode}: {result.stderr.decode('utf-8')}")
 
 
 # Cryptography Helpers
@@ -299,13 +317,35 @@ def download(id, type):
         if authUser(signature) == False:
             return "Invalid Signature", 401
 
-    file_info = TRACK_FILE_TYPES[type]
-    file_path = f"./{type}/{id}.{file_info['ext']}"
+    if type == "audio":
+        wav_path = f"./audio/{id}.wav"
+        if not os.path.exists(wav_path):
+            return {"error": "Audio file not found"}, 404
 
-    if not os.path.exists(file_path):
-        return {"error": f"{type.capitalize()} file not found"}, 404
+        tmp_flac_path = f"./tmp/{id}.flac"
+        try:
+            convert_wav_to_flac(wav_path, tmp_flac_path)
+        except Exception as e:
+            return {"error": f"Failed to convert WAV to FLAC: {e}"}, 500
 
-    return send_file(file_path, mimetype=file_info["mimetype"])
+        @after_this_request
+        def remove_file(response):
+            try:
+                if os.path.exists(tmp_flac_path):
+                    os.remove(tmp_flac_path)
+            except Exception as e:
+                print(f"Error removing temporary FLAC file: {e}")
+            return response
+
+        return send_file(tmp_flac_path, mimetype="audio/flac")
+    else:
+        file_info = TRACK_FILE_TYPES[type]
+        file_path = f"./{type}/{id}.{file_info['ext']}"
+
+        if not os.path.exists(file_path):
+            return {"error": f"{type.capitalize()} file not found"}, 404
+
+        return send_file(file_path, mimetype=file_info["mimetype"])
 
 @app.route("/tracks/<int:id>/upload/<ext>", methods=["POST"])
 def uploadFile(id, ext):

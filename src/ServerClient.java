@@ -287,7 +287,7 @@ class ServerClient {
     // API Helpers
     private void download(String type, int id) throws Exception {
         String targetUrl = appUrl + "/tracks/" + id + "/download/" + type;
-        String ext = type.equals("audio") ? "wav" : "jpg";
+        String ext = type.equals("audio") ? "flac" : "jpg";
         Path targetLocalFile = Paths.get(assetsUrl + type + "/" + id + "." + ext);
         Path tmpFile = Paths.get(targetLocalFile + ".part");
 
@@ -454,10 +454,12 @@ class ServerClient {
     }
 
     public void removeDownload(AudioPlayer.Track track) {
-        Path audioFile = Paths.get(assetsUrl + "audio/" + track.trackID + ".wav");
+        Path wavFile = Paths.get(assetsUrl + "audio/" + track.trackID + ".wav");
+        Path flacFile = Paths.get(assetsUrl + "audio/" + track.trackID + ".flac");
         Path coverFile = Paths.get(assetsUrl + "cover/" + track.trackID + ".jpg");
         try {
-            Files.deleteIfExists(audioFile);
+            Files.deleteIfExists(wavFile);
+            Files.deleteIfExists(flacFile);
             Files.deleteIfExists(coverFile);
         } catch (Exception e) {
             System.err.println("Error deleting track asset files. ");
