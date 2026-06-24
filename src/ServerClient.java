@@ -32,7 +32,7 @@ import javafx.scene.media.MediaPlayer;
 
 
 class ServerClient {
-    private static String CONFIG_FILE = "client.config";
+    private static String CONFIG_FILE = "./client.config";
     private static String assetsUrl = System.getProperty("user.home") + "/Library/Application Support/Napster/";
     HttpClient client = HttpClient.newHttpClient();
 

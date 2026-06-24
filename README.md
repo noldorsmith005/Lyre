@@ -1,12 +1,7 @@
 # Napster
 
 To Do:
-	-Add FLAC support
-	-Config/setup scripts
-	-Optimization: 
-		-Use GraalVM native image to compile the package into a binary, reducing memory and improving speed
 	-Make Mac and Windows installers
-	-Application dist/update hub
 	-Style README
 
 Napster is an application for sharing, downloading, and playing music. It implements all the classic music streaming service features, like playlist customization, queues, and more. Users can create a group server, connect to it, and upload and download music.
