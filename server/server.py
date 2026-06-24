@@ -9,6 +9,7 @@ import urllib.parse
 from flask import Flask, send_file, request, jsonify
 
 from primes import genPrime
+from utils import Utils
 
 
 app = Flask(__name__)
@@ -17,6 +18,12 @@ DATABASE_URL = "./data.db"
 TRACK_FILE_TYPES = {
     "cover": {"ext": "jpg", "mimetype": "image/jpeg"},
     "audio": {"ext": "wav", "mimetype": "audio/wav"},
+}
+SUPPORTED_TYPES = {
+    "jpg": {"type": "cover"},
+    "png": {"type": "cover"},
+    "wav": {"type": "audio"},
+    "mp3": {"type": "audio"},
 }
 
 
@@ -284,6 +291,7 @@ def searchTracks(filter_text):
 def download(id, type):
     auth_token = request.headers.get("AppToken")
     signature = request.headers.get("Signature")
+
     with open('./sessions.json', 'r+') as file:
         data = json.load(file)
         if auth_token != data['AppToken']:
@@ -299,13 +307,11 @@ def download(id, type):
 
     return send_file(file_path, mimetype=file_info["mimetype"])
 
-@app.route("/tracks/<int:id>/upload/<type>", methods=["POST"])
-def uploadFile(id, type):
-    if type not in TRACK_FILE_TYPES:
-        return {"error": "Invalid type"}, 400
-
+@app.route("/tracks/<int:id>/upload/<ext>", methods=["POST"])
+def uploadFile(id, ext):
     auth_token = request.headers.get("AppToken")
     signature = request.headers.get("Signature")
+
     with open('./sessions.json', 'r+') as file:
         data = json.load(file)
         if auth_token != data['AppToken']:
@@ -313,11 +319,18 @@ def uploadFile(id, type):
         if authUser(signature) == False:
             return "Invalid Signature", 401
 
-    ext = TRACK_FILE_TYPES[type]["ext"]
+    if not ext in SUPPORTED_TYPES:
+        return "Invalid file type", 415
+
+    type = SUPPORTED_TYPES[ext]['type']
     dest_dir = f"./{type}"
     os.makedirs(dest_dir, exist_ok=True)
-    final_path = os.path.join(dest_dir, f"{id}.{ext}")
-    tmp_path = final_path + ".part"
+    if type == "audio":
+        final_path = os.path.join(dest_dir, f"{id}.wav")
+        tmp_path = f"./tmp/{id}.wav"
+    else :
+        final_path = os.path.join(dest_dir, f"{id}.jpg")
+        tmp_path = f"./tmp/{id}.jpg"
 
     try:
         with open(tmp_path, "wb") as f:
@@ -326,7 +339,14 @@ def uploadFile(id, type):
                 if not chunk:
                     break
                 f.write(chunk)
+
+        if type == "audio" and ext == "mp3":
+            Utils.toWav(id)
+        if type == "cover" and ext == "png":
+            Utils.toJpg(id)
+
         os.replace(tmp_path, final_path)
+
     except Exception as e:
         if os.path.exists(tmp_path):
             os.remove(tmp_path)

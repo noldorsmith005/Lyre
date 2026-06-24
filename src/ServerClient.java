@@ -313,8 +313,8 @@ class ServerClient {
     }
 
     private void upload(String type, String path, String id) throws Exception {
-        String targetUrl = appUrl + "/tracks/" + id + "/upload/" + type;
         String ext = type.equals("audio") ? "wav" : "jpg";
+        String targetUrl = appUrl + "/tracks/" + id + "/upload/" + ext;
         Path localFile = Paths.get(path);
         String contentType = type.equals("audio") ? "audio/wav" : "image/jpeg";
 
@@ -328,7 +328,7 @@ class ServerClient {
 
         try {
             HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-            if (response.statusCode() == 200) {
+            if (response.statusCode() == 201) {
                 System.out.println("Upload succeeded for " + type + "/" + id);
             } else {
                 System.err.println("Upload failed for " + type + "/" + id + ": HTTP " + response.statusCode() + " - " + response.body());

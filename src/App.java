@@ -222,18 +222,20 @@ public class App extends Application {
         search.setPrefHeight(50);
         search.setOnAction(event -> {
             String query = search.getText();
-            if (serverConnection == true) {
-                try {
-                    playlist_tracks = serverClient.searchTracks(query);
-                } catch (Exception e) {
-                    System.out.println("Something went wrong with the search: " + e.getMessage());
-                    e.printStackTrace();
+            if (query.strip().isEmpty() == false) {
+                if (serverConnection == true) {
+                    try {
+                        playlist_tracks = serverClient.searchTracks(query);
+                    } catch (Exception e) {
+                        System.out.println("Something went wrong with the search: " + e.getMessage());
+                        e.printStackTrace();
+                    }
                 }
+                else {
+                    playlist_tracks = mediaHandler.searchTracks(query);
+                }
+                displayAll();
             }
-            else {
-                playlist_tracks = mediaHandler.searchTracks(query);
-            }
-            displayAll();
         });
 
         Image searchImg = new Image(new File("./resources/search.png").toURI().toString());
@@ -1321,7 +1323,7 @@ public class App extends Application {
                 popup.getContent().add(popupLabel);
                 popup.show(card.getScene().getWindow(), x, y - 30);
                 activePopup[0] = popup;
-            }), 1, TimeUnit.SECONDS);
+            }), 2, TimeUnit.SECONDS);
         });
 
         card.setOnMouseExited(e -> {
@@ -1606,7 +1608,7 @@ public class App extends Application {
         );
         selectMediaBtn.setOnAction(e -> {
             fileChooser.getExtensionFilters().clear();
-            FileChooser.ExtensionFilter mediaFilter = new FileChooser.ExtensionFilter("Audio", "*.wav");
+            FileChooser.ExtensionFilter mediaFilter = new FileChooser.ExtensionFilter("Audio Files", "*.wav", "*.mp3");
             fileChooser.getExtensionFilters().add(mediaFilter);
             File selectedFile = fileChooser.showOpenDialog(owner);
             if (selectedFile != null) {
@@ -1626,7 +1628,7 @@ public class App extends Application {
         );
         selectCoverBtn.setOnAction(e -> {
             fileChooser.getExtensionFilters().clear();
-            FileChooser.ExtensionFilter coverFilter = new FileChooser.ExtensionFilter("Cover", "*.jpg");
+            FileChooser.ExtensionFilter coverFilter = new FileChooser.ExtensionFilter("Cover", "*.jpg", "*.png");
             fileChooser.getExtensionFilters().add(coverFilter);
             File selectedFile = fileChooser.showOpenDialog(owner);
             if (selectedFile != null) {
