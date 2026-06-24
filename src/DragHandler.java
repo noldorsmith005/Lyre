@@ -21,14 +21,14 @@ import javafx.animation.AnimationTimer;
 
 
 public class DragHandler {
-    private MediaHandler.Track draggedTrack = null;
+    private AudioPlayer.Track draggedTrack = null;
     private int dragSourceIndex = -1;
     private String currentZone = null;
     private AnimationTimer zoneTimer = null;
     private final Runnable onReorder;
     private final Consumer<String> autoScroll;
     private final Canvas dropCanvas;
-    private ListView<MediaHandler.Track> trackList = null;
+    private ListView<AudioPlayer.Track> trackList = null;
     private double lastMouseSceneY = -1;
 
     public DragHandler(Runnable onReorder, Consumer<String> autoScroll, Canvas dropCanvas) {
@@ -37,7 +37,7 @@ public class DragHandler {
         this.dropCanvas = dropCanvas;
     }
 
-    public void setupCardDrag(HBox card, MediaHandler.Track track, ListView<MediaHandler.Track> trackList, List<MediaHandler.Track> tracks) {
+    public void setupCardDrag(HBox card, AudioPlayer.Track track, ListView<AudioPlayer.Track> trackList, List<AudioPlayer.Track> tracks) {
         this.trackList = trackList;
         card.setCursor(Cursor.OPEN_HAND);
 
@@ -202,11 +202,11 @@ public class DragHandler {
         }
     }
 
-    private void drawIndicator(ListView<MediaHandler.Track> trackList, int dropIndex) {
+    private void drawIndicator(ListView<AudioPlayer.Track> trackList, int dropIndex) {
         GraphicsContext gc = dropCanvas.getGraphicsContext2D();
         gc.clearRect(0, 0, dropCanvas.getWidth(), dropCanvas.getHeight());
 
-        ListCell<MediaHandler.Track> ref = cellAt(trackList, dropIndex);
+        ListCell<AudioPlayer.Track> ref = cellAt(trackList, dropIndex);
         boolean atTop = ref != null;
         if (ref == null) ref = cellAt(trackList, dropIndex - 1);
         if (ref == null) return;
@@ -233,7 +233,7 @@ public class DragHandler {
         dropCanvas.getGraphicsContext2D().clearRect(0, 0, dropCanvas.getWidth(), dropCanvas.getHeight());
     }
 
-    private int getDropIndex(ListView<MediaHandler.Track> trackList, double sceneY) {
+    private int getDropIndex(ListView<AudioPlayer.Track> trackList, double sceneY) {
         int count = trackList.getItems().size();
         int index = count;
         for (Node n : trackList.lookupAll(".list-cell")) {
@@ -249,11 +249,11 @@ public class DragHandler {
     }
 
     @SuppressWarnings("unchecked")
-    private ListCell<MediaHandler.Track> cellAt(ListView<MediaHandler.Track> trackList, int index) {
+    private ListCell<AudioPlayer.Track> cellAt(ListView<AudioPlayer.Track> trackList, int index) {
         if (index < 0) return null;
         for (Node n : trackList.lookupAll(".list-cell")) {
             if (n instanceof ListCell<?> cell && !cell.isEmpty() && cell.getIndex() == index) {
-                return (ListCell<MediaHandler.Track>) cell;
+                return (ListCell<AudioPlayer.Track>) cell;
             }
         }
         return null;

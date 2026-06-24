@@ -47,8 +47,7 @@ import javafx.event.EventHandler;
 public class App extends Application {
     private String assetsUrl = System.getProperty("user.home") + "/Library/Application Support/Napster";
 
-    private MediaHandler mediaHandler = new MediaHandler();
-    private MediaHandler.AudioPlayer audioPlayer = mediaHandler.new AudioPlayer(() -> refresh());
+    private AudioPlayer audioPlayer = new AudioPlayer(() -> refresh());
     private ServerClient serverClient = new ServerClient();
     private DragHandler dragHandler;
 
@@ -64,12 +63,12 @@ public class App extends Application {
     private Button shuffleBtn = new Button();
     private Image rlsImg = new Image(new File("./resources/library_unselected.png").toURI().toString());
     private Button rlsBtn = new Button();
-    private ListView<MediaHandler.Track> track_list;
-    private MediaHandler.Playlist currPlaylist;
+    private ListView<AudioPlayer.Track> track_list;
+    private AudioPlayer.Playlist currPlaylist;
     private VBox itemList = new VBox(2);
     private VBox sidebarVBox;
-    private ArrayList<MediaHandler.Playlist> playlists = new ArrayList<>();
-    private ArrayList<MediaHandler.Track> playlist_tracks = new ArrayList<>();
+    private ArrayList<AudioPlayer.Playlist> playlists = new ArrayList<>();
+    private ArrayList<AudioPlayer.Track> playlist_tracks = new ArrayList<>();
 
     private ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
     private ScheduledFuture<?> hoverTask;
@@ -82,7 +81,7 @@ public class App extends Application {
 
     @Override
     public void start(Stage stage) {
-        playlists = mediaHandler.loadPlaylists();
+        playlists = MediaHandler.loadPlaylists();
 
         rootContent.setStyle("-fx-background-color: #000000;"); // #0f0f0f
 
@@ -159,7 +158,7 @@ public class App extends Application {
             "-fx-cursor: hand;"
         ));
         newBtn.setOnMouseClicked(e -> {
-            mediaHandler.createPlaylist();
+            MediaHandler.createPlaylist();
             refreshSidebarList();
         });
 
@@ -232,7 +231,7 @@ public class App extends Application {
                     }
                 }
                 else {
-                    playlist_tracks = mediaHandler.searchTracks(query);
+                    playlist_tracks = MediaHandler.searchTracks(query);
                 }
                 displayAll();
             }
@@ -461,7 +460,7 @@ public class App extends Application {
             "-fx-padding: 8px 15px;"
         );
         editTextField.setOnAction(e -> {
-            mediaHandler.editPlaylistTitle(currPlaylist.playlistID, editTextField.getText());
+            MediaHandler.editPlaylistTitle(currPlaylist.playlistID, editTextField.getText());
             panelTitle.setText(editTextField.getText());
             refreshSidebarList();
             editTextField.clear();
@@ -512,7 +511,7 @@ public class App extends Application {
 
             Optional<ButtonType> result = alert.showAndWait();
             if (result.isPresent() && result.get() == ButtonType.OK) {
-                mediaHandler.deletePlaylist(currPlaylist.playlistID);
+                MediaHandler.deletePlaylist(currPlaylist.playlistID);
                 refreshSidebarList();
             }
         });
@@ -631,8 +630,8 @@ public class App extends Application {
 
 
     // ── Track List Builder ──────────────────────────────────────
-    private ListView<MediaHandler.Track> buildTrackListView() {
-        ListView<MediaHandler.Track> listView = new ListView<>();
+    private ListView<AudioPlayer.Track> buildTrackListView() {
+        ListView<AudioPlayer.Track> listView = new ListView<>();
         listView.setFixedCellSize(80);
         listView.setStyle(
             "-fx-background-color: #000000;" +
@@ -643,7 +642,7 @@ public class App extends Application {
 
         listView.setCellFactory(lv -> new ListCell<>() {
             @Override
-            protected void updateItem(MediaHandler.Track track, boolean empty) {
+            protected void updateItem(AudioPlayer.Track track, boolean empty) {
                 super.updateItem(track, empty);
                 if (empty || track == null) {
                     setGraphic(null);
@@ -873,7 +872,7 @@ public class App extends Application {
         subtitle.setText(playlist_tracks.size() + " tracks;   Duration: " + playlist_duration);
     }
 
-    private Integer getOrder(MediaHandler.Track track) {
+    private Integer getOrder(AudioPlayer.Track track) {
         for (int i = 0; i < playlist_tracks.size(); i++) {
             if (playlist_tracks.get(i).trackID == track.trackID) return i + 1;
         }
@@ -882,7 +881,7 @@ public class App extends Application {
 
     private void updateOrder(Integer playlist_id) {
         for (int i = 0; i < playlist_tracks.size(); i++) {
-            mediaHandler.changeTrackOrder(playlist_id, playlist_tracks.get(i).trackID, i + 1);
+            MediaHandler.changeTrackOrder(playlist_id, playlist_tracks.get(i).trackID, i + 1);
         }
     }
 
@@ -902,7 +901,7 @@ public class App extends Application {
         }
     }
 
-    private void scrollByCard(ListView<MediaHandler.Track> listView, boolean scrollDown) {
+    private void scrollByCard(ListView<AudioPlayer.Track> listView, boolean scrollDown) {
         if (activeScrollTimer != null) return;
 
         final double CARD_HEIGHT = listView.getFixedCellSize();
@@ -960,11 +959,11 @@ public class App extends Application {
         }
     }
 
-    private void refreshTrackList(MediaHandler.Playlist playlist) {
+    private void refreshTrackList(AudioPlayer.Playlist playlist) {
         VBox mainPanel = buildMainPanel();
         HBox.setHgrow(mainPanel, Priority.ALWAYS);
         rootContent.getChildren().set(1, mainPanel);
-        playlist_tracks = mediaHandler.loadPlaylistTracks(playlist.playlistID);
+        playlist_tracks = MediaHandler.loadPlaylistTracks(playlist.playlistID);
         panelTitle.setText(playlist.title);
         ArrayList<String> durations = rebuildCards();
         subtitle.setText(playlist_tracks.size() + " tracks  |  Duration: " + getPlaylistDuration(durations));
@@ -974,15 +973,15 @@ public class App extends Application {
         track_list.getItems().setAll(playlist_tracks);
         track_list.refresh();
         ArrayList<String> durations = new ArrayList<>();
-        for (MediaHandler.Track track : playlist_tracks) durations.add(track.duration);
+        for (AudioPlayer.Track track : playlist_tracks) durations.add(track.duration);
         return durations;
     }
 
     private void refreshSidebarList() {
-        playlists = mediaHandler.loadPlaylists();
+        playlists = MediaHandler.loadPlaylists();
         itemList.getChildren().clear();
 
-        for (MediaHandler.Playlist playlist : playlists) {
+        for (AudioPlayer.Playlist playlist : playlists) {
             Label item = new Label(playlist.title);
             item.setMaxWidth(Double.MAX_VALUE);
             item.setPadding(new Insets(10, 14, 10, 14));
@@ -1042,7 +1041,7 @@ public class App extends Application {
 
 
     // ── Track Cards ───────────────────────────────────────────────
-    private HBox buildCard(MediaHandler.Track track) {
+    private HBox buildCard(AudioPlayer.Track track) {
         Label nameLabel = new Label(track.title);
         nameLabel.setStyle(
             "-fx-text-fill: #e8e8e8;" +
@@ -1102,7 +1101,7 @@ public class App extends Application {
             "-fx-background-radius: 5px;"
         );
 
-        for (MediaHandler.Playlist playlist : playlists) {
+        for (AudioPlayer.Playlist playlist : playlists) {
             HBox row = new HBox(8);
             row.setAlignment(Pos.CENTER_LEFT);
             row.setStyle(
@@ -1119,7 +1118,7 @@ public class App extends Application {
             dotBtn.setMinSize(13, 13);
             dotBtn.setMaxSize(13, 13);
 
-            boolean selected = mediaHandler.isInPlaylist(playlist.playlistID, track.trackID);
+            boolean selected = MediaHandler.isInPlaylist(playlist.playlistID, track.trackID);
             dotBtn.setUserData(selected);
             dotBtn.setStyle(selected
                 ? "-fx-background-color: #FF0000; -fx-background-radius: 50%; -fx-cursor: hand;"
@@ -1131,10 +1130,10 @@ public class App extends Application {
                 boolean newState = !isSelected;
                 dotBtn.setUserData(newState);
                 if (newState) {
-                    mediaHandler.addToPlaylist(playlist.playlistID, track.trackID);
+                    MediaHandler.addToPlaylist(playlist.playlistID, track.trackID);
                     dotBtn.setStyle("-fx-background-color: #FF0000; -fx-background-radius: 50%; -fx-cursor: hand;");
                 } else {
-                    mediaHandler.removeFromPlaylist(playlist.playlistID, track.trackID);
+                    MediaHandler.removeFromPlaylist(playlist.playlistID, track.trackID);
                     if (currPlaylist != null) refreshTrackList(currPlaylist);
                     updateOrder(playlist.playlistID);
                     dotBtn.setStyle("-fx-background-color: #7f8c8d; -fx-background-radius: 50%; -fx-cursor: hand;");
@@ -1713,7 +1712,7 @@ public class App extends Application {
                 return;
             }
             try {
-                MediaHandler.Track newTrack = new MediaHandler.Track(0, title, artist, "", false, "");
+                AudioPlayer.Track newTrack = new AudioPlayer.Track(0, title, artist, "", false, "");
                 serverClient.uploadTrack(newTrack, audioPath, coverPath);
                 rootPane.getChildren().remove(glass);
                 rootContent.setEffect(null);

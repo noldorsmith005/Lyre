@@ -350,7 +350,7 @@ class ServerClient {
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
     }
 
-    private String updateUploads(MediaHandler.Track track) throws Exception {
+    private String updateUploads(AudioPlayer.Track track) throws Exception {
         String targetUrl = appUrl + "/tracks/uploads/update";
         String jsonString = gson.toJson(track);
         HttpRequest request = HttpRequest.newBuilder()
@@ -396,7 +396,7 @@ class ServerClient {
         }
     }
 
-    public ArrayList<MediaHandler.Track> searchTracks(String filter) throws Exception {
+    public ArrayList<AudioPlayer.Track> searchTracks(String filter) throws Exception {
         String encodedFilter = URLEncoder.encode(filter, StandardCharsets.UTF_8.toString());
         String targetUrl = appUrl + "/tracks/" + encodedFilter;
         HttpRequest request = HttpRequest.newBuilder()
@@ -408,13 +408,13 @@ class ServerClient {
         
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
 
-        Type tracksType = new TypeToken<ArrayList<MediaHandler.Track>>(){}.getType();
-        ArrayList<MediaHandler.Track> tracks = gson.fromJson(response.body(), tracksType);
+        Type tracksType = new TypeToken<ArrayList<AudioPlayer.Track>>(){}.getType();
+        ArrayList<AudioPlayer.Track> tracks = gson.fromJson(response.body(), tracksType);
 
         return tracks;
     }
 
-    public void downloadTrack(MediaHandler.Track track) {
+    public void downloadTrack(AudioPlayer.Track track) {
         try {
             download("audio", track.trackID);
             download("cover", track.trackID);
@@ -425,7 +425,7 @@ class ServerClient {
         }
     }
 
-    public void uploadTrack(MediaHandler.Track track, String audioPath, String coverPath) {
+    public void uploadTrack(AudioPlayer.Track track, String audioPath, String coverPath) {
         Path filePath = Paths.get(audioPath);
         File file = filePath.toFile(); 
         Media media = new Media(file.toURI().toString());
@@ -453,7 +453,7 @@ class ServerClient {
         });
     }
 
-    public void removeDownload(MediaHandler.Track track) {
+    public void removeDownload(AudioPlayer.Track track) {
         Path audioFile = Paths.get(assetsUrl + "audio/" + track.trackID + ".wav");
         Path coverFile = Paths.get(assetsUrl + "cover/" + track.trackID + ".jpg");
         try {
