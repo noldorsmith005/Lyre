@@ -324,12 +324,12 @@ def download(id, type):
 
         tmp_flac_path = f"./tmp/{id}.flac"
         try:
-            convert_wav_to_flac(wav_path, tmp_flac_path)
+            compressFLAC(wav_path, tmp_flac_path)
         except Exception as e:
             return {"error": f"Failed to convert WAV to FLAC: {e}"}, 500
 
         @after_this_request
-        def remove_file(response):
+        def removeFile(response):
             try:
                 if os.path.exists(tmp_flac_path):
                     os.remove(tmp_flac_path)
@@ -338,6 +338,7 @@ def download(id, type):
             return response
 
         return send_file(tmp_flac_path, mimetype="audio/flac")
+
     else:
         file_info = TRACK_FILE_TYPES[type]
         file_path = f"./{type}/{id}.{file_info['ext']}"

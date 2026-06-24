@@ -28,60 +28,57 @@ import java.util.concurrent.atomic.AtomicLong;
 public class AudioPlayer extends VBox {
     private static String assetsUrl = System.getProperty("user.home") + "/Library/Application Support/Napster";
 
-    // ── FLAC playback state (replaces MediaPlayer) ────────────────────────────
     private SourceDataLine audioLine;
     private Thread playbackThread;
-    private final AtomicBoolean paused   = new AtomicBoolean(false);
-    private final AtomicBoolean stopped  = new AtomicBoolean(false);
-    private final Object pauseLock       = new Object();
+    private final AtomicBoolean paused = new AtomicBoolean(false);
+    private final AtomicBoolean stopped = new AtomicBoolean(false);
+    private final Object pauseLock = new Object();
 
-    // Position tracking (updated by playback thread, read on FX thread)
-    private final AtomicLong  framesPlayed = new AtomicLong(0);
-    private volatile long     totalFrames  = 0;
-    private volatile float    sampleRate   = 44100f;
-    // ─────────────────────────────────────────────────────────────────────────
+    private final AtomicLong framesPlayed = new AtomicLong(0);
+    private volatile long totalFrames = 0;
+    private volatile float sampleRate = 44100f;
 
-    private ArrayList<Track> queue    = new ArrayList<>();
+    private ArrayList<Track> queue = new ArrayList<>();
     private ArrayList<Track> playlist = new ArrayList<>();
-    private VBox   queueCards  = new VBox(8);
-    private Integer currTrack  = null;
-    private boolean playing    = false;
-    private boolean shuffle    = false;
-    private boolean loop       = false;
+    private VBox queueCards = new VBox(8);
+    private Integer currTrack = null;
+    private boolean playing = false;
+    private boolean shuffle = false;
+    private boolean loop = false;
 
-    private final Label     titleLabel;
-    private final Label     artistLabel;
-    private final Label     queueLabel;
-    private ImageView       trackCover;
-    private final Button    clearBtn;
-    private final Slider    trackBar;
-    private final Label     currentTimeLabel;
-    private final Label     totalTimeLabel;
-    private final Timeline  progressUpdater;
+    private final Label titleLabel;
+    private final Label artistLabel;
+    private final Label queueLabel;
+    private ImageView trackCover;
+    private final Button clearBtn;
+    private final Slider trackBar;
+    private final Label currentTimeLabel;
+    private final Label totalTimeLabel;
+    private final Timeline progressUpdater;
 
-    Image  playPauseImg = new Image(new File("./resources/play.png").toURI().toString());
+    Image playPauseImg = new Image(new File("./resources/play.png").toURI().toString());
     Button playPauseBtn = new Button();
-    Image  nextImg      = new Image(new File("./resources/next.png").toURI().toString());
-    Button nextBtn      = new Button();
-    Image  prevImg      = new Image(new File("./resources/previous.png").toURI().toString());
-    Button prevBtn      = new Button();
-    Image  loopImg      = new Image(new File("./resources/loop_unselected.png").toURI().toString());
-    Button loopBtn      = new Button();
+    Image nextImg = new Image(new File("./resources/next.png").toURI().toString());
+    Button nextBtn = new Button();
+    Image prevImg = new Image(new File("./resources/previous.png").toURI().toString());
+    Button prevBtn = new Button();
+    Image loopImg = new Image(new File("./resources/loop_unselected.png").toURI().toString());
+    Button loopBtn = new Button();
 
     private final Runnable onRefresh;
 
-    // ── Data classes (unchanged) ──────────────────────────────────────────────
+
     public static class Track {
         int trackID;
         boolean downloaded;
         String title, artist, duration, contributor;
 
         Track(int trackID, String title, String artist, String duration, boolean downloaded, String contributor) {
-            this.trackID     = trackID;
-            this.title       = title;
-            this.artist      = artist;
-            this.duration    = duration;
-            this.downloaded  = downloaded;
+            this.trackID = trackID;
+            this.title = title;
+            this.artist = artist;
+            this.duration = duration;
+            this.downloaded = downloaded;
             this.contributor = contributor;
         }
     }
@@ -92,11 +89,11 @@ public class AudioPlayer extends VBox {
 
         Playlist(int playlistID, String title) {
             this.playlistID = playlistID;
-            this.title      = title;
+            this.title = title;
         }
     }
 
-    // ── Constructor (UI layout unchanged) ────────────────────────────────────
+
     public AudioPlayer(Runnable onRefresh) {
         this.onRefresh = onRefresh;
 
@@ -117,7 +114,8 @@ public class AudioPlayer extends VBox {
         trackCover.setImage(image);
 
         trackBar = new Slider(0, 1, 0);
-        trackBar.setMaxWidth(400);
+        trackBar.setMaxWidth(Double.MAX_VALUE);
+        HBox.setHgrow(trackBar, Priority.ALWAYS);
         trackBar.setMouseTransparent(false);
         trackBar.setFocusTraversable(false);
         trackBar.setOnMousePressed(e -> trackBar.getParent().requestFocus());
@@ -227,6 +225,7 @@ public class AudioPlayer extends VBox {
 
         HBox seekRow = new HBox(8, currentTimeLabel, trackBar, totalTimeLabel);
         seekRow.setAlignment(Pos.CENTER);
+        seekRow.setMaxWidth(Double.MAX_VALUE);
 
         GridPane controlRow = new GridPane();
         controlRow.setAlignment(Pos.CENTER);
@@ -295,12 +294,12 @@ public class AudioPlayer extends VBox {
         setStyle("-fx-border-color: #555555; -fx-border-radius: 8; -fx-background-radius: 8;");
         getChildren().addAll(infoRow, seekRow, controlRow, queueRow, queuePanel, spacer);
 
-        // Progress bar updates every 250 ms from frame-counter (no MediaPlayer needed)
+        // Progress bar updates every 250 ms from frame-counter
         progressUpdater = new Timeline(new KeyFrame(Duration.millis(250), e -> updateProgress()));
         progressUpdater.setCycleCount(Timeline.INDEFINITE);
     }
 
-    // ── UI helpers (unchanged) ────────────────────────────────────────────────
+    // ── Helpers ────────────────────────────────────────────────
     private void updatePausePlayButton(Button button, boolean isSelected) {
         playPauseImg = isSelected
                 ? new Image(new File("./resources/pause.png").toURI().toString())
@@ -323,7 +322,6 @@ public class AudioPlayer extends VBox {
         loopBtn.setGraphic(graphic);
     }
 
-    // ── Progress (reads atomic frame counter instead of MediaPlayer) ──────────
     private void updateProgress() {
         if (audioLine == null || totalFrames == 0) return;
         long played = framesPlayed.get();
@@ -339,14 +337,9 @@ public class AudioPlayer extends VBox {
         return String.format("%d:%02d", s / 60, s % 60);
     }
 
-    // ── FLAC playback engine ──────────────────────────────────────────────────
-
-    /**
-     * Stops any current playback thread and audio line cleanly.
-     */
+    // ── FLAC Playback Engine ──────────────────────────────────────────────────
     private void stopAudio() {
         stopped.set(true);
-        // Wake the thread if it's paused so it can exit
         synchronized (pauseLock) {
             pauseLock.notifyAll();
         }
@@ -366,10 +359,7 @@ public class AudioPlayer extends VBox {
     /**
      * Decodes the FLAC file on a background thread and writes PCM to a
      * SourceDataLine. The FX thread reads framesPlayed for seek/progress.
-     *
-     * JFLAC's FLACDecoder gives us StreamInfo (sample rate, channels, bit depth)
-     * before any audio data, so we open the SourceDataLine with exact parameters.
-     */
+    */
     private void startFlacPlayback(File flacFile, long seekToFrame) {
         stopped.set(false);
         paused.set(false);
@@ -378,28 +368,25 @@ public class AudioPlayer extends VBox {
             try (FileInputStream fis = new FileInputStream(flacFile)) {
                 FLACDecoder decoder = new FLACDecoder(fis);
 
-                // Read metadata block to get audio format
                 StreamInfo info = decoder.readStreamInfo();
                 if (info == null) {
                     System.err.println("No StreamInfo found in FLAC file: " + flacFile);
                     return;
                 }
 
-                sampleRate          = info.getSampleRate();
-                int channels        = info.getChannels();
-                int bitsPerSample   = info.getBitsPerSample();
-                totalFrames         = info.getTotalSamples(); // per channel
+                sampleRate = info.getSampleRate();
+                int channels = info.getChannels();
+                int bitsPerSample = info.getBitsPerSample();
+                totalFrames = info.getTotalSamples();
 
-                // Build javax.sound.sampled format from FLAC stream info
                 AudioFormat format = new AudioFormat(
-                        sampleRate,
-                        bitsPerSample,
-                        channels,
-                        true,   // signed
-                        false   // little-endian (FLAC PCM output from jFLAC is LE)
+                    sampleRate,
+                    bitsPerSample,
+                    channels,
+                    true,
+                    false
                 );
 
-                // Update total-time label on FX thread
                 long totalSec = (long)(totalFrames / sampleRate);
                 javafx.application.Platform.runLater(() ->
                         totalTimeLabel.setText(formatTime(totalSec)));
@@ -409,17 +396,12 @@ public class AudioPlayer extends VBox {
                 audioLine.open(format);
                 audioLine.start();
 
-                // If seeking, skip ahead by decoding (and discarding) frames
-                // JFLAC doesn't support random-access natively, so we skip decoded PCM
                 framesPlayed.set(0);
                 long framesToSkip  = seekToFrame;
-                int  bytesPerFrame = (bitsPerSample / 8) * channels;
+                int  bytesPerFrame = ((bitsPerSample / 8) * channels);
 
-                // Decode loop — readNextFrame() advances the decoder, then decodeFrame()
-                // converts the internal channel data to interleaved PCM bytes.
                 ByteData pcmData = new ByteData(4096);
                 while (!stopped.get()) {
-                    // Pause support: block thread without burning CPU
                     synchronized (pauseLock) {
                         while (paused.get() && !stopped.get()) {
                             try { pauseLock.wait(); } catch (InterruptedException ignored) {}
@@ -427,7 +409,6 @@ public class AudioPlayer extends VBox {
                     }
                     if (stopped.get()) break;
 
-                    // Advance to next frame; returns null at end of stream
                     Frame nextFrame = decoder.readNextFrame();
                     byte[] pcmBuffer = null;
                     int    pcmLength = 0;
@@ -437,7 +418,6 @@ public class AudioPlayer extends VBox {
                         pcmLength = pcmData.getLen();
                     }
                     if (nextFrame == null || pcmBuffer == null || pcmLength == 0) {
-                        // End of stream
                         javafx.application.Platform.runLater(() -> {
                             if (loop) {
                                 seek(0.0);
@@ -452,13 +432,11 @@ public class AudioPlayer extends VBox {
                     long framesInBuffer = pcmLength / bytesPerFrame;
 
                     if (framesToSkip > 0) {
-                        // Discard frames until we reach the seek position
                         if (framesToSkip >= framesInBuffer) {
                             framesToSkip -= framesInBuffer;
                             framesPlayed.addAndGet(framesInBuffer);
                             continue;
                         } else {
-                            // Partial skip within this buffer
                             int skipBytes = (int)(framesToSkip * bytesPerFrame);
                             audioLine.write(pcmBuffer, skipBytes, pcmLength - skipBytes);
                             framesPlayed.addAndGet(framesInBuffer);
@@ -484,12 +462,11 @@ public class AudioPlayer extends VBox {
         playbackThread.start();
     }
 
-    // ── Public playback API ───────────────────────────────────────────────────
+    // ── Playback Control Methods ───────────────────────────────────────────────────
 
     public void play(Track track) {
         stopAudio();
 
-        // File extension changed from .wav → .flac
         File flacFile = new File(assetsUrl + "/audio/" + track.trackID + ".flac");
         if (!flacFile.exists()) {
             System.err.println("FLAC file not found: " + flacFile.getAbsolutePath());
@@ -516,7 +493,7 @@ public class AudioPlayer extends VBox {
 
     public void pause() {
         paused.set(true);
-        if (audioLine != null) audioLine.stop(); // stops hardware buffer drain
+        if (audioLine != null) audioLine.stop();
         playing = false;
         updatePausePlayButton(playPauseBtn, false);
         progressUpdater.stop();
@@ -524,21 +501,17 @@ public class AudioPlayer extends VBox {
 
     public void resume() {
         paused.set(false);
-        if (audioLine != null) audioLine.start(); // re-opens hardware drain
+        if (audioLine != null) audioLine.start();
         synchronized (pauseLock) { pauseLock.notifyAll(); }
         playing = true;
         updatePausePlayButton(playPauseBtn, true);
         progressUpdater.play();
     }
 
-    /**
-     * Seek by percent (0.0–1.0). Restarts playback from the target frame.
-     * JFLAC has no true random-access, so we re-open the file and skip decoded PCM.
-     */
     public void seek(double percent) {
         if (currTrack == null || totalFrames == 0) return;
         long targetFrame = (long)(percent * totalFrames);
-        File flacFile    = new File(assetsUrl + "/audio/" + currTrack + ".flac");
+        File flacFile = new File(assetsUrl + "/audio/" + currTrack + ".flac");
 
         boolean wasPlaying = playing;
         stopAudio();
@@ -566,7 +539,7 @@ public class AudioPlayer extends VBox {
         } else if (!playlist.isEmpty()) {
             if (shuffle) {
                 Random rand = new Random();
-                int idx     = rand.nextInt(playlist.size());
+                int idx = rand.nextInt(playlist.size());
                 play(playlist.remove(idx));
             } else {
                 play(playlist.remove(0));
@@ -583,7 +556,7 @@ public class AudioPlayer extends VBox {
         }
     }
 
-    // ── Queue / playlist management (unchanged) ───────────────────────────────
+    // ── Queue / Playlist Managers ───────────────────────────────
     public void addToQueue(Track track) {
         queue.add(track);
         queueCards.getChildren().clear();
@@ -605,15 +578,15 @@ public class AudioPlayer extends VBox {
 
     public void clearPlaylistQueue() { playlist.clear(); }
 
-    public void setShuffle()         { shuffle = !shuffle; }
-    public boolean isShuffled()      { return shuffle; }
-    public boolean isPlaying()       { return playing; }
+    public void setShuffle() { shuffle = !shuffle; }
+    public boolean isShuffled() { return shuffle; }
+    public boolean isPlaying() { return playing; }
 
     public boolean trackPlaying(Track track) {
         return track.trackID == currTrack;
     }
 
-    // ── Card builder (unchanged) ──────────────────────────────────────────────
+    // ── Card Builder ──────────────────────────────────────────────
     private HBox buildCard(Track track) {
         Label nameLabel = new Label(track.title);
         nameLabel.setStyle("-fx-text-fill: #e8e8e8; -fx-font-size: 17px;");
