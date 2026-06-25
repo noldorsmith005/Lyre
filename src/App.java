@@ -90,7 +90,12 @@ public class App extends Application {
         if (os.contains("mac")) {
             appData = Path.of(home, "Library", "Application Support", "Napster");
         } else if (os.contains("win")) {
-            appData = Path.of(System.getenv("APPDATA"), "Napster");
+            String appDataEnv = System.getenv("APPDATA");
+            if (appDataEnv != null && !appDataEnv.isEmpty()) {
+                appData = Path.of(appDataEnv, "Napster");
+            } else {
+                appData = Path.of(home, "AppData", "Roaming", "Napster");
+            }
         } else {
             appData = Path.of(home, ".config", "Napster/");
         }

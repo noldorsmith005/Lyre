@@ -1,3 +1,7 @@
+# MacOS jpackage Command
+# -------------------------------------------------------------
+# Run this command from the root directory of the project.
+
 jpackage \
   --type dmg \
   --name Napster \
