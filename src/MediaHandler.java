@@ -12,7 +12,7 @@ import javafx.stage.Stage;
 
 
 public class MediaHandler {
-	private static String databaseUrl = "jdbc:sqlite:" + System.getProperty("user.home") + "/Library/Application Support/Napster/data.db";
+	private static String databaseUrl;
 
 	private void log(String message) {
 	    try (java.io.FileWriter fw = new java.io.FileWriter("/tmp/Napster-debug.log", true)) {
@@ -25,6 +25,8 @@ public class MediaHandler {
 
     // Database methods
 	public static ArrayList<AudioPlayer.Track> searchTracks(String filter) {
+		databaseUrl = "jdbc:sqlite:" + App.appData.toString() + "/data.db";
+
 	    ArrayList<AudioPlayer.Track> tracks = new ArrayList<>();
 
 	    String normalizedFilter = filter.replaceAll("[^a-zA-Z]", "").toLowerCase();
@@ -78,6 +80,8 @@ public class MediaHandler {
 
 
     public static ArrayList<AudioPlayer.Playlist> loadPlaylists() {
+    	databaseUrl = "jdbc:sqlite:" + App.appData.toString() + "/data.db";
+
 		String sql = "SELECT * FROM Playlists";
 		ArrayList<AudioPlayer.Playlist> tracks = new ArrayList<>();
 
@@ -100,6 +104,8 @@ public class MediaHandler {
     }
     
 	public static ArrayList<AudioPlayer.Track> loadPlaylistTracks(Integer playlistID) {
+		databaseUrl = "jdbc:sqlite:" + App.appData.toString() + "/data.db";
+
 	    List<Integer> ids = new ArrayList<>();
 	    String tableName = "playlist_" + playlistID;
 	    String getTrackIDs = "SELECT * FROM " + tableName + " ORDER BY [order] ASC";
@@ -138,6 +144,8 @@ public class MediaHandler {
 	}
 
 	public static void addToPlaylist(Integer playlist_id, Integer track_id) {
+		databaseUrl = "jdbc:sqlite:" + App.appData.toString() + "/data.db";
+
 	    String tableName = "playlist_" + playlist_id;
 	    String sql = "INSERT INTO " + tableName + " ([order], track_id) VALUES ((SELECT COALESCE(MAX([order]), 0) + 1 FROM " + tableName + "), ?);";
 	    try (java.sql.Connection conn = java.sql.DriverManager.getConnection(databaseUrl);
@@ -152,6 +160,8 @@ public class MediaHandler {
 	}
 
 	public static void removeFromPlaylist(Integer playlist_id, Integer track_id) {
+		databaseUrl = "jdbc:sqlite:" + App.appData.toString() + "/data.db";
+
 	    String tableName = "playlist_" + playlist_id;
 	    String sql = "DELETE FROM " + tableName + " WHERE track_id = ?;";
 	    try (java.sql.Connection conn = java.sql.DriverManager.getConnection(databaseUrl);
@@ -166,6 +176,8 @@ public class MediaHandler {
 	}
 
 	public static void changeTrackOrder(Integer playlist_id, Integer track_id, Integer new_order) {
+		databaseUrl = "jdbc:sqlite:" + App.appData.toString() + "/data.db";
+
 	    String tableName = "playlist_" + playlist_id;
 	    String sql = "UPDATE " + tableName + " SET [order] = ? WHERE track_id = ?;";
 	    try (java.sql.Connection conn = java.sql.DriverManager.getConnection(databaseUrl);
@@ -179,6 +191,8 @@ public class MediaHandler {
 	}
 
 	public static boolean isInPlaylist(Integer playlist_id, Integer track_id) {
+		databaseUrl = "jdbc:sqlite:" + App.appData.toString() + "/data.db";
+
 	    String tableName = "playlist_" + playlist_id;
 	    String sql = "SELECT 1 FROM " + tableName + " WHERE track_id = ? LIMIT 1;";
 
@@ -197,6 +211,8 @@ public class MediaHandler {
 	}
 
 	public static void createPlaylist() {
+		databaseUrl = "jdbc:sqlite:" + App.appData.toString() + "/data.db";
+
 		// String dbPath = databaseUrl.replace("jdbc:sqlite:", "");
 	    // java.io.File dbFile = new java.io.File(dbPath);
 	    // log("DB exists: " + dbFile.exists());
@@ -249,6 +265,8 @@ public class MediaHandler {
 	}
 
 	public static void deletePlaylist(Integer playlist_id) {
+		databaseUrl = "jdbc:sqlite:" + App.appData.toString() + "/data.db";
+
 	    String tableName = "playlist_" + playlist_id;
 
 	    try (java.sql.Connection conn = java.sql.DriverManager.getConnection(databaseUrl)) {
@@ -276,6 +294,8 @@ public class MediaHandler {
 	}
 
 	public static void editPlaylistTitle(Integer playlist_id, String newTitle) {
+		databaseUrl = "jdbc:sqlite:" + App.appData.toString() + "/data.db";
+
 	    String sql = "UPDATE Playlists SET title = ? WHERE playlist_id = ?;";
 	    try (java.sql.Connection conn = java.sql.DriverManager.getConnection(databaseUrl);
 	        java.sql.PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -289,6 +309,8 @@ public class MediaHandler {
 	}
 
 	public static void newTrack(AudioPlayer.Track track) {
+		databaseUrl = "jdbc:sqlite:" + App.appData.toString() + "/data.db";
+
 		String sql = "INSERT OR IGNORE INTO Tracks (track_id, title, artist, duration) VALUES (?, ?, ?, ?)";
 	    try (java.sql.Connection conn = java.sql.DriverManager.getConnection(databaseUrl);
 	        java.sql.PreparedStatement pstmt = conn.prepareStatement(sql)) {
@@ -304,6 +326,8 @@ public class MediaHandler {
 	}
 
 	public static void deleteTrack(AudioPlayer.Track track) {
+		databaseUrl = "jdbc:sqlite:" + App.appData.toString() + "/data.db";
+		
 		String sql_get = "SELECT playlist_id FROM Playlists";
 		String sql = "DELETE FROM Tracks WHERE track_id=?";
 		List<Integer> playlist_ids = new ArrayList<>();

@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 
 public class AudioPlayer extends VBox {
-    private static String assetsUrl = System.getProperty("user.home") + "/Library/Application Support/Napster";
+    private static String assetsUrl;
 
     private SourceDataLine audioLine;
     private Thread playbackThread;
@@ -96,6 +96,7 @@ public class AudioPlayer extends VBox {
 
     public AudioPlayer(Runnable onRefresh) {
         this.onRefresh = onRefresh;
+        assetsUrl = App.appData.toString();
 
         titleLabel = new Label("");
         titleLabel.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #ffffff;");

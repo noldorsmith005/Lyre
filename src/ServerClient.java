@@ -33,7 +33,7 @@ import javafx.scene.media.MediaPlayer;
 
 class ServerClient {
     private static String CONFIG_FILE = "./client.config";
-    private static String assetsUrl = System.getProperty("user.home") + "/Library/Application Support/Napster/";
+    private static String assetsUrl;
     HttpClient client = HttpClient.newHttpClient();
 
     Gson gson = new Gson();
@@ -49,6 +49,7 @@ class ServerClient {
 
     public ServerClient() {
         loadRLSConfig();
+        assetsUrl = App.appData.toString() + "/";
     }
 
 

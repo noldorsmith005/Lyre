@@ -45,10 +45,11 @@ import javafx.event.EventHandler;
 
 
 public class App extends Application {
-    private String assetsUrl = System.getProperty("user.home") + "/Library/Application Support/Napster";
+    public static Path appData;
+    private String assetsUrl;
 
-    private AudioPlayer audioPlayer = new AudioPlayer(() -> refresh());
-    private ServerClient serverClient = new ServerClient();
+    private AudioPlayer audioPlayer;
+    private ServerClient serverClient;
     private DragHandler dragHandler;
 
     private Stage mainStage = new Stage();
@@ -81,6 +82,21 @@ public class App extends Application {
 
     @Override
     public void start(Stage stage) {
+        String home = System.getProperty("user.home");
+        String os = System.getProperty("os.name").toLowerCase();
+
+        if (os.contains("mac")) {
+            appData = Path.of(home, "Library", "Application Support", "Napster");
+        } else if (os.contains("win")) {
+            appData = Path.of(System.getenv("APPDATA"), "Napster");
+        } else {
+            appData = Path.of(home, ".config", "Napster/");
+        }
+        assetsUrl = appData.toString();
+
+        serverClient = new ServerClient();
+        audioPlayer = new AudioPlayer(() -> refresh());
+
         playlists = MediaHandler.loadPlaylists();
 
         rootContent.setStyle("-fx-background-color: #000000;"); // #0f0f0f
