@@ -1,0 +1,16 @@
+// type -> pkg for MacOS, exe for Windows
+// module-path seperator -> : for MacOS, ; for Windows
+
+jpackage \
+  --type dmg \
+  --name MyApp \
+  --app-version 1.0.0 \
+  --input ./input \
+  --main-jar myapp.jar \
+  --main-class com.example.Main \
+  --module-path ./libs/javafx/lib:./libs/other/lib \
+  --add-modules javafx.controls,javafx.fxml \
+  --icon ./build-resources/icon.icns \
+  --dest ./dist
+
+
