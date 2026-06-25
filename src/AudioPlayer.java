@@ -111,7 +111,7 @@ public class AudioPlayer extends VBox {
         trackCover.setFitWidth(400);
         trackCover.setFitHeight(400);
         trackCover.setPreserveRatio(true);
-        Image image = new Image(new File(assetsUrl + "/cover/default.jpg").toURI().toString());
+        Image image = new Image(new File("./resources/default.jpg").toURI().toString());
         trackCover.setImage(image);
 
         trackBar = new Slider(0, 1, 0);
@@ -481,7 +481,7 @@ public class AudioPlayer extends VBox {
         artistLabel.setText(track.artist);
 
         File coverFile = new File(assetsUrl + "/cover/" + track.trackID + ".jpg");
-        if (!coverFile.exists()) coverFile = new File(assetsUrl + "/cover/default.jpg");
+        if (!coverFile.exists()) coverFile = new File("./resources/default.jpg");
         trackCover.setImage(new Image(coverFile.toURI().toString()));
 
         trackBar.setValue(0.0);

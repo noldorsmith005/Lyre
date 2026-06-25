@@ -1232,7 +1232,7 @@ public class App extends Application {
         thumbCover.setPreserveRatio(true);
         File coverFile = new File(assetsUrl + "/cover/" + track.trackID + ".jpg");
         if (!coverFile.exists()) {
-            coverFile = new File(assetsUrl + "/cover/default.jpg");
+            coverFile = new File("./resources/default.jpg");
         }
         Image thumbImage = new Image(coverFile.toURI().toString());
         thumbCover.setImage(thumbImage);

@@ -1,11 +1,16 @@
 package Napster;
 
 import java.io.File;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.ArrayList;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
+import java.sql.Statement;
 import javafx.application.Application;
 import javafx.stage.Stage;
 
@@ -13,6 +18,7 @@ import javafx.stage.Stage;
 
 public class MediaHandler {
 	private String databaseUrl;
+	private String assetsUrl;
 
 	// private void log(String message) {
 	//     try (java.io.FileWriter fw = new java.io.FileWriter("/tmp/Napster-debug.log", true)) {
@@ -24,8 +30,57 @@ public class MediaHandler {
 
 	public MediaHandler() {
 		databaseUrl = "jdbc:sqlite:" + App.appData.toString() + "/data.db";
+		assetsUrl = App.appData.toString() + "/";
+
+		try {
+            Path basePath = Paths.get(assetsUrl);
+            Path audioDir = basePath.resolve("audio");
+            Path coverDir = basePath.resolve("cover");
+
+            if (Files.notExists(basePath) || !Files.isDirectory(basePath)) {
+                Files.createDirectories(audioDir);
+            	Files.createDirectories(coverDir);
+            	createDatabase();
+            }
+            
+        } catch (IOException | SecurityException e) {
+            System.err.println("CRITICAL: Failed to initialize storage structure: " + e.getMessage());
+        }
 	}
 
+
+	// Init methods
+  	private void createDatabase() {
+        try (Connection conn = DriverManager.getConnection(databaseUrl);
+             Statement stmt = conn.createStatement()) {
+
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS PlaylistIDs (
+                    playlist_id INTEGER PRIMARY KEY
+                )
+            """);
+
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS Playlists (
+                    playlist_id INTEGER PRIMARY KEY,
+                    title       TEXT
+                )
+            """);
+
+            stmt.execute("""
+                CREATE TABLE IF NOT EXISTS Tracks (
+                    track_id   INTEGER PRIMARY KEY,
+                    title      TEXT,
+                    artist     TEXT,
+                    duration   TEXT
+                )
+            """);
+
+        } catch (SQLException e) {
+            System.err.println("Failed to create database: " + e.getMessage());
+            throw new RuntimeException(e);
+        }
+    }
 
     // Database methods
 	public ArrayList<AudioPlayer.Track> searchTracks(String filter) {
