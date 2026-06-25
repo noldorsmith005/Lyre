@@ -48,8 +48,9 @@ public class App extends Application {
     public static Path appData;
     private String assetsUrl;
 
-    private AudioPlayer audioPlayer;
-    private ServerClient serverClient;
+    public static MediaHandler mediaHandler;
+    private static ServerClient serverClient;
+    private static AudioPlayer audioPlayer;
     private DragHandler dragHandler;
 
     private Stage mainStage = new Stage();
@@ -94,10 +95,12 @@ public class App extends Application {
         }
         assetsUrl = appData.toString();
 
+        // Handler Initializations
+        mediaHandler = new MediaHandler();
         serverClient = new ServerClient();
         audioPlayer = new AudioPlayer(() -> refresh());
 
-        playlists = MediaHandler.loadPlaylists();
+        playlists = mediaHandler.loadPlaylists();
 
         rootContent.setStyle("-fx-background-color: #000000;"); // #0f0f0f
 
@@ -174,7 +177,7 @@ public class App extends Application {
             "-fx-cursor: hand;"
         ));
         newBtn.setOnMouseClicked(e -> {
-            MediaHandler.createPlaylist();
+            mediaHandler.createPlaylist();
             refreshSidebarList();
         });
 
@@ -247,7 +250,7 @@ public class App extends Application {
                     }
                 }
                 else {
-                    playlist_tracks = MediaHandler.searchTracks(query);
+                    playlist_tracks = mediaHandler.searchTracks(query);
                 }
                 displayAll();
             }
@@ -476,7 +479,7 @@ public class App extends Application {
             "-fx-padding: 8px 15px;"
         );
         editTextField.setOnAction(e -> {
-            MediaHandler.editPlaylistTitle(currPlaylist.playlistID, editTextField.getText());
+            mediaHandler.editPlaylistTitle(currPlaylist.playlistID, editTextField.getText());
             panelTitle.setText(editTextField.getText());
             refreshSidebarList();
             editTextField.clear();
@@ -527,7 +530,7 @@ public class App extends Application {
 
             Optional<ButtonType> result = alert.showAndWait();
             if (result.isPresent() && result.get() == ButtonType.OK) {
-                MediaHandler.deletePlaylist(currPlaylist.playlistID);
+                mediaHandler.deletePlaylist(currPlaylist.playlistID);
                 refreshSidebarList();
             }
         });
@@ -897,7 +900,7 @@ public class App extends Application {
 
     private void updateOrder(Integer playlist_id) {
         for (int i = 0; i < playlist_tracks.size(); i++) {
-            MediaHandler.changeTrackOrder(playlist_id, playlist_tracks.get(i).trackID, i + 1);
+            mediaHandler.changeTrackOrder(playlist_id, playlist_tracks.get(i).trackID, i + 1);
         }
     }
 
@@ -979,7 +982,7 @@ public class App extends Application {
         VBox mainPanel = buildMainPanel();
         HBox.setHgrow(mainPanel, Priority.ALWAYS);
         rootContent.getChildren().set(1, mainPanel);
-        playlist_tracks = MediaHandler.loadPlaylistTracks(playlist.playlistID);
+        playlist_tracks = mediaHandler.loadPlaylistTracks(playlist.playlistID);
         panelTitle.setText(playlist.title);
         ArrayList<String> durations = rebuildCards();
         subtitle.setText(playlist_tracks.size() + " tracks  |  Duration: " + getPlaylistDuration(durations));
@@ -994,7 +997,7 @@ public class App extends Application {
     }
 
     private void refreshSidebarList() {
-        playlists = MediaHandler.loadPlaylists();
+        playlists = mediaHandler.loadPlaylists();
         itemList.getChildren().clear();
 
         for (AudioPlayer.Playlist playlist : playlists) {
@@ -1134,7 +1137,7 @@ public class App extends Application {
             dotBtn.setMinSize(13, 13);
             dotBtn.setMaxSize(13, 13);
 
-            boolean selected = MediaHandler.isInPlaylist(playlist.playlistID, track.trackID);
+            boolean selected = mediaHandler.isInPlaylist(playlist.playlistID, track.trackID);
             dotBtn.setUserData(selected);
             dotBtn.setStyle(selected
                 ? "-fx-background-color: #FF0000; -fx-background-radius: 50%; -fx-cursor: hand;"
@@ -1146,10 +1149,10 @@ public class App extends Application {
                 boolean newState = !isSelected;
                 dotBtn.setUserData(newState);
                 if (newState) {
-                    MediaHandler.addToPlaylist(playlist.playlistID, track.trackID);
+                    mediaHandler.addToPlaylist(playlist.playlistID, track.trackID);
                     dotBtn.setStyle("-fx-background-color: #FF0000; -fx-background-radius: 50%; -fx-cursor: hand;");
                 } else {
-                    MediaHandler.removeFromPlaylist(playlist.playlistID, track.trackID);
+                    mediaHandler.removeFromPlaylist(playlist.playlistID, track.trackID);
                     if (currPlaylist != null) refreshTrackList(currPlaylist);
                     updateOrder(playlist.playlistID);
                     dotBtn.setStyle("-fx-background-color: #7f8c8d; -fx-background-radius: 50%; -fx-cursor: hand;");

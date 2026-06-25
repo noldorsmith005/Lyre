@@ -8,6 +8,7 @@ import hashlib
 import urllib.parse
 import subprocess
 import shutil
+import tempfile
 from flask import Flask, send_file, request, jsonify, after_this_request
 
 from primes import genPrime
@@ -98,6 +99,34 @@ def compressFLAC(wav_path, flac_path):
     )
     if result.returncode != 0:
         raise Exception(f"FLAC conversion failed with exit code {result.returncode}: {result.stderr.decode('utf-8')}")
+
+def stripWAV(file_path):
+    if not os.path.isfile(file_path):
+        raise FileNotFoundError(f"The file '{file_path}' does not exist.")
+
+    file_dir = os.path.dirname(os.path.abspath(file_path))
+    
+    with tempfile.NamedTemporaryFile(dir=file_dir, suffix='.wav', delete=False) as temp_file:
+        temp_path = temp_file.name
+
+    try:
+        cmd = [
+            'ffmpeg', '-y',
+            '-i', file_path,
+            '-map_metadata', '-1',
+            '-c:a', 'copy',
+            temp_path
+        ]
+        
+        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+        
+        os.replace(temp_path, file_path)
+        return True
+
+    except (subprocess.CalledProcessError, Exception) as e:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+        raise RuntimeError(f"Failed to strip metadata for {file_path}. Error: {e}")
 
 
 # Cryptography Helpers
@@ -383,6 +412,7 @@ def uploadFile(id, ext):
 
         if type == "audio" and ext == "mp3":
             Utils.toWav(id)
+            stripWAV(tmp_path)
         if type == "cover" and ext == "png":
             Utils.toJpg(id)
 

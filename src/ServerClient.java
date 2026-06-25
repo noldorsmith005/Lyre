@@ -32,19 +32,19 @@ import javafx.scene.media.MediaPlayer;
 
 
 class ServerClient {
-    private static String CONFIG_FILE = "./client.config";
-    private static String assetsUrl;
+    private String CONFIG_FILE = "./client.config";
+    private String assetsUrl;
     HttpClient client = HttpClient.newHttpClient();
 
     Gson gson = new Gson();
 
-    private static String appUrl = null;
-    private static String appKey = null;
-    private static String userID = null;
-    private static BigInteger serverKeyPublic = BigInteger.ZERO;
-    private static BigInteger serverKeyMod = BigInteger.ZERO;
-    private static BigInteger sigKeyPrivate = BigInteger.ZERO;
-    private static BigInteger sigKeyMod = BigInteger.ZERO;
+    private String appUrl = null;
+    private String appKey = null;
+    private String userID = null;
+    private BigInteger serverKeyPublic = BigInteger.ZERO;
+    private BigInteger serverKeyMod = BigInteger.ZERO;
+    private BigInteger sigKeyPrivate = BigInteger.ZERO;
+    private BigInteger sigKeyMod = BigInteger.ZERO;
 
 
     public ServerClient() {
@@ -54,7 +54,7 @@ class ServerClient {
 
 
     // RLS Client Configuration File
-    private static void saveRLSConfig() {
+    private void saveRLSConfig() {
         Properties prop = new Properties();
 
         prop.setProperty("appUrl", appUrl != null ? appUrl : "");
@@ -72,7 +72,7 @@ class ServerClient {
         }
     }
 
-    private static void loadRLSConfig() {
+    private void loadRLSConfig() {
         Properties prop = new Properties();
 
         try (FileInputStream in = new FileInputStream(CONFIG_FILE)) {
@@ -93,7 +93,7 @@ class ServerClient {
         }
     }
 
-    public static void clearRLSConfig() {
+    public void clearRLSConfig() {
         Properties prop = new Properties();
 
         prop.setProperty("appUrl", "");
@@ -117,11 +117,11 @@ class ServerClient {
     // Cryptography Helpers
     private record Key(BigInteger publicKey, BigInteger privateKey, BigInteger mod) {}
 
-    private static BigInteger genPrime() {
+    private BigInteger genPrime() {
         return BigInteger.probablePrime(1024, new SecureRandom());
     }
 
-    private static Key genKey() {
+    private Key genKey() {
         BigInteger p = genPrime();
         BigInteger q = genPrime();
         BigInteger n = p.multiply(q);
@@ -134,7 +134,7 @@ class ServerClient {
         return key;
     }
 
-    private static String hash(String input) {
+    private String hash(String input) {
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             
@@ -155,7 +155,7 @@ class ServerClient {
         }
     }
 
-    private static byte[] pad(byte[] message) {
+    private byte[] pad(byte[] message) {
         int targetLength = 128; // 1024 bits = 128 bytes
 
         if (message.length > targetLength) {
@@ -169,17 +169,17 @@ class ServerClient {
         return padded;
     }
 
-    private static String encode(BigInteger raw) {
+    private String encode(BigInteger raw) {
         byte[] rawBytes = raw.toByteArray();
         return Base64.getEncoder().encodeToString(rawBytes);
     }
 
-    private static String decode(String encoded) {
+    private String decode(String encoded) {
         byte[] decodedBytes = Base64.getDecoder().decode(encoded);
         return new String(decodedBytes, StandardCharsets.UTF_8);
     }
 
-    private static String sign(String hashed) {
+    private String sign(String hashed) {
         byte[] bytes = hashed.getBytes(StandardCharsets.UTF_8);
         int raw_length = bytes.length; 
         bytes = pad(bytes);
@@ -189,7 +189,7 @@ class ServerClient {
         return encode(c) + "-" + raw_length;
     }
 
-    private static String encrypt(String plaintext) {
+    private String encrypt(String plaintext) {
         byte[] bytes = plaintext.getBytes(StandardCharsets.UTF_8);
         int raw_length = bytes.length; 
         bytes = pad(bytes);
@@ -199,7 +199,7 @@ class ServerClient {
         return encode(c) + "-" + raw_length;
     }
 
-    private static String decrypt(String cipherText) {
+    private String decrypt(String cipherText) {
         String decoded = decode(cipherText);
         BigInteger c = new BigInteger(decoded, 16);
         BigInteger m = c.modPow(sigKeyPrivate, sigKeyMod);
@@ -212,7 +212,7 @@ class ServerClient {
         return new String(bytes, StandardCharsets.UTF_8);
     }
 
-    private static String genSecret() {
+    private String genSecret() {
         int length = 20;
         String characters = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
         SecureRandom random = new SecureRandom();
@@ -226,7 +226,7 @@ class ServerClient {
         return secretKey.toString();
     }
 
-    private static String genSignature() {
+    private String genSignature() {
         String secret = genSecret();
         String hashed = hash(secret);
 
@@ -420,7 +420,7 @@ class ServerClient {
             download("audio", track.trackID);
             download("cover", track.trackID);
             updateDownloads(track.trackID);
-            MediaHandler.newTrack(track);
+            App.mediaHandler.newTrack(track);
         } catch (Exception e) {
             System.err.println("Track download failed. ");
         }
@@ -465,7 +465,7 @@ class ServerClient {
         } catch (Exception e) {
             System.err.println("Error deleting track asset files. ");
         }
-        MediaHandler.deleteTrack(track);
+        App.mediaHandler.deleteTrack(track);
 
         try {
             updateRemoveDownloads(track.trackID);
