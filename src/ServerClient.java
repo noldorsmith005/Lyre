@@ -314,10 +314,26 @@ class ServerClient {
     }
 
     private void upload(String type, String path, String id) throws Exception {
-        String ext = type.equals("audio") ? "wav" : "jpg";
+        String ext = "";
+        int lastDot = path.lastIndexOf('.');
+        if (lastDot >= 0) {
+            ext = path.substring(lastDot + 1).toLowerCase();
+        }
+        if (!ext.equals("wav") && !ext.equals("mp3") && !ext.equals("jpg") && !ext.equals("png")) {
+            ext = type.equals("audio") ? "wav" : "jpg";
+        }
         String targetUrl = appUrl + "/tracks/" + id + "/upload/" + ext;
         Path localFile = Paths.get(path);
-        String contentType = type.equals("audio") ? "audio/wav" : "image/jpeg";
+        String contentType;
+        if (ext.equals("wav")) {
+            contentType = "audio/wav";
+        } else if (ext.equals("mp3")) {
+            contentType = "audio/mpeg";
+        } else if (ext.equals("png")) {
+            contentType = "image/png";
+        } else {
+            contentType = "image/jpeg";
+        }
 
         HttpRequest request = HttpRequest.newBuilder()
             .uri(URI.create(targetUrl))

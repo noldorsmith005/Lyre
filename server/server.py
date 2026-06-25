@@ -395,32 +395,38 @@ def uploadFile(id, ext):
     type = SUPPORTED_TYPES[ext]['type']
     dest_dir = f"./{type}"
     os.makedirs(dest_dir, exist_ok=True)
-    if type == "audio":
-        final_path = os.path.join(dest_dir, f"{id}.wav")
-        tmp_path = f"./tmp/{id}.wav"
-    else :
-        final_path = os.path.join(dest_dir, f"{id}.jpg")
-        tmp_path = f"./tmp/{id}.jpg"
+    os.makedirs("./tmp", exist_ok=True)
+
+    upload_path = f"./tmp/{id}.{ext}"
+    final_path = os.path.join(dest_dir, f"{id}.wav" if type == "audio" else f"{id}.jpg")
 
     try:
-        with open(tmp_path, "wb") as f:
+        with open(upload_path, "wb") as f:
             while True:
                 chunk = request.stream.read(8192)
                 if not chunk:
                     break
                 f.write(chunk)
 
-        if type == "audio" and ext == "mp3":
-            Utils.toWav(id)
-            stripWAV(tmp_path)
-        if type == "cover" and ext == "png":
-            Utils.toJpg(id)
-
-        os.replace(tmp_path, final_path)
+        if type == "audio":
+            if ext == "mp3":
+                Utils.toWav(id)
+            wav_path = f"./tmp/{id}.wav"
+            stripWAV(wav_path)
+            os.replace(wav_path, final_path)
+        else:
+            if ext == "png":
+                Utils.toJpg(id)
+            jpg_path = f"./tmp/{id}.jpg"
+            os.replace(jpg_path, final_path)
 
     except Exception as e:
-        if os.path.exists(tmp_path):
-            os.remove(tmp_path)
+        for p in [f"./tmp/{id}.{ext}", f"./tmp/{id}.wav", f"./tmp/{id}.jpg"]:
+            try:
+                if os.path.exists(p):
+                    os.remove(p)
+            except Exception:
+                pass
         return {"error": f"Upload failed: {e}"}, 500
 
     return {"status": "ok"}, 201
@@ -553,6 +559,6 @@ def removeDownloaded(id):
 if __name__ == "__main__":
     app.run(
         host="0.0.0.0",
-        port=8080,
+        port=57967,
         debug=True
     )
