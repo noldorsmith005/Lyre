@@ -56,13 +56,13 @@ public class AudioPlayer extends VBox {
     private final Label totalTimeLabel;
     private final Timeline progressUpdater;
 
-    Image playPauseImg = new Image(new File("./resources/play.png").toURI().toString());
+    Image playPauseImg = new Image(new File(App.appDir + "/resources/play.png").toURI().toString());
     Button playPauseBtn = new Button();
-    Image nextImg = new Image(new File("./resources/next.png").toURI().toString());
+    Image nextImg = new Image(new File(App.appDir + "/resources/next.png").toURI().toString());
     Button nextBtn = new Button();
-    Image prevImg = new Image(new File("./resources/previous.png").toURI().toString());
+    Image prevImg = new Image(new File(App.appDir + "/resources/previous.png").toURI().toString());
     Button prevBtn = new Button();
-    Image loopImg = new Image(new File("./resources/loop_unselected.png").toURI().toString());
+    Image loopImg = new Image(new File(App.appDir + "/resources/loop_unselected.png").toURI().toString());
     Button loopBtn = new Button();
 
     private final Runnable onRefresh;
@@ -72,6 +72,8 @@ public class AudioPlayer extends VBox {
         int trackID;
         boolean downloaded;
         String title, artist, duration, contributor;
+
+        public Track() {}
 
         Track(int trackID, String title, String artist, String duration, boolean downloaded, String contributor) {
             this.trackID = trackID;
@@ -111,7 +113,7 @@ public class AudioPlayer extends VBox {
         trackCover.setFitWidth(400);
         trackCover.setFitHeight(400);
         trackCover.setPreserveRatio(true);
-        Image image = new Image(new File("./resources/default.jpg").toURI().toString());
+        Image image = new Image(new File(App.appDir + "/resources/default.jpg").toURI().toString());
         trackCover.setImage(image);
 
         trackBar = new Slider(0, 1, 0);
@@ -303,8 +305,8 @@ public class AudioPlayer extends VBox {
     // ── Helpers ────────────────────────────────────────────────
     private void updatePausePlayButton(Button button, boolean isSelected) {
         playPauseImg = isSelected
-                ? new Image(new File("./resources/pause.png").toURI().toString())
-                : new Image(new File("./resources/play.png").toURI().toString());
+                ? new Image(new File(App.appDir + "/resources/pause.png").toURI().toString())
+                : new Image(new File(App.appDir + "/resources/play.png").toURI().toString());
         ImageView graphic = new ImageView(playPauseImg);
         graphic.setFitWidth(25);
         graphic.setFitHeight(25);
@@ -314,8 +316,8 @@ public class AudioPlayer extends VBox {
 
     private void updateLoopBtn(Button button, boolean isSelected) {
         loopImg = isSelected
-                ? new Image(new File("./resources/loop_selected.png").toURI().toString())
-                : new Image(new File("./resources/loop_unselected.png").toURI().toString());
+                ? new Image(new File(App.appDir + "/resources/loop_selected.png").toURI().toString())
+                : new Image(new File(App.appDir + "/resources/loop_unselected.png").toURI().toString());
         ImageView graphic = new ImageView(loopImg);
         graphic.setFitWidth(25);
         graphic.setFitHeight(25);
@@ -481,7 +483,7 @@ public class AudioPlayer extends VBox {
         artistLabel.setText(track.artist);
 
         File coverFile = new File(assetsUrl + "/cover/" + track.trackID + ".jpg");
-        if (!coverFile.exists()) coverFile = new File("./resources/default.jpg");
+        if (!coverFile.exists()) coverFile = new File(App.appDir + "/resources/default.jpg");
         trackCover.setImage(new Image(coverFile.toURI().toString()));
 
         trackBar.setValue(0.0);

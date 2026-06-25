@@ -7,7 +7,6 @@ server/reader.py
 
 lib/
 bin/
-installers/
 dist/
 input/
 packaging/

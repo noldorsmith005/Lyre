@@ -32,7 +32,7 @@ import javafx.scene.media.MediaPlayer;
 
 
 class ServerClient {
-    private String CONFIG_FILE = "./client.config";
+    private String CONFIG_FILE = App.appDir + "/client.config";
     private String assetsUrl;
     HttpClient client = HttpClient.newHttpClient();
 

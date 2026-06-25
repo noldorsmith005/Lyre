@@ -45,6 +45,7 @@ import javafx.event.EventHandler;
 
 
 public class App extends Application {
+    public static final String appDir = System.getProperty("app.dir", ".");
     public static Path appData;
     private String assetsUrl;
 
@@ -61,9 +62,9 @@ public class App extends Application {
     private boolean serverConnection = false;
     private Label panelTitle = new Label("Select a playlist");
     private Label subtitle = new Label("0 tracks");
-    private Image shuffleImg = new Image(new File("./resources/shuffle_unselected.png").toURI().toString());
+    private Image shuffleImg = new Image(new File(appDir + "/resources/shuffle_unselected.png").toURI().toString());
     private Button shuffleBtn = new Button();
-    private Image rlsImg = new Image(new File("./resources/library_unselected.png").toURI().toString());
+    private Image rlsImg = new Image(new File(appDir + "/resources/library_unselected.png").toURI().toString());
     private Button rlsBtn = new Button();
     private ListView<AudioPlayer.Track> track_list;
     private AudioPlayer.Playlist currPlaylist;
@@ -256,7 +257,7 @@ public class App extends Application {
             }
         });
 
-        Image searchImg = new Image(new File("./resources/search.png").toURI().toString());
+        Image searchImg = new Image(new File(appDir + "/resources/search.png").toURI().toString());
         ImageView searchIcon = new ImageView(searchImg);
         searchIcon.setFitWidth(18);
         searchIcon.setFitHeight(18);
@@ -354,7 +355,7 @@ public class App extends Application {
 
         // Upload Button
         Button uploadBtn = new Button();
-        Image uploadImg = new Image(new File("./resources/upload.png").toURI().toString());
+        Image uploadImg = new Image(new File(appDir + "/resources/upload.png").toURI().toString());
         ImageView uploadGraphic = new ImageView(uploadImg);
         uploadGraphic.setFitWidth(25);
         uploadGraphic.setFitHeight(25);
@@ -379,7 +380,7 @@ public class App extends Application {
 
         // Clear Server Config Button
         Button clearConfigBtn = new Button();
-        Image clearConfigImg = new Image(new File("./resources/clear_config.png").toURI().toString());
+        Image clearConfigImg = new Image(new File(appDir + "/resources/clear_config.png").toURI().toString());
         ImageView clearConfigGraphic = new ImageView(clearConfigImg);
         clearConfigGraphic.setFitWidth(30);
         clearConfigGraphic.setFitHeight(30);
@@ -837,9 +838,9 @@ public class App extends Application {
 
     private void updateShuffleButtonStyle(boolean isSelected) {
         if (isSelected) {
-            shuffleImg = new Image(new File("./resources/shuffle_selected.png").toURI().toString());
+            shuffleImg = new Image(new File(appDir + "/resources/shuffle_selected.png").toURI().toString());
         } else {
-            shuffleImg = new Image(new File("./resources/shuffle_unselected.png").toURI().toString());
+            shuffleImg = new Image(new File(appDir + "/resources/shuffle_unselected.png").toURI().toString());
         }
         ImageView graphic = new ImageView(shuffleImg);
         graphic.setFitWidth(32);
@@ -850,9 +851,9 @@ public class App extends Application {
 
     private void updateRlsButtonStyle(boolean isSelected) {
         if (isSelected) {
-            rlsImg = new Image(new File("./resources/library_selected.png").toURI().toString());
+            rlsImg = new Image(new File(appDir + "/resources/library_selected.png").toURI().toString());
         } else {
-            rlsImg = new Image(new File("./resources/library_unselected.png").toURI().toString());
+            rlsImg = new Image(new File(appDir + "/resources/library_unselected.png").toURI().toString());
         }
         ImageView graphic = new ImageView(rlsImg);
         graphic.setFitWidth(32);
@@ -1209,7 +1210,7 @@ public class App extends Application {
 
         // Play Button
         Button playButton = new Button();
-        Image playButtonImg = new Image(new File("./resources/play.png").toURI().toString());
+        Image playButtonImg = new Image(new File(appDir + "/resources/play.png").toURI().toString());
         ImageView playButtonGraphic = new ImageView(playButtonImg);
         playButtonGraphic.setFitWidth(12);
         playButtonGraphic.setFitHeight(12);
@@ -1232,15 +1233,15 @@ public class App extends Application {
         thumbCover.setPreserveRatio(true);
         File coverFile = new File(assetsUrl + "/cover/" + track.trackID + ".jpg");
         if (!coverFile.exists()) {
-            coverFile = new File("./resources/default.jpg");
+            coverFile = new File(appDir + "/resources/default.jpg");
         }
         Image thumbImage = new Image(coverFile.toURI().toString());
         thumbCover.setImage(thumbImage);
 
         // Queue Button
         Button addToQueueBtn = new Button();
-        Image queueImg = new Image(new File("./resources/add_to_queue.png").toURI().toString());
-        Image queueImgHover = new Image(new File("./resources/add_to_queue_hover.png").toURI().toString());
+        Image queueImg = new Image(new File(appDir + "/resources/add_to_queue.png").toURI().toString());
+        Image queueImgHover = new Image(new File(appDir + "/resources/add_to_queue_hover.png").toURI().toString());
         ImageView queueGraphic = new ImageView(queueImg);
         queueGraphic.setFitWidth(16);
         queueGraphic.setFitHeight(16);
@@ -1253,8 +1254,8 @@ public class App extends Application {
 
         // Playlist Button
         Button addToPlaylistBtn = new Button();
-        Image playlistImg = new Image(new File("./resources/add_to_playlist.png").toURI().toString());
-        Image playlistImgHover = new Image(new File("./resources/add_to_playlist_hover.png").toURI().toString());
+        Image playlistImg = new Image(new File(appDir + "/resources/add_to_playlist.png").toURI().toString());
+        Image playlistImgHover = new Image(new File(appDir + "/resources/add_to_playlist_hover.png").toURI().toString());
         ImageView playlistGraphic = new ImageView(playlistImg);
         playlistGraphic.setFitWidth(16);
         playlistGraphic.setFitHeight(16);
@@ -1277,7 +1278,7 @@ public class App extends Application {
 
         // Download Button
         Button downloadBtn = new Button();
-        Image downloadImg = new Image(new File("./resources/download.png").toURI().toString());
+        Image downloadImg = new Image(new File(appDir + "/resources/download.png").toURI().toString());
         ImageView downloadGraphic = new ImageView(downloadImg);
         downloadGraphic.setFitWidth(22);
         downloadGraphic.setFitHeight(22);

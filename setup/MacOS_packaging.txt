@@ -1,0 +1,16 @@
+jpackage \
+  --type dmg \
+  --name Napster \
+  --app-version 1.0.0 \
+  --input ./input \
+  --main-jar Napster.jar \
+  --main-class Napster.App \
+  --module-path ./lib/javafx-jmods-26.0.1 \
+  --add-modules javafx.controls,javafx.fxml,javafx.media,java.sql,java.net.http,java.desktop \
+  --java-options "-Djava.library.path=\$APPDIR" \
+  --java-options "-Dapp.dir=\$APPDIR" \
+  --java-options "-Dapple.awt.application.appearance=NSAppearanceNameDarkAqua" \
+  --java-options "-Dprism.order=mtl" \
+  --java-options "--enable-native-access=javafx.graphics,javafx.media,ALL-UNNAMED" \
+  --icon ./packaging/icon.icns \
+  --dest ./dist
