@@ -49,6 +49,28 @@ public class App extends Application {
     public static Path appData;
     private String assetsUrl;
 
+    // OS-specific layout and spacing variables
+    public static double sidebarRatio;
+    public static double mediaPanelRatio;
+    public static double cellSize;
+    public static double cellSpacing;
+    public static int trackCardTextSize;
+    public static int titleFontSize;
+    public static int subFontSize;
+    public static int thumbSize;
+    public static int paddingV;
+    public static int paddingH;
+
+    public static int coverSize;
+    public static int cardTextSize;
+    public static int queueTitleFontSize;
+    public static int queueArtistFontSize;
+    public static int queueDurationFontSize;
+    public static int queueCardsSpacing;
+    public static int queueCardPaddingV;
+    public static int queueCardPaddingH;
+    public static int queueContainerPaddingH;
+
     public static MediaHandler mediaHandler;
     private static ServerClient serverClient;
     private static AudioPlayer audioPlayer;
@@ -101,6 +123,50 @@ public class App extends Application {
         }
         assetsUrl = appData.toString();
 
+        if (os.contains("win")) {
+            sidebarRatio = 0.16875;
+            mediaPanelRatio = 0.26875;
+            cellSize = 78;
+            cellSpacing = 4.5;
+            trackCardTextSize = 200;
+            titleFontSize = 14;
+            subFontSize = 12;
+            thumbSize = 32;
+            paddingV = 10;
+            paddingH = 14;
+
+            coverSize = 300;
+            cardTextSize = 220;
+            queueTitleFontSize = 15;
+            queueArtistFontSize = 12;
+            queueDurationFontSize = 13;
+            queueCardsSpacing = 12;
+            queueCardPaddingV = 10;
+            queueCardPaddingH = 14;
+            queueContainerPaddingH = 16;
+        } else {
+            sidebarRatio = 0.25;
+            mediaPanelRatio = 0.25;
+            cellSize = 80;
+            cellSpacing = 4.0;
+            trackCardTextSize = 275;
+            titleFontSize = 17;
+            subFontSize = 15;
+            thumbSize = 40;
+            paddingV = 14;
+            paddingH = 18;
+
+            coverSize = 400;
+            cardTextSize = 200;
+            queueTitleFontSize = 17;
+            queueArtistFontSize = 13;
+            queueDurationFontSize = 15;
+            queueCardsSpacing = 8;
+            queueCardPaddingV = 14;
+            queueCardPaddingH = 18;
+            queueContainerPaddingH = 32;
+        }
+
         // Handler Initializations
         mediaHandler = new MediaHandler();
         serverClient = new ServerClient();
@@ -127,24 +193,48 @@ public class App extends Application {
 
         stage.setScene(scene);
         stage.setMaximized(true);
+
+        stage.widthProperty().addListener((obs, oldW, newW) -> {
+            double w = newW.doubleValue();
+            sidebar.setPrefWidth(w * sidebarRatio);
+            sidebar.setMinWidth(w * sidebarRatio);
+            sidebar.setMaxWidth(w * sidebarRatio);
+            
+            double mediaW = w * mediaPanelRatio;
+            mediaPanel.setPrefWidth(mediaW);
+            mediaPanel.setMinWidth(mediaW);
+            mediaPanel.setMaxWidth(mediaW);
+            
+            audioPlayer.setPrefWidth(mediaW);
+            audioPlayer.setMinWidth(mediaW);
+            audioPlayer.setMaxWidth(mediaW);
+        });
+
         stage.show();
         stage.setResizable(false);
+
+        // Force initial sizing calculation immediately after stage is shown
+        double currentW = stage.getWidth();
+        if (currentW > 0) {
+            sidebar.setPrefWidth(currentW * sidebarRatio);
+            sidebar.setMinWidth(currentW * sidebarRatio);
+            sidebar.setMaxWidth(currentW * sidebarRatio);
+            
+            double mediaW = currentW * mediaPanelRatio;
+            mediaPanel.setPrefWidth(mediaW);
+            mediaPanel.setMinWidth(mediaW);
+            mediaPanel.setMaxWidth(mediaW);
+            
+            audioPlayer.setPrefWidth(mediaW);
+            audioPlayer.setMinWidth(mediaW);
+            audioPlayer.setMaxWidth(mediaW);
+        }
 
         scene.setOnKeyPressed(e -> {
             if (e.getCode() == KeyCode.SPACE) {
                 audioPlayer.playPauseBtn.fire();
                 e.consume();
             }
-        });
-
-        stage.widthProperty().addListener((obs, oldW, newW) -> {
-            double w = newW.doubleValue();
-            sidebar.setPrefWidth(w * 0.25);
-            sidebar.setMinWidth(w * 0.25);
-            sidebar.setMaxWidth(w * 0.25);
-            mediaPanel.setPrefWidth(w * 0.25);
-            mediaPanel.setMinWidth(w * 0.25);
-            mediaPanel.setMaxWidth(w * 0.25);
         });
 
         stage.setOnCloseRequest(event -> scheduler.shutdownNow());
@@ -657,7 +747,7 @@ public class App extends Application {
     // ── Track List Builder ──────────────────────────────────────
     private ListView<AudioPlayer.Track> buildTrackListView() {
         ListView<AudioPlayer.Track> listView = new ListView<>();
-        listView.setFixedCellSize(80);
+        listView.setFixedCellSize(cellSize);
         listView.setStyle(
             "-fx-background-color: #000000;" +
             "-fx-border-color: transparent;" +
@@ -700,9 +790,10 @@ public class App extends Application {
                     }
                     setGraphic(trackRow);
                     setText(null);
+                    
                     setStyle(
                         "-fx-background-color: #000000;" +
-                        "-fx-padding: 4 0 4 0;" +
+                        "-fx-padding: " + cellSpacing + " 0 " + cellSpacing + " 0;" +
                         "-fx-border-color: transparent;"
                     );
                 }
@@ -1070,21 +1161,21 @@ public class App extends Application {
         Label nameLabel = new Label(track.title);
         nameLabel.setStyle(
             "-fx-text-fill: #e8e8e8;" +
-            "-fx-font-size: 17px;"
+            "-fx-font-size: " + titleFontSize + "px;"
         );
-        nameLabel.setMaxWidth(275);
+        nameLabel.setMaxWidth(trackCardTextSize);
         nameLabel.setTextOverrun(OverrunStyle.ELLIPSIS);
 
         Label artistLabel = new Label(track.artist);
         artistLabel.setStyle(
             "-fx-text-fill: #555555;" +
-            "-fx-font-size: 15px;"
+            "-fx-font-size: " + subFontSize + "px;"
         );
 
         Label contribLabel = new Label("Uploaded by:  " + track.contributor);
         contribLabel.setStyle(
             "-fx-text-fill: #ffffff;" +
-            "-fx-font-size: 15px;"
+            "-fx-font-size: " + subFontSize + "px;"
         );
 
         VBox textBlock = new VBox(3, nameLabel, artistLabel);
@@ -1093,7 +1184,7 @@ public class App extends Application {
         Label durationLabel = new Label(track.duration);
         durationLabel.setStyle(
             "-fx-text-fill: #e8e8e8;" +
-            "-fx-font-size: 15px;"
+            "-fx-font-size: " + subFontSize + "px;"
         );
 
         Region spacer = new Region();
@@ -1233,8 +1324,8 @@ public class App extends Application {
 
         // Thumbnail Track Image
         ImageView thumbCover = new ImageView();
-        thumbCover.setFitWidth(40);
-        thumbCover.setFitHeight(40);
+        thumbCover.setFitWidth(thumbSize);
+        thumbCover.setFitHeight(thumbSize);
         thumbCover.setPreserveRatio(true);
         File coverFile = new File(assetsUrl + "/cover/" + track.trackID + ".jpg");
         if (!coverFile.exists()) {
@@ -1311,7 +1402,7 @@ public class App extends Application {
         }
 
         card.setAlignment(Pos.CENTER_LEFT);
-        card.setPadding(new Insets(14, 18, 14, 18));
+        card.setPadding(new Insets(paddingV, paddingH, paddingV, paddingH));
         card.setStyle(
             "-fx-background-color: transparent;" +
             "-fx-border-color: #1a1a1a;" +

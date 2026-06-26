@@ -102,7 +102,7 @@ public class AudioPlayer extends VBox {
 
         titleLabel = new Label("");
         titleLabel.setStyle("-fx-font-size: 20px; -fx-font-weight: bold; -fx-text-fill: #ffffff;");
-        titleLabel.setMaxWidth(400);
+        titleLabel.setMaxWidth(App.coverSize);
         titleLabel.setTextOverrun(OverrunStyle.ELLIPSIS);
         titleLabel.setAlignment(Pos.CENTER);
 
@@ -110,8 +110,8 @@ public class AudioPlayer extends VBox {
         artistLabel.setStyle("-fx-font-size: 15px; -fx-text-fill: #888;");
 
         trackCover = new ImageView();
-        trackCover.setFitWidth(400);
-        trackCover.setFitHeight(400);
+        trackCover.setFitWidth(App.coverSize);
+        trackCover.setFitHeight(App.coverSize);
         trackCover.setPreserveRatio(true);
         Image image = new Image(new File(App.appDir + "/resources/default.jpg").toURI().toString());
         trackCover.setImage(image);
@@ -267,7 +267,8 @@ public class AudioPlayer extends VBox {
         HBox queueRow = new HBox(12, queueLabel, queueSpacer, clearBtn);
         controlRow.setAlignment(Pos.CENTER);
 
-        queueCards.setPadding(new Insets(20, 32, 20, 32));
+        queueCards.setSpacing(App.queueCardsSpacing);
+        queueCards.setPadding(new Insets(20, App.queueContainerPaddingH, 20, App.queueContainerPaddingH));
 
         for (Track track : queue) {
             HBox card = buildCard(track);
@@ -592,20 +593,20 @@ public class AudioPlayer extends VBox {
     // ── Card Builder ──────────────────────────────────────────────
     private HBox buildCard(Track track) {
         Label nameLabel = new Label(track.title);
-        nameLabel.setStyle("-fx-text-fill: #e8e8e8; -fx-font-size: 17px;");
-        nameLabel.setMaxWidth(200);
+        nameLabel.setStyle("-fx-text-fill: #e8e8e8; -fx-font-size: " + App.queueTitleFontSize + "px;");
+        nameLabel.setMaxWidth(App.cardTextSize);
         nameLabel.setTextOverrun(OverrunStyle.ELLIPSIS);
 
         Label artistLabel = new Label(track.artist);
-        artistLabel.setStyle("-fx-text-fill: #555555; -fx-font-size: 13px;");
-        artistLabel.setMaxWidth(200);
+        artistLabel.setStyle("-fx-text-fill: #555555; -fx-font-size: " + App.queueArtistFontSize + "px;");
+        artistLabel.setMaxWidth(App.cardTextSize);
         artistLabel.setTextOverrun(OverrunStyle.ELLIPSIS);
 
         VBox textBlock = new VBox(3, nameLabel, artistLabel);
         HBox.setHgrow(textBlock, Priority.ALWAYS);
 
         Label durationLabel = new Label(track.duration);
-        durationLabel.setStyle("-fx-text-fill: #555555; -fx-font-size: 15px;");
+        durationLabel.setStyle("-fx-text-fill: #555555; -fx-font-size: " + App.queueDurationFontSize + "px;");
 
         Region spacer = new Region();
         HBox.setHgrow(spacer, Priority.ALWAYS);
@@ -618,7 +619,7 @@ public class AudioPlayer extends VBox {
 
         HBox card = new HBox(12, textBlock, spacer, durationLabel, removeBtn);
         card.setAlignment(Pos.CENTER_LEFT);
-        card.setPadding(new Insets(14, 18, 14, 18));
+        card.setPadding(new Insets(App.queueCardPaddingV, App.queueCardPaddingH, App.queueCardPaddingV, App.queueCardPaddingH));
         card.setStyle("-fx-background-color: #161616; -fx-background-radius: 10; -fx-cursor: hand;");
         card.setOnMouseEntered(e -> card.setStyle("-fx-background-color: #1c1c1c; -fx-background-radius: 10; -fx-cursor: hand;"));
         card.setOnMouseExited(e -> card.setStyle("-fx-background-color: #161616; -fx-background-radius: 10; -fx-cursor: hand;"));

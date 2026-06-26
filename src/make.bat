@@ -6,12 +6,27 @@ set GSON=..\lib\gson-2.11.0\gson-2.11.0.jar
 set FLAC=..\lib\jflac-1.5.2\jflac-codec-1.5.2.jar
 set MODS=javafx.controls,javafx.fxml,javafx.media
 
+rem Locate jar executable if not on PATH
+set JAR_CMD=jar
+where jar >nul 2>nul
+if %ERRORLEVEL% NEQ 0 (
+    if exist "%JAVA_HOME%\bin\jar.exe" (
+        set JAR_CMD="%JAVA_HOME%\bin\jar.exe"
+    ) else if exist "C:\Program Files\Java\latest\jdk-26\bin\jar.exe" (
+        set JAR_CMD="C:\Program Files\Java\latest\jdk-26\bin\jar.exe"
+    ) else (
+        for /d %%i in ("C:\Program Files\Java\jdk-*") do (
+            if exist "%%i\bin\jar.exe" set JAR_CMD="%%i\bin\jar.exe"
+        )
+    )
+)
+
 echo Compiling...
 javac --module-path "%JFX_JMODS%" --add-modules %MODS% -classpath "%SQLite%;%GSON%;%FLAC%" ./App.java ./MediaHandler.java ./AudioPlayer.java ./DragHandler.java ./ServerClient.java -d ..\bin
 
 if %ERRORLEVEL% EQU 0 (
     echo Packaging...
-    jar cfe ./Napster.jar Napster.App -C ..\bin Napster
+    %JAR_CMD% cfe ./Napster.jar Napster.App -C ..\bin Napster
 
     echo Running...
     java -Dprism.order=d3d ^
