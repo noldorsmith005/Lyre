@@ -194,40 +194,45 @@ public class App extends Application {
         stage.setScene(scene);
         stage.setMaximized(true);
 
-        stage.widthProperty().addListener((obs, oldW, newW) -> {
-            double w = newW.doubleValue();
-            sidebar.setPrefWidth(w * sidebarRatio);
-            sidebar.setMinWidth(w * sidebarRatio);
-            sidebar.setMaxWidth(w * sidebarRatio);
-            
-            double mediaW = w * mediaPanelRatio;
-            mediaPanel.setPrefWidth(mediaW);
-            mediaPanel.setMinWidth(mediaW);
-            mediaPanel.setMaxWidth(mediaW);
-            
-            audioPlayer.setPrefWidth(mediaW);
-            audioPlayer.setMinWidth(mediaW);
-            audioPlayer.setMaxWidth(mediaW);
-        });
+        if (os.contains("win")) {
+            stage.widthProperty().addListener((obs, oldW, newW) -> {
+                double w = newW.doubleValue();
+                sidebar.setPrefWidth(w * sidebarRatio);
+                sidebar.setMinWidth(w * sidebarRatio);
+                sidebar.setMaxWidth(w * sidebarRatio);
+                
+                double mediaW = w * mediaPanelRatio;
+                mediaPanel.setPrefWidth(mediaW);
+                mediaPanel.setMinWidth(mediaW);
+                mediaPanel.setMaxWidth(mediaW);
+                
+                audioPlayer.setPrefWidth(mediaW);
+                audioPlayer.setMinWidth(mediaW);
+                audioPlayer.setMaxWidth(mediaW);
+            });
 
-        stage.show();
-        stage.setResizable(false);
+            stage.show();
+            stage.setResizable(false);
 
-        // Force initial sizing calculation immediately after stage is shown
-        double currentW = stage.getWidth();
-        if (currentW > 0) {
-            sidebar.setPrefWidth(currentW * sidebarRatio);
-            sidebar.setMinWidth(currentW * sidebarRatio);
-            sidebar.setMaxWidth(currentW * sidebarRatio);
-            
-            double mediaW = currentW * mediaPanelRatio;
-            mediaPanel.setPrefWidth(mediaW);
-            mediaPanel.setMinWidth(mediaW);
-            mediaPanel.setMaxWidth(mediaW);
-            
-            audioPlayer.setPrefWidth(mediaW);
-            audioPlayer.setMinWidth(mediaW);
-            audioPlayer.setMaxWidth(mediaW);
+            // Force initial sizing calculation immediately after stage is shown
+            double currentW = stage.getWidth();
+            if (currentW > 0) {
+                sidebar.setPrefWidth(currentW * sidebarRatio);
+                sidebar.setMinWidth(currentW * sidebarRatio);
+                sidebar.setMaxWidth(currentW * sidebarRatio);
+                
+                double mediaW = currentW * mediaPanelRatio;
+                mediaPanel.setPrefWidth(mediaW);
+                mediaPanel.setMinWidth(mediaW);
+                mediaPanel.setMaxWidth(mediaW);
+                
+                audioPlayer.setPrefWidth(mediaW);
+                audioPlayer.setMinWidth(mediaW);
+                audioPlayer.setMaxWidth(mediaW);
+            }
+        } else {
+            stage.show();
+            stage.setResizable(false);
         }
 
         scene.setOnKeyPressed(e -> {
@@ -236,6 +241,18 @@ public class App extends Application {
                 e.consume();
             }
         });
+
+        if (!os.contains("win")) {
+            stage.widthProperty().addListener((obs, oldW, newW) -> {
+                double w = newW.doubleValue();
+                sidebar.setPrefWidth(w * 0.25);
+                sidebar.setMinWidth(w * 0.25);
+                sidebar.setMaxWidth(w * 0.25);
+                mediaPanel.setPrefWidth(w * 0.25);
+                mediaPanel.setMinWidth(w * 0.25);
+                mediaPanel.setMaxWidth(w * 0.25);
+            });
+        }
 
         stage.setOnCloseRequest(event -> scheduler.shutdownNow());
 
