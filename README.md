@@ -11,3 +11,6 @@ Setup Documentation:
 Packaging:
 	- In the project root, make directories input, packaging, and dist. In ./input, place Napster.jar, your sqlite, gson, and flac jars, client.config, and the resources directory. In ./packaging, place your icon.icns file. Modify the jpackage command in ./setup as needed for your OS, and then copy and run the command from the project root. 
 
+
+To Do:
+	-Song tags in server-side database for searching
