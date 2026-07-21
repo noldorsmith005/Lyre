@@ -14,3 +14,6 @@ Packaging:
 
 To Do:
 	-Song tags in server-side database for searching
+	-Migration: server-side downloads pivot table mapping song_id -> user_id for each download (removed/added as needed). 
+	-Migration: playlists table with fields user_id, name, track_ids
+	-Playlist+Song sync: Computer -> user can upload/update their playlists to the server, stored as rows in the playlists table. Mobile -> user can pull sync the uploaded playlists to their device. 1. sync tracks (compare local tracks to downloads pivot table and remove/download as needed) 2. sync playlists (rearrange songs, create/delete/modify playlists as needed). 
