@@ -216,17 +216,25 @@ def authUser(signature):
 
     hashed = hash(secret)
     decoded_cypher = decode(encoded_cypher)
-    key = (int(user['sig_key']['public']), int(user['sig_key']['mod']))
-    decrypted = decrypt(decoded_cypher, key)
-    match = unpad(decrypted, message_len)
 
-    if match == False:
-        return False
+    # Collect all public keys registered for this user across devices
+    keys = []
+    if 'sig_keys' in user and isinstance(user['sig_keys'], list):
+        keys.extend(user['sig_keys'])
+    if 'sig_key' in user and user['sig_key'] not in keys:
+        keys.append(user['sig_key'])
 
-    if hashed == match:
-        return userID
-    else :
-        return False
+    for key_dict in keys:
+        try:
+            key = (int(key_dict['public']), int(key_dict['mod']))
+            decrypted = decrypt(decoded_cypher, key)
+            match = unpad(decrypted, message_len)
+            if match != False and hashed == match:
+                return userID
+        except Exception:
+            continue
+
+    return False
 
 # Routes
 @app.route('/ping')
@@ -272,13 +280,219 @@ def createUser():
                 json.dump(data, file, indent=4)
                 file.truncate() 
 
-        else :
-            return "Invalid App Token", 401
-
     return f"{str(id)}-{str(key_pair['public'])}-{str(key_pair['mod'])}", 201
 
 
+@app.post("/auth/login")
+def loginUser():
+    auth_token = request.headers.get("AppToken")
+    user_data = request.get_json()
+    username = user_data.get('username')
+
+    with open('./sessions.json', 'r+') as file:
+        data = json.load(file)
+
+        if auth_token != data.get('AppToken'):
+            return "Invalid App Token", 401
+
+        user = None
+        for u in data.get('Users', []):
+            if u['username'] == username:
+                user = u
+                break
+
+        if not user:
+            return "User not found", 404
+
+        new_sig_key = {
+            "public": user_data['public'],
+            "mod": user_data['mod']
+        }
+        user['sig_key'] = new_sig_key
+        if 'sig_keys' not in user or not isinstance(user['sig_keys'], list):
+            user['sig_keys'] = []
+        if new_sig_key not in user['sig_keys']:
+            user['sig_keys'].append(new_sig_key)
+
+        # Track active session
+        if 'ActiveSessions' not in data:
+            data['ActiveSessions'] = {}
+        
+        import time
+        data['ActiveSessions'][str(user['id'])] = {
+            "username": username,
+            "last_seen": int(time.time()),
+            "client_ip": request.remote_addr
+        }
+
+        file.seek(0)
+        json.dump(data, file, indent=4)
+        file.truncate()
+
+        decrypt_key = user.get('decrypt_key', {})
+        public = decrypt_key.get('public', 65537)
+        mod = decrypt_key.get('mod', 0)
+
+        return f"{str(user['id'])}-{str(public)}-{str(mod)}", 200
+
+
+@app.get("/auth/validate")
+def validateSession():
+    auth_token = request.headers.get("AppToken")
+    signature = request.headers.get("Signature")
+
+    with open('./sessions.json', 'r+') as file:
+        data = json.load(file)
+
+        if auth_token != data.get('AppToken'):
+            return "Invalid App Token", 401
+
+        authorized = authUser(signature)
+        if authorized != False:
+            userID = str(authorized)
+            if 'ActiveSessions' not in data:
+                data['ActiveSessions'] = {}
+            
+            import time
+            data['ActiveSessions'][userID] = {
+                "username": getUser(authorized).get('username', ''),
+                "last_seen": int(time.time()),
+                "client_ip": request.remote_addr
+            }
+            file.seek(0)
+            json.dump(data, file, indent=4)
+            file.truncate()
+
+            return jsonify({"status": "authenticated", "userID": authorized}), 200
+        else:
+            return "Unauthorized", 401
+
+
+def init_db():
+    try:
+        with sqlite3.connect(DATABASE_URL) as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS user_playlists (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id     INTEGER,
+                    playlist_id INTEGER,
+                    name        TEXT,
+                    tracks      TEXT
+                )
+            """)
+    except Exception as e:
+        print(f"Error initializing DB: {e}")
+
+init_db()
+
+
 # API methods
+@app.post("/sync/push")
+def pushSyncPlaylists():
+    auth_token = request.headers.get("AppToken")
+    signature = request.headers.get("Signature")
+
+    with open('./sessions.json', 'r') as file:
+        data = json.load(file)
+        if auth_token != data.get('AppToken'):
+            return "Invalid App Token", 401
+
+    authorized = authUser(signature)
+    if authorized == False:
+        return "Unauthorized", 401
+
+    user_id = int(authorized)
+    payload = request.get_json()
+    playlists = payload.get("playlists", [])
+
+    with sqlite3.connect(DATABASE_URL) as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM user_playlists WHERE user_id = ?", (user_id,))
+        for pl in playlists:
+            playlist_id = pl.get("playlist_id")
+            name = pl.get("name")
+            tracks_json = json.dumps(pl.get("tracks", []))
+            cursor.execute(
+                "INSERT INTO user_playlists (user_id, playlist_id, name, tracks) VALUES (?, ?, ?, ?)",
+                (user_id, playlist_id, name, tracks_json)
+            )
+        conn.commit()
+
+    return jsonify({"status": "success"}), 200
+
+
+@app.get("/sync/pull")
+def pullSyncPlaylists():
+    auth_token = request.headers.get("AppToken")
+    signature = request.headers.get("Signature")
+
+    with open('./sessions.json', 'r') as file:
+        data = json.load(file)
+        if auth_token != data.get('AppToken'):
+            return "Invalid App Token", 401
+
+    authorized = authUser(signature)
+    if authorized == False:
+        return "Unauthorized", 401
+
+    user_id = int(authorized)
+    playlists = []
+    with sqlite3.connect(DATABASE_URL) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT playlist_id, name, tracks FROM user_playlists WHERE user_id = ?", (user_id,))
+        for row in cursor.fetchall():
+            try:
+                tracks_list = json.loads(row[2])
+            except Exception:
+                tracks_list = []
+            playlists.append({
+                "playlist_id": row[0],
+                "name": row[1],
+                "tracks": tracks_list
+            })
+
+    return jsonify(playlists), 200
+
+
+@app.get("/sync/user_downloads")
+def getUserDownloads():
+    auth_token = request.headers.get("AppToken")
+    signature = request.headers.get("Signature")
+
+    with open('./sessions.json', 'r') as file:
+        data = json.load(file)
+        if auth_token != data.get('AppToken'):
+            return "Invalid App Token", 401
+
+    authorized = authUser(signature)
+    if authorized == False:
+        return "Unauthorized", 401
+
+    user_id = int(authorized)
+    tracks = []
+    with sqlite3.connect(DATABASE_URL) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM Tracks")
+        for row in cursor.fetchall():
+            try:
+                downloaded_by = json.loads(row[5])
+            except Exception:
+                downloaded_by = []
+
+            if user_id in downloaded_by:
+                contributor = getUser(row[4])
+                contributor_name = contributor['username'] if contributor else ""
+                tracks.append({
+                    "trackID": row[0],
+                    "title": row[1],
+                    "artist": row[2],
+                    "duration": row[3],
+                    "contributor": contributor_name,
+                    "downloaded": True
+                })
+
+    return jsonify(tracks), 200
+
 @app.get("/tracks/<string:filter_text>")
 def searchTracks(filter_text):
     filter_text = urllib.parse.unquote_plus(filter_text)

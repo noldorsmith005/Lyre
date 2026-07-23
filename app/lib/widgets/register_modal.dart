@@ -2,7 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 class RegisterModal extends StatefulWidget {
-  final Function(String url, String token, String username) onSubmit;
+  final Function(bool isLogin, String url, String token, String username) onSubmit;
   final String? errorMessage;
 
   const RegisterModal({
@@ -11,10 +11,14 @@ class RegisterModal extends StatefulWidget {
     this.errorMessage,
   }) : super(key: key);
 
-  static void show(BuildContext context, {required Function(String, String, String) onSubmit, String? errorMessage}) {
+  static void show(
+    BuildContext context, {
+    required Function(bool isLogin, String url, String token, String username) onSubmit,
+    String? errorMessage,
+  }) {
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.65),
+      barrierColor: Colors.black.withValues(alpha: 0.65),
       builder: (context) => BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
         child: RegisterModal(onSubmit: onSubmit, errorMessage: errorMessage),
@@ -27,6 +31,7 @@ class RegisterModal extends StatefulWidget {
 }
 
 class _RegisterModalState extends State<RegisterModal> {
+  bool _isLogin = true;
   final TextEditingController _urlController = TextEditingController();
   final TextEditingController _tokenController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
@@ -70,7 +75,7 @@ class _RegisterModalState extends State<RegisterModal> {
       elevation: 0,
       child: Container(
         width: 600,
-        height: 300,
+        height: 340,
         padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
         decoration: BoxDecoration(
           color: const Color(0xFF111111),
@@ -80,13 +85,48 @@ class _RegisterModalState extends State<RegisterModal> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const Text(
-              'Register a user with the RLS:',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+            // Mode Toggle Tabs
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                GestureDetector(
+                  onTap: () => setState(() => _isLogin = true),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: _isLogin ? const Color(0xFFCC0000) : Colors.transparent,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'Login to RLS',
+                      style: TextStyle(
+                        color: _isLogin ? Colors.white : const Color(0xFF888888),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                GestureDetector(
+                  onTap: () => setState(() => _isLogin = false),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: !_isLogin ? const Color(0xFFCC0000) : Colors.transparent,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      'Register New User',
+                      style: TextStyle(
+                        color: !_isLogin ? Colors.white : const Color(0xFF888888),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
             Row(
@@ -94,15 +134,15 @@ class _RegisterModalState extends State<RegisterModal> {
               children: [
                 Column(
                   children: [
-                    _buildTextField('URL', _urlController),
-                    _buildTextField('Token', _tokenController),
+                    _buildTextField('Server URL', _urlController),
+                    _buildTextField('App Token', _tokenController),
                   ],
                 ),
                 const SizedBox(width: 16),
                 Column(
                   children: [
                     _buildTextField('Username', _usernameController),
-                    const SizedBox(height: 12), // Align visually
+                    const SizedBox(height: 12),
                     SizedBox(
                       width: 260,
                       height: 38,
@@ -115,14 +155,15 @@ class _RegisterModalState extends State<RegisterModal> {
                         ),
                         onPressed: () {
                           widget.onSubmit(
+                            _isLogin,
                             _urlController.text,
                             _tokenController.text,
                             _usernameController.text,
                           );
                         },
-                        child: const Text(
-                          'Register',
-                          style: TextStyle(color: Colors.white, fontSize: 14),
+                        child: Text(
+                          _isLogin ? 'Login' : 'Register',
+                          style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
                         ),
                       ),
                     ),

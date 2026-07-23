@@ -37,6 +37,18 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadPlaylists();
+    _autoConnectServer();
+  }
+
+  Future<void> _autoConnectServer() async {
+    if (widget.serverClient.registered()) {
+      final isValid = await widget.serverClient.validateSession();
+      if (isValid && mounted) {
+        setState(() {
+          _serverConnection = true;
+        });
+      }
+    }
   }
 
   Future<void> _loadPlaylists() async {
@@ -76,15 +88,24 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!_serverConnection && !widget.serverClient.registered()) {
       RegisterModal.show(
         context,
-        onSubmit: (url, token, username) async {
+        onSubmit: (isLogin, url, token, username) async {
           try {
-            await widget.serverClient.createAndRegister(url, token, username);
-            setState(() {
-              _serverConnection = true;
-            });
-            if (mounted) Navigator.of(context).pop();
+            String? err;
+            if (isLogin) {
+              err = await widget.serverClient.login(url, token, username);
+            } else {
+              err = await widget.serverClient.createAndRegister(url, token, username);
+            }
+            if (err != null) {
+              if (mounted) _showAlert(isLogin ? 'Login Error' : 'Registration Error', err);
+            } else {
+              setState(() {
+                _serverConnection = true;
+              });
+              if (mounted) Navigator.of(context).pop();
+            }
           } catch (e) {
-            _showAlert('Registration Error', e.toString());
+            if (mounted) _showAlert('Error', e.toString());
           }
         },
       );
@@ -135,6 +156,37 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         _serverConnection = false;
       });
+    }
+  }
+
+  Future<void> _onSyncPressed() async {
+    if (!_serverConnection) {
+      _showAlert('Sync Error', 'Please connect to the server first.');
+      return;
+    }
+
+    try {
+      final playlists = await widget.mediaHandler.loadPlaylists();
+      List<Map<String, dynamic>> syncPayload = [];
+
+      for (var pl in playlists) {
+        final tracks = await widget.mediaHandler.loadPlaylistTracks(pl.playlistID);
+        final trackIds = tracks.map((t) => t.trackID).toList();
+        syncPayload.add({
+          'playlist_id': pl.playlistID,
+          'name': pl.title,
+          'tracks': trackIds,
+        });
+      }
+
+      final success = await widget.serverClient.pushSyncPlaylists(syncPayload);
+      if (success) {
+        _showAlert('Playlist Sync', 'Playlists synced to server successfully!');
+      } else {
+        _showAlert('Sync Error', 'Failed to push playlists to server.');
+      }
+    } catch (e) {
+      _showAlert('Sync Error', e.toString());
     }
   }
 
@@ -266,6 +318,7 @@ class _HomeScreenState extends State<HomeScreen> {
               onRlsPressed: _onRlsPressed,
               onUploadPressed: _onUploadPressed,
               onClearConfigPressed: _onClearConfigPressed,
+              onSyncPressed: _onSyncPressed,
               onShufflePressed: _onShufflePressed,
               onEditPlaylistName: _onEditPlaylistName,
               onDeletePlaylist: _onDeletePlaylist,

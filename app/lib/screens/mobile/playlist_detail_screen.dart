@@ -49,17 +49,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     return '${d.inHours.toString().padLeft(2, '0')}:${(d.inMinutes % 60).toString().padLeft(2, '0')}:${(d.inSeconds % 60).toString().padLeft(2, '0')}';
   }
 
-  void _onReorder(int oldIndex, int newIndex) {
-    setState(() {
-      if (oldIndex < newIndex) {
-        newIndex -= 1;
-      }
-      final Track track = _tracks.removeAt(oldIndex);
-      _tracks.insert(newIndex, track);
-    });
-    // Trigger mediaHandler save here if necessary
-    // widget.mediaHandler.changeTrackOrder(_playlist.playlistID, track.trackID, newIndex);
-  }
+
 
   void _showTrackActions(BuildContext context, Track track) {
     final audioService = Provider.of<AudioPlayerService>(context, listen: false);
@@ -123,13 +113,12 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             ),
           ),
           Expanded(
-            child: ReorderableListView.builder(
+            child: ListView.builder(
               itemCount: _tracks.length,
-              onReorder: _onReorder,
               itemBuilder: (context, index) {
                 final track = _tracks[index];
                 return MobileTrackRow(
-                  key: ValueKey(track.trackID), // Important for ReorderableListView
+                  key: ValueKey(track.trackID),
                   track: track,
                   isPlaying: audioService.currentTrack?.trackID == track.trackID,
                   appDataPath: widget.appDataPath,

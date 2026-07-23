@@ -8,7 +8,10 @@ class PlaylistListScreen extends StatelessWidget {
   final Function(Playlist) onDeletePlaylist;
   final Function(Playlist, String) onRenamePlaylist;
   final String appDataPath;
-  final dynamic mediaHandler; // Inject MediaHandler
+  final dynamic mediaHandler;
+  final dynamic serverClient;
+  final bool isServerConnected;
+  final VoidCallback onOpenLogin;
 
   const PlaylistListScreen({
     Key? key,
@@ -18,6 +21,9 @@ class PlaylistListScreen extends StatelessWidget {
     required this.onRenamePlaylist,
     required this.appDataPath,
     required this.mediaHandler,
+    required this.serverClient,
+    required this.isServerConnected,
+    required this.onOpenLogin,
   }) : super(key: key);
 
   void _showPlaylistOptions(BuildContext context, Playlist playlist) {
@@ -134,6 +140,28 @@ class PlaylistListScreen extends StatelessWidget {
           style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
         ),
         actions: [
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                icon: const Icon(Icons.cloud_outlined, color: Colors.white),
+                onPressed: onOpenLogin,
+              ),
+              Positioned(
+                right: 8,
+                top: 10,
+                child: Container(
+                  width: 9,
+                  height: 9,
+                  decoration: BoxDecoration(
+                    color: isServerConnected ? const Color(0xFF00FF66) : const Color(0xFFFF4444),
+                    shape: BoxShape.circle,
+                    border: Border.all(color: Colors.black, width: 1.5),
+                  ),
+                ),
+              ),
+            ],
+          ),
           IconButton(
             icon: const Icon(Icons.add, color: Colors.white),
             onPressed: onCreatePlaylist,

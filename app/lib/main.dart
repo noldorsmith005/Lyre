@@ -81,6 +81,7 @@ class NapsterApp extends StatelessWidget {
             )
           : MobileHomeScreen(
               mediaHandler: mediaHandler,
+              serverClient: serverClient,
               appDataPath: mediaHandler.appDataPath,
             ),
     );

@@ -248,4 +248,70 @@ class MediaHandler {
       print('Could not delete track: $e');
     }
   }
+
+  Future<List<Track>> getAllTracks() async {
+    try {
+      final result = await _db.query('Tracks');
+      return result.map((row) => Track(
+        trackID: row['track_id'] as int,
+        title: row['title'] as String,
+        artist: row['artist'] as String,
+        duration: row['duration'] as String,
+        downloaded: true,
+        contributor: '',
+      )).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  Future<void> syncLocalPlaylists(List<dynamic> serverPlaylists) async {
+    try {
+      final localPlaylists = await loadPlaylists();
+      final localMap = {for (var p in localPlaylists) p.playlistID: p};
+      final serverMap = <int, Map<String, dynamic>>{};
+
+      for (var sp in serverPlaylists) {
+        final pid = sp['playlist_id'] as int;
+        final name = (sp['name'] as String?) ?? 'Playlist $pid';
+        final trackIds = (sp['tracks'] as List<dynamic>? ?? []).map((e) => e as int).toList();
+        serverMap[pid] = {'name': name, 'tracks': trackIds};
+
+        final tableName = 'playlist_$pid';
+        // Create table if not exists
+        await _db.execute('''
+          CREATE TABLE IF NOT EXISTS $tableName (
+              [order] INTEGER,
+              track_id INTEGER
+          )
+        ''');
+
+        if (!localMap.containsKey(pid)) {
+          await _db.insert('Playlists', {'playlist_id': pid, 'title': name}, conflictAlgorithm: ConflictAlgorithm.replace);
+          await _db.insert('PlaylistIDs', {'playlist_id': pid}, conflictAlgorithm: ConflictAlgorithm.replace);
+        } else {
+          await _db.update('Playlists', {'title': name}, where: 'playlist_id = ?', whereArgs: [pid]);
+        }
+
+        // Clear and re-insert tracks in sequence
+        await _db.delete(tableName);
+        for (int i = 0; i < trackIds.length; i++) {
+          await _db.insert(tableName, {
+            'order': i + 1,
+            'track_id': trackIds[i],
+          });
+        }
+      }
+
+      // Delete any local playlist not on server
+      for (var local in localPlaylists) {
+        if (!serverMap.containsKey(local.playlistID)) {
+          await deletePlaylist(local.playlistID);
+        }
+      }
+    } catch (e) {
+      print('Error syncing local playlists: $e');
+    }
+  }
 }
+

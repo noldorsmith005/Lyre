@@ -14,6 +14,7 @@ class MainPanel extends StatefulWidget {
   final VoidCallback onRlsPressed;
   final VoidCallback onUploadPressed;
   final VoidCallback onClearConfigPressed;
+  final VoidCallback onSyncPressed;
   final VoidCallback onShufflePressed;
   final Function(String) onEditPlaylistName;
   final VoidCallback onDeletePlaylist;
@@ -34,6 +35,7 @@ class MainPanel extends StatefulWidget {
     required this.onRlsPressed,
     required this.onUploadPressed,
     required this.onClearConfigPressed,
+    required this.onSyncPressed,
     required this.onShufflePressed,
     required this.onEditPlaylistName,
     required this.onDeletePlaylist,
@@ -185,21 +187,15 @@ class _MainPanelState extends State<MainPanel> {
           
           if (showServerFeatures) ...[
             _HoverIconButton(
-              iconPath: 'assets/rls.png',
+              iconPath: 'assets/library_selected.png',
               size: 30,
               onTap: widget.onRlsPressed,
             ),
             const SizedBox(width: 16),
-            _HoverIconButton(
-              iconPath: 'assets/upload.png',
-              size: 25,
-              onTap: widget.onUploadPressed,
-            ),
-            const SizedBox(width: 16),
-            _HoverIconButton(
-              iconPath: 'assets/clear_config.png',
-              size: 30,
-              onTap: widget.onClearConfigPressed,
+            _AccountMenuButton(
+              onUploadPressed: widget.onUploadPressed,
+              onClearConfigPressed: widget.onClearConfigPressed,
+              onSyncPressed: widget.onSyncPressed,
             ),
           ],
         ],
@@ -339,6 +335,83 @@ class __HoverIconButtonState extends State<_HoverIconButton> {
             color: Colors.white,
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _AccountMenuButton extends StatefulWidget {
+  final VoidCallback onUploadPressed;
+  final VoidCallback onClearConfigPressed;
+  final VoidCallback onSyncPressed;
+
+  const _AccountMenuButton({
+    required this.onUploadPressed,
+    required this.onClearConfigPressed,
+    required this.onSyncPressed,
+  });
+
+  @override
+  _AccountMenuButtonState createState() => _AccountMenuButtonState();
+}
+
+class _AccountMenuButtonState extends State<_AccountMenuButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      cursor: SystemMouseCursors.click,
+      child: PopupMenuButton<String>(
+        offset: const Offset(0, 44),
+        color: const Color(0xFF1E1E1E),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: const BorderSide(color: Color(0xFF2A2A2A), width: 1),
+        ),
+        onSelected: (value) {
+          if (value == 'sync') {
+            widget.onSyncPressed();
+          } else if (value == 'upload') {
+            widget.onUploadPressed();
+          } else if (value == 'clear_config') {
+            widget.onClearConfigPressed();
+          }
+        },
+        itemBuilder: (context) => [
+          _buildMenuItem('sync', Icons.sync_rounded, 'Sync Playlists'),
+          _buildMenuItem('upload', Icons.upload_rounded, 'Upload Track'),
+          _buildMenuItem('clear_config', Icons.delete_outline, 'Clear Server Config'),
+        ],
+        child: Opacity(
+          opacity: _isHovered ? 0.7 : 1.0,
+          child: Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFF2A2A2A),
+              border: Border.all(color: const Color(0xFF555555), width: 1),
+            ),
+            child: const Icon(Icons.person, color: Colors.white, size: 20),
+          ),
+        ),
+      ),
+    );
+  }
+
+  PopupMenuItem<String> _buildMenuItem(String value, IconData icon, String label) {
+    return PopupMenuItem<String>(
+      value: value,
+      height: 42,
+      child: Row(
+        children: [
+          Icon(icon, color: const Color(0xFF888888), size: 18),
+          const SizedBox(width: 12),
+          Text(label, style: const TextStyle(color: Color(0xFFE8E8E8), fontSize: 14)),
+        ],
       ),
     );
   }

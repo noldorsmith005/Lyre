@@ -29,6 +29,16 @@ def create_database(db_path: Path):
                 )
             """)
 
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS user_playlists (
+                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id     INTEGER,
+                    playlist_id INTEGER,
+                    name        TEXT,
+                    tracks      TEXT
+                )
+            """)
+
         print(f"Database created at: {db_path}")
     finally:
         conn.close()

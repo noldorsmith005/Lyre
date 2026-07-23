@@ -245,6 +245,138 @@ class ServerClient {
     return null;
   }
 
+  Future<String?> login(String serverUrl, String appToken, String username) async {
+    final targetUrl = '$serverUrl/auth/login';
+    final key = _genKey();
+
+    final jsonBody = jsonEncode({
+      'username': username,
+      'public': key.publicKey.publicExponent.toString(),
+      'mod': key.publicKey.modulus.toString(),
+    });
+
+    try {
+      final response = await http.post(
+        Uri.parse(targetUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'AppToken': appToken,
+        },
+        body: jsonBody,
+      );
+
+      if (response.statusCode == 401) {
+        return "Invalid App Token. ";
+      }
+      if (response.statusCode == 404) {
+        return "User not found. ";
+      }
+      if (response.statusCode != 200) {
+        return "Login failed (${response.statusCode}).";
+      }
+
+      final parsed = response.body.split('-');
+      
+      appUrl = serverUrl;
+      appKey = appToken;
+      userID = parsed[0];
+      serverKeyPublic = BigInt.parse(parsed[1]);
+      serverKeyMod = BigInt.parse(parsed[2]);
+      sigKeyPrivate = key.privateKey.privateExponent!;
+      sigKeyMod = key.privateKey.modulus!;
+
+      await _saveRLSConfig();
+      return null;
+    } catch (e) {
+      return "Connection error: $e";
+    }
+  }
+
+  Future<bool> validateSession() async {
+    if (!registered() || appUrl == null || userID == null) return false;
+    try {
+      final targetUrl = '$appUrl/auth/validate';
+      final response = await http.get(
+        Uri.parse(targetUrl),
+        headers: {
+          'AppToken': appKey ?? '',
+          'Signature': _genSignature(),
+        },
+      ).timeout(const Duration(seconds: 3));
+
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<bool> pushSyncPlaylists(List<Map<String, dynamic>> playlists) async {
+    if (!registered() || appUrl == null) return false;
+    try {
+      final targetUrl = '$appUrl/sync/push';
+      final response = await http.post(
+        Uri.parse(targetUrl),
+        headers: {
+          'Content-Type': 'application/json',
+          'AppToken': appKey ?? '',
+          'Signature': _genSignature(),
+        },
+        body: jsonEncode({'playlists': playlists}),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  Future<List<dynamic>?> pullSyncPlaylists() async {
+    if (!registered() || appUrl == null) return null;
+    try {
+      final targetUrl = '$appUrl/sync/pull';
+      final response = await http.get(
+        Uri.parse(targetUrl),
+        headers: {
+          'AppToken': appKey ?? '',
+          'Signature': _genSignature(),
+        },
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as List<dynamic>;
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<List<Track>?> getUserDownloadedTracks() async {
+    if (!registered() || appUrl == null) return null;
+    try {
+      final targetUrl = '$appUrl/sync/user_downloads';
+      final response = await http.get(
+        Uri.parse(targetUrl),
+        headers: {
+          'AppToken': appKey ?? '',
+          'Signature': _genSignature(),
+        },
+      );
+      if (response.statusCode == 200) {
+        final List<dynamic> jsonList = jsonDecode(response.body);
+        return jsonList.map((json) => Track(
+          trackID: json['trackID'] as int,
+          title: json['title'] as String,
+          artist: json['artist'] as String,
+          duration: json['duration'] as String,
+          downloaded: true,
+          contributor: json['contributor'] as String,
+        )).toList();
+      }
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
   Future<void> _download(String type, int id) async {
     final targetUrl = '$appUrl/tracks/$id/download/$type';
     final ext = type == 'audio' ? 'flac' : 'jpg';

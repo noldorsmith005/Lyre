@@ -2,17 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/playlist.dart';
 import '../../services/audio_player_service.dart';
+import '../../services/server_client.dart';
 import 'playlist_list_screen.dart';
 import 'search_screen.dart';
 import '../../widgets/mobile/bottom_player_bar.dart';
+import '../../widgets/mobile/mobile_login_sheet.dart';
 
 class MobileHomeScreen extends StatefulWidget {
   final dynamic mediaHandler;
+  final ServerClient serverClient;
   final String appDataPath;
   
   const MobileHomeScreen({
     Key? key,
     required this.mediaHandler,
+    required this.serverClient,
     required this.appDataPath,
   }) : super(key: key);
 
@@ -23,11 +27,24 @@ class MobileHomeScreen extends StatefulWidget {
 class _MobileHomeScreenState extends State<MobileHomeScreen> {
   int _currentIndex = 0;
   List<Playlist> _playlists = [];
+  bool _serverConnection = false;
 
   @override
   void initState() {
     super.initState();
     _loadPlaylists();
+    _autoConnectServer();
+  }
+
+  Future<void> _autoConnectServer() async {
+    if (widget.serverClient.registered()) {
+      final isValid = await widget.serverClient.validateSession();
+      if (isValid && mounted) {
+        setState(() {
+          _serverConnection = true;
+        });
+      }
+    }
   }
 
   void _loadPlaylists() async {
@@ -52,6 +69,72 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
     _loadPlaylists();
   }
 
+  void _openLoginSheet() {
+    MobileLoginSheet.show(
+      context,
+      serverClient: widget.serverClient,
+      onConnectionStateChanged: (isConnected) {
+        setState(() {
+          _serverConnection = isConnected;
+        });
+      },
+      onSyncPressed: _onMobileSync,
+    );
+  }
+
+  Future<void> _onMobileSync() async {
+    if (!_serverConnection) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please connect to the server first.')),
+      );
+      return;
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Syncing with server...')),
+    );
+
+    try {
+      final serverTracks = await widget.serverClient.getUserDownloadedTracks();
+      if (serverTracks != null) {
+        final serverTrackIds = serverTracks.map((t) => t.trackID).toSet();
+        final localTracks = await widget.mediaHandler.getAllTracks();
+        final localTrackIds = localTracks.map((t) => t.trackID).toSet();
+
+        for (var st in serverTracks) {
+          if (!localTrackIds.contains(st.trackID)) {
+            await widget.serverClient.downloadTrack(st);
+          }
+        }
+
+        for (var lt in localTracks) {
+          if (!serverTrackIds.contains(lt.trackID)) {
+            await widget.serverClient.removeDownload(lt);
+          }
+        }
+      }
+
+      final serverPlaylists = await widget.serverClient.pullSyncPlaylists();
+      if (serverPlaylists != null) {
+        await widget.mediaHandler.syncLocalPlaylists(serverPlaylists);
+      }
+
+      _loadPlaylists();
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sync complete!')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Sync failed: $e')),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final audioService = Provider.of<AudioPlayerService>(context);
@@ -70,6 +153,9 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
                 onRenamePlaylist: _onRenamePlaylist,
                 appDataPath: widget.appDataPath,
                 mediaHandler: widget.mediaHandler,
+                serverClient: widget.serverClient,
+                isServerConnected: _serverConnection,
+                onOpenLogin: _openLoginSheet,
               ),
               SearchScreen(
                 mediaHandler: widget.mediaHandler,
@@ -83,7 +169,7 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
             Positioned(
               left: 0,
               right: 0,
-              bottom: 0, // Above nav bar, we'll use SafeArea/margin or place it correctly
+              bottom: 0,
               child: BottomPlayerBar(appDataPath: widget.appDataPath),
             ),
         ],
@@ -92,7 +178,7 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (audioService.currentTrack != null)
-            BottomPlayerBar(appDataPath: widget.appDataPath), // Alternative placement for solid layout
+            BottomPlayerBar(appDataPath: widget.appDataPath),
           BottomNavigationBar(
             backgroundColor: const Color(0xFF0F0F0F),
             selectedItemColor: const Color(0xFFFF0000),
