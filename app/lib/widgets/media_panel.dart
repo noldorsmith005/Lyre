@@ -229,15 +229,11 @@ class MediaPanel extends StatelessWidget {
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      TextButton(
-                        onPressed: () {
+                      _HoverTextButton(
+                        text: 'Clear Queue',
+                        onTap: () {
                           audioService.clearQueue();
                         },
-                        style: TextButton.styleFrom(
-                          foregroundColor: const Color(0xFF555555),
-                          textStyle: const TextStyle(fontSize: 14),
-                        ),
-                        child: const Text('Clear Queue'),
                       ),
                     ],
                   ),
@@ -265,6 +261,39 @@ class MediaPanel extends StatelessWidget {
   }
 }
 
+class _HoverTextButton extends StatefulWidget {
+  final String text;
+  final VoidCallback onTap;
+
+  const _HoverTextButton({required this.text, required this.onTap});
+
+  @override
+  __HoverTextButtonState createState() => __HoverTextButtonState();
+}
+
+class __HoverTextButtonState extends State<_HoverTextButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Text(
+          widget.text,
+          style: TextStyle(
+            color: _isHovered ? const Color(0xFF555555) : Colors.white,
+            fontSize: 14,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _QueueCard extends StatefulWidget {
   final Track track;
   final VoidCallback onRemove;
@@ -280,6 +309,7 @@ class _QueueCard extends StatefulWidget {
 
 class __QueueCardState extends State<_QueueCard> {
   bool _isHovered = false;
+  bool _isRemoveHovered = false;
 
   @override
   Widget build(BuildContext context) {
@@ -300,7 +330,7 @@ class __QueueCardState extends State<_QueueCard> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    widget.track.title ?? 'Unknown',
+                    widget.track.title,
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: LayoutConstants.queueTitleFontSize,
@@ -310,7 +340,7 @@ class __QueueCardState extends State<_QueueCard> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    widget.track.artist ?? 'Unknown',
+                    widget.track.artist,
                     style: TextStyle(
                       color: const Color(0xFF888888),
                       fontSize: LayoutConstants.queueArtistFontSize,
@@ -323,7 +353,7 @@ class __QueueCardState extends State<_QueueCard> {
             ),
             const SizedBox(width: 8),
             Text(
-              widget.track.duration ?? '--:--',
+              widget.track.duration,
               style: TextStyle(
                 color: const Color(0xFF555555),
                 fontSize: LayoutConstants.queueDurationFontSize,
@@ -331,13 +361,18 @@ class __QueueCardState extends State<_QueueCard> {
             ),
             const SizedBox(width: 12),
             MouseRegion(
+              onEnter: (_) => setState(() => _isRemoveHovered = true),
+              onExit: (_) => setState(() => _isRemoveHovered = false),
               cursor: SystemMouseCursors.click,
               child: GestureDetector(
                 onTap: widget.onRemove,
-                child: const Icon(
-                  Icons.close, // Used standard close icon instead of '⛌' character for consistency
-                  color: Color(0xFF555555),
-                  size: 16,
+                child: Text(
+                  '⛌',
+                  style: TextStyle(
+                    color: _isRemoveHovered ? const Color(0xFF555555) : const Color(0xFFE8E8E8),
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),

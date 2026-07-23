@@ -71,21 +71,21 @@ class _TrackCardState extends State<TrackCard> {
                     ),
                     child: Row(
                       children: [
-                        Container(
-                          width: 13,
-                          height: 13,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: inPlaylist ? const Color(0xFFFF0000) : const Color(0xFF7F8C8D),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
                         Expanded(
                           child: Text(
                             playlist.title,
                             style: const TextStyle(color: Colors.white),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Container(
+                          width: 13,
+                          height: 13,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: inPlaylist ? const Color(0xFFFF0000) : const Color(0xFF7F8C8D),
                           ),
                         ),
                       ],
@@ -115,10 +115,12 @@ class _TrackCardState extends State<TrackCard> {
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: Container(
+    return _buildTooltip(
+      message: widget.track.title,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: Container(
         height: LayoutConstants.cellSize,
         padding: EdgeInsets.symmetric(
           vertical: LayoutConstants.paddingV,
@@ -268,9 +270,9 @@ class _TrackCardState extends State<TrackCard> {
               ),
             ] else ...[
               Text(
-                'Contributor', // Assuming a placeholder or from track metadata
+                widget.track.contributor.isNotEmpty ? 'Uploaded by: ${widget.track.contributor}' : '',
                 style: const TextStyle(
-                  color: Color(0xFF555555),
+                  color: Colors.white,
                   fontSize: 14,
                 ),
               ),
@@ -278,6 +280,7 @@ class _TrackCardState extends State<TrackCard> {
           ],
         ),
       ),
+    ),
     );
   }
   

@@ -45,24 +45,15 @@ class MobileLoginSheet extends StatefulWidget {
 
 class _MobileLoginSheetState extends State<MobileLoginSheet> {
   bool _isLogin = true;
-  final TextEditingController _urlController = TextEditingController();
-  final TextEditingController _tokenController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
   String? _errorMessage;
   bool _isLoading = false;
 
   @override
-  void initState() {
-    super.initState();
-    _urlController.text = widget.serverClient.appUrl ?? 'http://10.0.2.2:57967';
-    _tokenController.text = widget.serverClient.appKey ?? '';
-  }
-
-  @override
   void dispose() {
-    _urlController.dispose();
-    _tokenController.dispose();
     _usernameController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
@@ -72,13 +63,12 @@ class _MobileLoginSheetState extends State<MobileLoginSheet> {
       _errorMessage = null;
     });
 
-    final url = _urlController.text.trim();
-    final token = _tokenController.text.trim();
     final username = _usernameController.text.trim();
+    final password = _passwordController.text.trim();
 
-    if (url.isEmpty || token.isEmpty || username.isEmpty) {
+    if (username.isEmpty || password.isEmpty) {
       setState(() {
-        _errorMessage = 'All fields are required';
+        _errorMessage = 'Username and password are required';
         _isLoading = false;
       });
       return;
@@ -87,9 +77,9 @@ class _MobileLoginSheetState extends State<MobileLoginSheet> {
     try {
       String? err;
       if (_isLogin) {
-        err = await widget.serverClient.login(url, token, username);
+        err = await widget.serverClient.login(username, password);
       } else {
-        err = await widget.serverClient.createAndRegister(url, token, username);
+        err = await widget.serverClient.createAndRegister(username, password);
       }
 
       if (err != null) {
@@ -185,11 +175,9 @@ class _MobileLoginSheetState extends State<MobileLoginSheet> {
             const SizedBox(height: 20),
 
             // TextFields
-            _buildInput('Server URL', _urlController, Icons.dns),
-            const SizedBox(height: 12),
-            _buildInput('App Token', _tokenController, Icons.vpn_key),
-            const SizedBox(height: 12),
             _buildInput('Username', _usernameController, Icons.person),
+            const SizedBox(height: 12),
+            _buildInput('Password', _passwordController, Icons.lock, obscure: true),
             const SizedBox(height: 20),
 
             if (_errorMessage != null) ...[
@@ -255,7 +243,7 @@ class _MobileLoginSheetState extends State<MobileLoginSheet> {
     );
   }
 
-  Widget _buildInput(String hint, TextEditingController controller, IconData icon) {
+  Widget _buildInput(String hint, TextEditingController controller, IconData icon, {bool obscure = false}) {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFF222222),
@@ -263,6 +251,7 @@ class _MobileLoginSheetState extends State<MobileLoginSheet> {
       ),
       child: TextField(
         controller: controller,
+        obscureText: obscure,
         style: const TextStyle(color: Colors.white),
         decoration: InputDecoration(
           prefixIcon: Icon(icon, color: const Color(0xFF666666), size: 20),

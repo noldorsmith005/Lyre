@@ -157,10 +157,10 @@ class _MainPanelState extends State<MainPanel> {
                   child: TextField(
                     controller: _searchController,
                     onChanged: widget.onSearch,
-                    style: const TextStyle(color: Colors.white),
+                    style: const TextStyle(color: Colors.white, fontSize: 16),
                     decoration: const InputDecoration(
                       hintText: 'Search songs...',
-                      hintStyle: TextStyle(color: Color(0xFFB3B3B3)),
+                      hintStyle: TextStyle(color: Color(0xFFB3B3B3), fontSize: 16),
                       border: InputBorder.none,
                     ),
                   ),

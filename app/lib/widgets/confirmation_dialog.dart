@@ -117,13 +117,9 @@ class __ConfirmButtonState extends State<_ConfirmButton> {
       onExit: (_) => setState(() => _isHovered = false),
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-          backgroundColor: _isHovered ? const Color(0xFFD32F2F) : const Color(0xFFB32424),
-          side: BorderSide(
-            color: _isHovered ? const Color(0xFFFF5252) : const Color(0xFFD32F2F),
-            width: 1,
-          ),
+          backgroundColor: _isHovered ? const Color(0xFFCC0000) : const Color(0xFFFF0000),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(4),
+            borderRadius: BorderRadius.circular(3),
           ),
         ),
         onPressed: widget.onPressed,

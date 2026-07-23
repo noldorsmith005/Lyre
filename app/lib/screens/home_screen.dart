@@ -88,13 +88,13 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!_serverConnection && !widget.serverClient.registered()) {
       RegisterModal.show(
         context,
-        onSubmit: (isLogin, url, token, username) async {
+        onSubmit: (isLogin, username, password) async {
           try {
             String? err;
             if (isLogin) {
-              err = await widget.serverClient.login(url, token, username);
+              err = await widget.serverClient.login(username, password);
             } else {
-              err = await widget.serverClient.createAndRegister(url, token, username);
+              err = await widget.serverClient.createAndRegister(username, password);
             }
             if (err != null) {
               if (mounted) _showAlert(isLogin ? 'Login Error' : 'Registration Error', err);

@@ -23,7 +23,6 @@ class _SidebarState extends State<Sidebar> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 260,
       decoration: const BoxDecoration(
         color: Color(0xFF000000),
         border: Border(
@@ -34,7 +33,7 @@ class _SidebarState extends State<Sidebar> {
         children: [
           // Header
           Container(
-            padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+            padding: const EdgeInsets.fromLTRB(24, 24, 20, 20),
             decoration: const BoxDecoration(
               border: Border(
                 bottom: BorderSide(color: Color(0xFF2A2A2A), width: 1.0),

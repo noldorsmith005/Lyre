@@ -2,7 +2,7 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 
 class RegisterModal extends StatefulWidget {
-  final Function(bool isLogin, String url, String token, String username) onSubmit;
+  final Function(bool isLogin, String username, String password) onSubmit;
   final String? errorMessage;
 
   const RegisterModal({
@@ -13,7 +13,7 @@ class RegisterModal extends StatefulWidget {
 
   static void show(
     BuildContext context, {
-    required Function(bool isLogin, String url, String token, String username) onSubmit,
+    required Function(bool isLogin, String username, String password) onSubmit,
     String? errorMessage,
   }) {
     showDialog(
@@ -32,23 +32,21 @@ class RegisterModal extends StatefulWidget {
 
 class _RegisterModalState extends State<RegisterModal> {
   bool _isLogin = true;
-  final TextEditingController _urlController = TextEditingController();
-  final TextEditingController _tokenController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
   @override
   void dispose() {
-    _urlController.dispose();
-    _tokenController.dispose();
     _usernameController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
-  Widget _buildTextField(String hint, TextEditingController controller) {
+  Widget _buildTextField(String hint, TextEditingController controller, {bool obscure = false}) {
     return Container(
-      width: 260,
-      height: 38,
-      margin: const EdgeInsets.only(bottom: 12),
+      width: 280,
+      height: 40,
+      margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
         color: const Color(0xFF1E1E1E),
         border: Border.all(color: const Color(0xFF2A2A2A), width: 1),
@@ -56,11 +54,12 @@ class _RegisterModalState extends State<RegisterModal> {
       ),
       child: TextField(
         controller: controller,
+        obscureText: obscure,
         style: const TextStyle(color: Colors.white, fontSize: 14),
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: const TextStyle(color: Color(0xFF888888)),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           border: InputBorder.none,
           isDense: true,
         ),
@@ -74,8 +73,8 @@ class _RegisterModalState extends State<RegisterModal> {
       backgroundColor: Colors.transparent,
       elevation: 0,
       child: Container(
-        width: 600,
-        height: 340,
+        width: 380,
+        height: 320,
         padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
         decoration: BoxDecoration(
           color: const Color(0xFF111111),
@@ -92,13 +91,13 @@ class _RegisterModalState extends State<RegisterModal> {
                 GestureDetector(
                   onTap: () => setState(() => _isLogin = true),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
                       color: _isLogin ? const Color(0xFFCC0000) : Colors.transparent,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
-                      'Login to RLS',
+                      'Login',
                       style: TextStyle(
                         color: _isLogin ? Colors.white : const Color(0xFF888888),
                         fontWeight: FontWeight.bold,
@@ -111,13 +110,13 @@ class _RegisterModalState extends State<RegisterModal> {
                 GestureDetector(
                   onTap: () => setState(() => _isLogin = false),
                   child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                     decoration: BoxDecoration(
                       color: !_isLogin ? const Color(0xFFCC0000) : Colors.transparent,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
-                      'Register New User',
+                      'Register',
                       style: TextStyle(
                         color: !_isLogin ? Colors.white : const Color(0xFF888888),
                         fontWeight: FontWeight.bold,
@@ -129,50 +128,34 @@ class _RegisterModalState extends State<RegisterModal> {
               ],
             ),
             const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Column(
-                  children: [
-                    _buildTextField('Server URL', _urlController),
-                    _buildTextField('App Token', _tokenController),
-                  ],
+            _buildTextField('Username', _usernameController),
+            _buildTextField('Password', _passwordController, obscure: true),
+            const SizedBox(height: 4),
+            SizedBox(
+              width: 280,
+              height: 40,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFCC0000),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(6),
+                  ),
                 ),
-                const SizedBox(width: 16),
-                Column(
-                  children: [
-                    _buildTextField('Username', _usernameController),
-                    const SizedBox(height: 12),
-                    SizedBox(
-                      width: 260,
-                      height: 38,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFFCC0000),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(6),
-                          ),
-                        ),
-                        onPressed: () {
-                          widget.onSubmit(
-                            _isLogin,
-                            _urlController.text,
-                            _tokenController.text,
-                            _usernameController.text,
-                          );
-                        },
-                        child: Text(
-                          _isLogin ? 'Login' : 'Register',
-                          style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
-                        ),
-                      ),
-                    ),
-                  ],
+                onPressed: () {
+                  widget.onSubmit(
+                    _isLogin,
+                    _usernameController.text,
+                    _passwordController.text,
+                  );
+                },
+                child: Text(
+                  _isLogin ? 'Login' : 'Register Account',
+                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
                 ),
-              ],
+              ),
             ),
             if (widget.errorMessage != null) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               Text(
                 widget.errorMessage!,
                 style: const TextStyle(

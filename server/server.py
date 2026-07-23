@@ -201,38 +201,69 @@ def decrypt(ciphertext, key):
     return message_bytes
 
 
+import time
+import secrets
+
+def hashPassword(password, salt=None):
+    if not password:
+        return "", ""
+    if not salt:
+        salt = secrets.token_hex(16)
+    hashed = hashlib.pbkdf2_hmac(
+        'sha256',
+        password.encode('utf-8'),
+        salt.encode('utf-8'),
+        100000
+    ).hex()
+    return hashed, salt
+
 # User creation and authentication
-def authUser(signature):
-    parsed = signature.split("-")
-    userID = parsed[0]
+def authUser(req):
+    auth_header = req.headers.get("Authorization")
+    signature = req.headers.get("Signature")
 
-    user = getUser(userID)
-    if user == False:
-        return False
-
-    secret = parsed[1]
-    encoded_cypher = parsed[2]
-    message_len = int(parsed[3])
-
-    hashed = hash(secret)
-    decoded_cypher = decode(encoded_cypher)
-
-    # Collect all public keys registered for this user across devices
-    keys = []
-    if 'sig_keys' in user and isinstance(user['sig_keys'], list):
-        keys.extend(user['sig_keys'])
-    if 'sig_key' in user and user['sig_key'] not in keys:
-        keys.append(user['sig_key'])
-
-    for key_dict in keys:
+    # 1. Bearer Token Auth
+    if auth_header and auth_header.startswith("Bearer "):
+        token = auth_header.split(" ")[1]
         try:
-            key = (int(key_dict['public']), int(key_dict['mod']))
-            decrypted = decrypt(decoded_cypher, key)
-            match = unpad(decrypted, message_len)
-            if match != False and hashed == match:
-                return userID
+            with open('./sessions.json', 'r') as file:
+                data = json.load(file)
+                active_sessions = data.get('ActiveSessions', {})
+                for uid, sess in active_sessions.items():
+                    if isinstance(sess, dict) and sess.get('token') == token:
+                        return str(uid)
         except Exception:
-            continue
+            pass
+
+    # 2. Legacy Signature Auth
+    if signature:
+        parsed = signature.split("-")
+        userID = parsed[0]
+
+        user = getUser(userID)
+        if user != False:
+            secret = parsed[1]
+            encoded_cypher = parsed[2]
+            message_len = int(parsed[3])
+
+            hashed = hash(secret)
+            decoded_cypher = decode(encoded_cypher)
+
+            keys = []
+            if 'sig_keys' in user and isinstance(user['sig_keys'], list):
+                keys.extend(user['sig_keys'])
+            if 'sig_key' in user and user['sig_key'] not in keys:
+                keys.append(user['sig_key'])
+
+            for key_dict in keys:
+                try:
+                    key = (int(key_dict['public']), int(key_dict['mod']))
+                    decrypted = decrypt(decoded_cypher, key)
+                    match = unpad(decrypted, message_len)
+                    if match != False and hashed == match:
+                        return str(userID)
+                except Exception:
+                    continue
 
     return False
 
@@ -244,50 +275,60 @@ def ping():
 @app.post("/auth/register")
 def createUser():
     auth_token = request.headers.get("AppToken")
-    user_data = request.get_json()
-    username = user_data['username']
+    user_data = request.get_json() or {}
+    username = user_data.get('username')
+    password = user_data.get('password')
     id = genID()
-
-    key_pair = genKeyPair()
 
     with open('./sessions.json', 'r+') as file:
         data = json.load(file)
 
-        if (auth_token == data['AppToken']):
+        if auth_token != data.get('AppToken'):
+            return "Invalid App Token", 401
 
-            if userExists(username):
-                return "User already exists", 409
+        if userExists(username):
+            return "User already exists", 409
 
-            else :
-                new_user = {
-                    "id": id,
-                    "username": username,
-                    "admin": False,
-                    "sig_key": {
-                        "public": user_data['public'],
-                        "mod": user_data['mod']
-                    },
-                    "decrypt_key": {
-                        "private": key_pair['private'],
-                        "mod": key_pair['mod']
-                    }
-                }
+        hashed_pw, salt = hashPassword(password)
+        session_token = secrets.token_hex(32)
 
-                data['Users'].append(new_user)
-                data['UserIDs'].append(id)
+        new_user = {
+            "id": id,
+            "username": username,
+            "admin": False,
+            "salt": salt,
+            "password_hash": hashed_pw
+        }
 
-                file.seek(0)
-                json.dump(data, file, indent=4)
-                file.truncate() 
+        data['Users'].append(new_user)
+        data['UserIDs'].append(id)
 
-    return f"{str(id)}-{str(key_pair['public'])}-{str(key_pair['mod'])}", 201
+        if 'ActiveSessions' not in data:
+            data['ActiveSessions'] = {}
+
+        data['ActiveSessions'][str(id)] = {
+            "username": username,
+            "token": session_token,
+            "last_seen": int(time.time()),
+            "client_ip": request.remote_addr
+        }
+
+        file.seek(0)
+        json.dump(data, file, indent=4)
+        file.truncate()
+
+    return jsonify({
+        "userID": str(id),
+        "sessionToken": session_token
+    }), 201
 
 
 @app.post("/auth/login")
 def loginUser():
     auth_token = request.headers.get("AppToken")
-    user_data = request.get_json()
+    user_data = request.get_json() or {}
     username = user_data.get('username')
+    password = user_data.get('password')
 
     with open('./sessions.json', 'r+') as file:
         data = json.load(file)
@@ -304,23 +345,19 @@ def loginUser():
         if not user:
             return "User not found", 404
 
-        new_sig_key = {
-            "public": user_data['public'],
-            "mod": user_data['mod']
-        }
-        user['sig_key'] = new_sig_key
-        if 'sig_keys' not in user or not isinstance(user['sig_keys'], list):
-            user['sig_keys'] = []
-        if new_sig_key not in user['sig_keys']:
-            user['sig_keys'].append(new_sig_key)
+        if 'password_hash' in user and user['password_hash']:
+            expected_hash, _ = hashPassword(password, user.get('salt', ''))
+            if expected_hash != user['password_hash']:
+                return "Invalid credentials", 401
 
-        # Track active session
+        session_token = secrets.token_hex(32)
+
         if 'ActiveSessions' not in data:
             data['ActiveSessions'] = {}
         
-        import time
         data['ActiveSessions'][str(user['id'])] = {
             "username": username,
+            "token": session_token,
             "last_seen": int(time.time()),
             "client_ip": request.remote_addr
         }
@@ -329,17 +366,15 @@ def loginUser():
         json.dump(data, file, indent=4)
         file.truncate()
 
-        decrypt_key = user.get('decrypt_key', {})
-        public = decrypt_key.get('public', 65537)
-        mod = decrypt_key.get('mod', 0)
-
-        return f"{str(user['id'])}-{str(public)}-{str(mod)}", 200
+        return jsonify({
+            "userID": str(user['id']),
+            "sessionToken": session_token
+        }), 200
 
 
 @app.get("/auth/validate")
 def validateSession():
     auth_token = request.headers.get("AppToken")
-    signature = request.headers.get("Signature")
 
     with open('./sessions.json', 'r+') as file:
         data = json.load(file)
@@ -347,18 +382,17 @@ def validateSession():
         if auth_token != data.get('AppToken'):
             return "Invalid App Token", 401
 
-        authorized = authUser(signature)
+        authorized = authUser(request)
         if authorized != False:
             userID = str(authorized)
             if 'ActiveSessions' not in data:
                 data['ActiveSessions'] = {}
             
-            import time
-            data['ActiveSessions'][userID] = {
-                "username": getUser(authorized).get('username', ''),
-                "last_seen": int(time.time()),
-                "client_ip": request.remote_addr
-            }
+            sess = data['ActiveSessions'].get(userID, {})
+            if isinstance(sess, dict):
+                sess["last_seen"] = int(time.time())
+                sess["client_ip"] = request.remote_addr
+
             file.seek(0)
             json.dump(data, file, indent=4)
             file.truncate()
@@ -397,7 +431,7 @@ def pushSyncPlaylists():
         if auth_token != data.get('AppToken'):
             return "Invalid App Token", 401
 
-    authorized = authUser(signature)
+    authorized = authUser(request)
     if authorized == False:
         return "Unauthorized", 401
 
@@ -431,7 +465,7 @@ def pullSyncPlaylists():
         if auth_token != data.get('AppToken'):
             return "Invalid App Token", 401
 
-    authorized = authUser(signature)
+    authorized = authUser(request)
     if authorized == False:
         return "Unauthorized", 401
 
@@ -464,7 +498,7 @@ def getUserDownloads():
         if auth_token != data.get('AppToken'):
             return "Invalid App Token", 401
 
-    authorized = authUser(signature)
+    authorized = authUser(request)
     if authorized == False:
         return "Unauthorized", 401
 
@@ -503,7 +537,7 @@ def searchTracks(filter_text):
         data = json.load(file)
 
         if (auth_token == data['AppToken']):
-            authorized = authUser(signature)
+            authorized = authUser(request)
             if authorized != False:
                 userID = int(authorized)
 
@@ -557,7 +591,7 @@ def download(id, type):
         data = json.load(file)
         if auth_token != data['AppToken']:
             return "Invalid App Token", 401
-        if authUser(signature) == False:
+        if authUser(request) == False:
             return "Invalid Signature", 401
 
     if type == "audio":
@@ -600,7 +634,7 @@ def uploadFile(id, ext):
         data = json.load(file)
         if auth_token != data['AppToken']:
             return "Invalid App Token", 401
-        if authUser(signature) == False:
+        if authUser(request) == False:
             return "Invalid Signature", 401
 
     if not ext in SUPPORTED_TYPES:
@@ -654,7 +688,7 @@ def addDownloaded(id):
         data = json.load(file)
 
         if (auth_token == data['AppToken']):
-            authorized = authUser(signature)
+            authorized = authUser(request)
             if authorized != False:
                 userID = int(authorized)
 
@@ -700,7 +734,7 @@ def addUpload():
         data = json.load(file)
 
         if (auth_token == data['AppToken']):
-            authorized = authUser(signature)
+            authorized = authUser(request)
             if authorized != False:
                 userID = int(authorized)
 
@@ -731,7 +765,7 @@ def removeDownloaded(id):
         data = json.load(file)
 
         if (auth_token == data['AppToken']):
-            authorized = authUser(signature)
+            authorized = authUser(request)
             if authorized != False:
                 userID = int(authorized)
 
