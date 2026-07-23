@@ -5,7 +5,6 @@ server/data.db
 server/sqlite.py
 server/reader.py
 
-lib/
 bin/
 dist/
 input/

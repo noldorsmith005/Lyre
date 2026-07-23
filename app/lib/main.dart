@@ -1,0 +1,121 @@
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:provider/provider.dart';
+import 'package:window_manager/window_manager.dart';
+import 'services/media_handler.dart';
+import 'services/server_client.dart';
+import 'services/audio_player_service.dart';
+import 'screens/home_screen.dart';
+import 'screens/mobile/mobile_home_screen.dart';
+import 'utils/platform_utils.dart';
+
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize services
+  final mediaHandler = MediaHandler();
+  await mediaHandler.init();
+
+  final serverClient = ServerClient(mediaHandler: mediaHandler);
+  await serverClient.init();
+
+  final audioPlayerService = AudioPlayerService(onRefresh: () {});
+
+  // Desktop window setup
+  if (isDesktop) {
+    await windowManager.ensureInitialized();
+    const windowOptions = WindowOptions(
+      minimumSize: Size(1200, 800),
+      titleBarStyle: TitleBarStyle.normal,
+    );
+    await windowManager.waitUntilReadyToShow(windowOptions, () async {
+      await windowManager.maximize();
+      await windowManager.setResizable(false);
+      await windowManager.show();
+    });
+  }
+
+  runApp(
+    ChangeNotifierProvider<AudioPlayerService>.value(
+      value: audioPlayerService,
+      child: NapsterApp(
+        mediaHandler: mediaHandler,
+        serverClient: serverClient,
+      ),
+    ),
+  );
+}
+
+class NapsterApp extends StatelessWidget {
+  final MediaHandler mediaHandler;
+  final ServerClient serverClient;
+
+  const NapsterApp({
+    Key? key,
+    required this.mediaHandler,
+    required this.serverClient,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Napster',
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: Colors.black,
+        primaryColor: const Color(0xFFFF0000),
+        colorScheme: const ColorScheme.dark(
+          primary: Color(0xFFFF0000),
+          surface: Color(0xFF000000),
+        ),
+        fontFamily: Platform.isMacOS
+            ? '.AppleSystemUIFont'
+            : 'Segoe UI',
+      ),
+      home: isDesktop
+          ? _DesktopWrapper(
+              mediaHandler: mediaHandler,
+              serverClient: serverClient,
+            )
+          : MobileHomeScreen(
+              mediaHandler: mediaHandler,
+              appDataPath: mediaHandler.appDataPath,
+            ),
+    );
+  }
+}
+
+/// Desktop wrapper adds global keyboard shortcuts (Spacebar = play/pause)
+class _DesktopWrapper extends StatelessWidget {
+  final MediaHandler mediaHandler;
+  final ServerClient serverClient;
+
+  const _DesktopWrapper({
+    required this.mediaHandler,
+    required this.serverClient,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return KeyboardListener(
+      focusNode: FocusNode()..requestFocus(),
+      autofocus: true,
+      onKeyEvent: (event) {
+        if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.space) {
+          final audioService = Provider.of<AudioPlayerService>(context, listen: false);
+          if (audioService.isPlaying) {
+            audioService.pause();
+          } else {
+            audioService.resume();
+          }
+        }
+      },
+      child: HomeScreen(
+        mediaHandler: mediaHandler,
+        serverClient: serverClient,
+      ),
+    );
+  }
+}
