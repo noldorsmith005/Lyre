@@ -17,7 +17,7 @@ Napster is a full-stack media platform designed for music streaming, catalog man
 
 - [app/](file:///Users/nate/Desktop/Dev/temp/Napster/app): Flutter client application supporting desktop (macOS, Windows, Linux) and mobile platforms (iOS, Android).
 - [server/](file:///Users/nate/Desktop/Dev/temp/Napster/server): Python Flask backend server handling API requests, user authentication, database operations, and audio compression.
-- [setup/](file:///Users/nate/Desktop/Dev/temp/Napster/setup): Utility scripts for database initialization, environment configuration, and desktop package building.
+- [setup/](file:///Users/nate/Desktop/Dev/temp/Napster/setup): Utility scripts for database initialization and environment configuration.
 
 ## Prerequisites
 
@@ -25,7 +25,6 @@ Napster is a full-stack media platform designed for music streaming, catalog man
 - **SQLite**: SQLite 3
 - **FLAC CLI**: `flac` command-line utility (required for server-side audio compression)
 - **Flutter SDK**: Version 3.12 or higher (for client development and execution)
-- **Java Development Kit**: JDK 26 or higher (required for desktop `jpackage` bundling)
 
 ---
 
@@ -85,14 +84,20 @@ flutter run
 ```
 
 ### 3. Packaging & Distribution
-Standalone executable packages (macOS DMG or Windows EXE) can be produced using Java's `jpackage` utility:
+Standalone client applications can be built for desktop and mobile platforms using standard Flutter build tooling:
 
-1. Create target directories in the project root:
-   ```bash
-   mkdir -p input packaging dist
-   ```
-2. Move compiled application archives (`Napster.jar`), library dependencies, `client.config`, and resources into `./input`.
-3. Place application icons (`icon.icns` for macOS or `icon.ico` for Windows) into `./packaging`.
-4. Run the appropriate packaging command script:
-   - macOS build command: [setup/MacOS_packaging.txt](file:///Users/nate/Desktop/Dev/temp/Napster/setup/MacOS_packaging.txt)
-   - Windows build command: [setup/Windows_packaging.txt](file:///Users/nate/Desktop/Dev/temp/Napster/setup/Windows_packaging.txt)
+```bash
+cd app
+
+# Build for macOS
+flutter build macos
+
+# Build for Windows
+flutter build windows
+
+# Build for Linux
+flutter build linux
+
+# Build for Android
+flutter build apk
+```
