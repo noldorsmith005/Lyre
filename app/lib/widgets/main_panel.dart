@@ -21,6 +21,7 @@ class MainPanel extends StatefulWidget {
   final Track? playingTrack;
   final Function(Track) onPlayTrack;
   final Function(Track)? onDownloadTrack;
+  final Function(Track)? onRemoveDownloadTrack;
   final Function(Track) onQueueTrack;
   final List<Playlist> availablePlaylists;
   final Function(Playlist, Track) onTogglePlaylist;
@@ -42,6 +43,7 @@ class MainPanel extends StatefulWidget {
     this.playingTrack,
     required this.onPlayTrack,
     this.onDownloadTrack,
+    this.onRemoveDownloadTrack,
     required this.onQueueTrack,
     required this.availablePlaylists,
     required this.onTogglePlaylist,
@@ -280,10 +282,11 @@ class _MainPanelState extends State<MainPanel> {
                   // but ideally it comes from the model or parent.
                   return TrackCard(
                     track: track,
-                    isDownloaded: true, // Placeholder for download state logic
+                    isDownloaded: track.downloaded,
                     isPlaying: isPlaying,
                     onPlay: () => widget.onPlayTrack(track),
                     onDownload: widget.onDownloadTrack != null ? () => widget.onDownloadTrack!(track) : null,
+                    onRemoveDownload: widget.onRemoveDownloadTrack != null ? () => widget.onRemoveDownloadTrack!(track) : null,
                     onQueue: () => widget.onQueueTrack(track),
                     availablePlaylists: widget.availablePlaylists,
                     onTogglePlaylist: widget.onTogglePlaylist,

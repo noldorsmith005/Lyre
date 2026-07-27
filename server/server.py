@@ -11,8 +11,9 @@ import shutil
 import tempfile
 from flask import Flask, send_file, request, jsonify, after_this_request
 
-from primes import genPrime
 from utils import Utils
+import time
+import secrets
 
 
 app = Flask(__name__)
@@ -128,82 +129,6 @@ def stripWAV(file_path):
             os.remove(temp_path)
         raise RuntimeError(f"Failed to strip metadata for {file_path}. Error: {e}")
 
-
-# Cryptography Helpers
-def genKeyPair():
-    p = genPrime(1024)
-    q = genPrime(1024)
-    n = p * q
-    phi = (p-1) * (q-1)
-    e = 65537
-    d = pow(e, -1, phi)
-
-    key_pair = {
-        "public": e,
-        "private": d,
-        "mod": n
-    }
-
-    return key_pair
-
-def hash(text):
-    text_bytes = text.encode('utf-8')
-    hash_object = hashlib.sha256(text_bytes)
-    hex_digest = hash_object.hexdigest()
-    
-    return hex_digest
-
-def unpad(message_bytes, message_len):
-    try:
-        trimmed_bytes = message_bytes[-message_len:]
-        return trimmed_bytes.decode('utf-8')
-    except (UnicodeDecodeError, Exception):
-        return False
-
-def encode(text):
-    text_bytes = text.encode('utf-8')
-    base64_bytes = base64.b64encode(text_bytes)
-    base64_string = base64_bytes.decode('utf-8')
-    
-    return base64_string
-
-def decode(encoded):
-    base64_bytes = encoded.encode('utf-8')
-    original_bytes = base64.b64decode(base64_bytes)
-    rsa_bigint = int.from_bytes(original_bytes, byteorder='big')
-    
-    return rsa_bigint
-
-def encrypt(message, public_key):
-    e, n = public_key
-    
-    message_bytes = message.encode('utf-8')
-    message_int = int.from_bytes(message_bytes, byteorder='big')
-    
-    if message_int >= n:
-        raise ValueError("Message is too large for the key size (m >= n).")
-    
-    cipher_int = pow(message_int, e, n)
-    
-    return str(cipher_int)
-
-
-def decrypt(ciphertext, key):
-    d, n = key
-    
-    cipher_int = int(ciphertext)
-    
-    message_int = pow(cipher_int, d, n)
-    
-    byte_length = (message_int.bit_length() + 7) // 8
-    message_bytes = message_int.to_bytes(byte_length, byteorder='big')
-    
-    return message_bytes
-
-
-import time
-import secrets
-
 def hashPassword(password, salt=None):
     if not password:
         return "", ""
@@ -220,9 +145,8 @@ def hashPassword(password, salt=None):
 # User creation and authentication
 def authUser(req):
     auth_header = req.headers.get("Authorization")
-    signature = req.headers.get("Signature")
 
-    # 1. Bearer Token Auth
+    # Bearer Token Auth
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
         try:
@@ -234,36 +158,6 @@ def authUser(req):
                         return str(uid)
         except Exception:
             pass
-
-    # 2. Legacy Signature Auth
-    if signature:
-        parsed = signature.split("-")
-        userID = parsed[0]
-
-        user = getUser(userID)
-        if user != False:
-            secret = parsed[1]
-            encoded_cypher = parsed[2]
-            message_len = int(parsed[3])
-
-            hashed = hash(secret)
-            decoded_cypher = decode(encoded_cypher)
-
-            keys = []
-            if 'sig_keys' in user and isinstance(user['sig_keys'], list):
-                keys.extend(user['sig_keys'])
-            if 'sig_key' in user and user['sig_key'] not in keys:
-                keys.append(user['sig_key'])
-
-            for key_dict in keys:
-                try:
-                    key = (int(key_dict['public']), int(key_dict['mod']))
-                    decrypted = decrypt(decoded_cypher, key)
-                    match = unpad(decrypted, message_len)
-                    if match != False and hashed == match:
-                        return str(userID)
-                except Exception:
-                    continue
 
     return False
 
@@ -424,7 +318,6 @@ init_db()
 @app.post("/sync/push")
 def pushSyncPlaylists():
     auth_token = request.headers.get("AppToken")
-    signature = request.headers.get("Signature")
 
     with open('./sessions.json', 'r') as file:
         data = json.load(file)
@@ -458,7 +351,6 @@ def pushSyncPlaylists():
 @app.get("/sync/pull")
 def pullSyncPlaylists():
     auth_token = request.headers.get("AppToken")
-    signature = request.headers.get("Signature")
 
     with open('./sessions.json', 'r') as file:
         data = json.load(file)
@@ -491,7 +383,6 @@ def pullSyncPlaylists():
 @app.get("/sync/user_downloads")
 def getUserDownloads():
     auth_token = request.headers.get("AppToken")
-    signature = request.headers.get("Signature")
 
     with open('./sessions.json', 'r') as file:
         data = json.load(file)
@@ -531,7 +422,6 @@ def getUserDownloads():
 def searchTracks(filter_text):
     filter_text = urllib.parse.unquote_plus(filter_text)
     auth_token = request.headers.get("AppToken")
-    signature = request.headers.get("Signature")
 
     with open('./sessions.json', 'r+') as file:
         data = json.load(file)
@@ -577,7 +467,7 @@ def searchTracks(filter_text):
                 return tracks, 200
 
             else :
-                return "Invalid Signature", 401
+                return "Unauthorized", 401
 
         else :
             return "Invalid App Token", 401
@@ -585,14 +475,13 @@ def searchTracks(filter_text):
 @app.get("/tracks/<int:id>/download/<any(cover, audio):type>")
 def download(id, type):
     auth_token = request.headers.get("AppToken")
-    signature = request.headers.get("Signature")
 
     with open('./sessions.json', 'r+') as file:
         data = json.load(file)
         if auth_token != data['AppToken']:
             return "Invalid App Token", 401
         if authUser(request) == False:
-            return "Invalid Signature", 401
+            return "Unauthorized", 401
 
     if type == "audio":
         wav_path = f"./audio/{id}.wav"
@@ -628,14 +517,13 @@ def download(id, type):
 @app.route("/tracks/<int:id>/upload/<ext>", methods=["POST"])
 def uploadFile(id, ext):
     auth_token = request.headers.get("AppToken")
-    signature = request.headers.get("Signature")
 
     with open('./sessions.json', 'r+') as file:
         data = json.load(file)
         if auth_token != data['AppToken']:
             return "Invalid App Token", 401
         if authUser(request) == False:
-            return "Invalid Signature", 401
+            return "Unauthorized", 401
 
     if not ext in SUPPORTED_TYPES:
         return "Invalid file type", 415
@@ -682,7 +570,6 @@ def uploadFile(id, ext):
 @app.post("/tracks/downloads/update/<int:id>")
 def addDownloaded(id):
     auth_token = request.headers.get("AppToken")
-    signature = request.headers.get("Signature")
 
     with open('./sessions.json', 'r+') as file:
         data = json.load(file)
@@ -719,7 +606,7 @@ def addDownloaded(id):
                 return "Downloads updated", 201
 
             else :
-                return "Invalid Signature", 401
+                return "Unauthorized", 401
 
         else :
             return "Invalid App Token", 401
@@ -727,7 +614,6 @@ def addDownloaded(id):
 @app.post("/tracks/uploads/update")
 def addUpload():
     auth_token = request.headers.get("AppToken")
-    signature = request.headers.get("Signature")
     user_data = request.get_json()
 
     with open('./sessions.json', 'r+') as file:
@@ -751,7 +637,7 @@ def addUpload():
                 return str(new_id), 201
 
             else :
-                return "Invalid Signature", 401
+                return "Unauthorized", 401
 
         else :
             return "Invalid App Token", 401
@@ -759,7 +645,6 @@ def addUpload():
 @app.post("/tracks/downloads/remove/<int:id>")
 def removeDownloaded(id):
     auth_token = request.headers.get("AppToken")
-    signature = request.headers.get("Signature")
 
     with open('./sessions.json', 'r+') as file:
         data = json.load(file)
@@ -796,7 +681,7 @@ def removeDownloaded(id):
                 return "Downloads updated", 201
 
             else :
-                return "Invalid Signature", 401
+                return "Unauthorized", 401
 
         else :
             return "Invalid App Token", 401

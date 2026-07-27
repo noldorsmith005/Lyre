@@ -9,7 +9,7 @@ import '../utils/layout_constants.dart';
 import '../widgets/sidebar.dart';
 import '../widgets/main_panel.dart';
 import '../widgets/media_panel.dart';
-import '../widgets/register_modal.dart';
+import 'login_screen.dart';
 import '../widgets/upload_modal.dart';
 import '../widgets/confirmation_dialog.dart';
 
@@ -41,14 +41,39 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _autoConnectServer() async {
+    bool isConnected = false;
     if (widget.serverClient.registered()) {
       final isValid = await widget.serverClient.validateSession();
       if (isValid && mounted) {
         setState(() {
           _serverConnection = true;
         });
+        isConnected = true;
       }
     }
+    if (!isConnected && mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_serverConnection) {
+          _showLoginScreen();
+        }
+      });
+    }
+  }
+
+  void _showLoginScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => LoginScreen(
+          serverClient: widget.serverClient,
+          onLoginSuccess: () {
+            setState(() {
+              _serverConnection = true;
+            });
+          },
+        ),
+      ),
+    );
   }
 
   Future<void> _loadPlaylists() async {
@@ -85,39 +110,13 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onRlsPressed() async {
-    if (!_serverConnection && !widget.serverClient.registered()) {
-      RegisterModal.show(
-        context,
-        onSubmit: (isLogin, username, password) async {
-          try {
-            String? err;
-            if (isLogin) {
-              err = await widget.serverClient.login(username, password);
-            } else {
-              err = await widget.serverClient.createAndRegister(username, password);
-            }
-            if (err != null) {
-              if (mounted) _showAlert(isLogin ? 'Login Error' : 'Registration Error', err);
-            } else {
-              setState(() {
-                _serverConnection = true;
-              });
-              if (mounted) Navigator.of(context).pop();
-            }
-          } catch (e) {
-            if (mounted) _showAlert('Error', e.toString());
-          }
-        },
-      );
+    final canPing = await widget.serverClient.ping();
+    if (canPing) {
+      setState(() {
+        _serverConnection = !_serverConnection;
+      });
     } else {
-      final canPing = await widget.serverClient.ping();
-      if (canPing) {
-        setState(() {
-          _serverConnection = !_serverConnection;
-        });
-      } else {
-        _showAlert('Server Error', 'Server Offline');
-      }
+      _showAlert('Server Error', 'Server Offline');
     }
   }
 
@@ -165,11 +164,61 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
+    final statusNotifier = ValueNotifier<_SyncStatus>(_SyncStatus(0.1, 'Loading playlists...'));
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => ValueListenableBuilder<_SyncStatus>(
+        valueListenable: statusNotifier,
+        builder: (context, status, child) {
+          return AlertDialog(
+            backgroundColor: const Color(0xFF1E1E1E),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            title: Row(
+              children: const [
+                Icon(Icons.sync, color: Color(0xFFFF0000)),
+                SizedBox(width: 10),
+                Text('Cloud Sync', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(status.message, style: const TextStyle(color: Color(0xFFCCCCCC), fontSize: 14)),
+                const SizedBox(height: 16),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: status.progress,
+                    color: const Color(0xFFFF0000),
+                    backgroundColor: const Color(0xFF333333),
+                    minHeight: 6,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    '${(status.progress * 100).toInt()}%',
+                    style: const TextStyle(color: Color(0xFF888888), fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+
     try {
       final playlists = await widget.mediaHandler.loadPlaylists();
+      statusNotifier.value = _SyncStatus(0.3, 'Preparing playlist payloads...');
       List<Map<String, dynamic>> syncPayload = [];
 
-      for (var pl in playlists) {
+      for (int i = 0; i < playlists.length; i++) {
+        final pl = playlists[i];
         final tracks = await widget.mediaHandler.loadPlaylistTracks(pl.playlistID);
         final trackIds = tracks.map((t) => t.trackID).toList();
         syncPayload.add({
@@ -177,15 +226,25 @@ class _HomeScreenState extends State<HomeScreen> {
           'name': pl.title,
           'tracks': trackIds,
         });
+        double stepProgress = 0.3 + (0.4 * (i + 1) / (playlists.isEmpty ? 1 : playlists.length));
+        statusNotifier.value = _SyncStatus(stepProgress, 'Processing playlist "${pl.title}"...');
       }
 
+      statusNotifier.value = _SyncStatus(0.8, 'Pushing to cloud server...');
       final success = await widget.serverClient.pushSyncPlaylists(syncPayload);
+
+      statusNotifier.value = _SyncStatus(1.0, 'Sync Complete!');
+      await Future.delayed(const Duration(milliseconds: 400));
+
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+
       if (success) {
         _showAlert('Playlist Sync', 'Playlists synced to server successfully!');
       } else {
         _showAlert('Sync Error', 'Failed to push playlists to server.');
       }
     } catch (e) {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
       _showAlert('Sync Error', e.toString());
     }
   }
@@ -266,6 +325,20 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {});
   }
 
+  void _onRemoveDownloadTrack(Track track) async {
+    await widget.serverClient.removeDownload(track);
+    track.downloaded = false;
+    if (_currentPlaylist != null) {
+      await _loadPlaylistTracks(_currentPlaylist!);
+    } else {
+      final tracks = await widget.mediaHandler.getAllTracks();
+      setState(() {
+        _tracks = tracks;
+      });
+    }
+    setState(() {});
+  }
+
   void _onQueueTrack(Track track) {
     final audioService = Provider.of<AudioPlayerService>(context, listen: false);
     audioService.addToQueue(track);
@@ -325,6 +398,7 @@ class _HomeScreenState extends State<HomeScreen> {
               playingTrack: audioService.currentTrack,
               onPlayTrack: _onPlayTrack,
               onDownloadTrack: _serverConnection ? _onDownloadTrack : null,
+              onRemoveDownloadTrack: _serverConnection ? _onRemoveDownloadTrack : null,
               onQueueTrack: _onQueueTrack,
               availablePlaylists: _playlists,
               onTogglePlaylist: _onTogglePlaylist,
@@ -341,3 +415,10 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 }
+
+class _SyncStatus {
+  final double progress;
+  final String message;
+  _SyncStatus(this.progress, this.message);
+}
+

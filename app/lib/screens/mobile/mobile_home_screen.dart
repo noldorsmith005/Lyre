@@ -4,9 +4,8 @@ import '../../models/playlist.dart';
 import '../../services/audio_player_service.dart';
 import '../../services/server_client.dart';
 import 'playlist_list_screen.dart';
-import 'search_screen.dart';
 import '../../widgets/mobile/bottom_player_bar.dart';
-import '../../widgets/mobile/mobile_login_sheet.dart';
+import '../login_screen.dart';
 
 class MobileHomeScreen extends StatefulWidget {
   final dynamic mediaHandler;
@@ -25,7 +24,6 @@ class MobileHomeScreen extends StatefulWidget {
 }
 
 class _MobileHomeScreenState extends State<MobileHomeScreen> {
-  int _currentIndex = 0;
   List<Playlist> _playlists = [];
   bool _serverConnection = false;
 
@@ -37,13 +35,22 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
   }
 
   Future<void> _autoConnectServer() async {
+    bool isConnected = false;
     if (widget.serverClient.registered()) {
       final isValid = await widget.serverClient.validateSession();
       if (isValid && mounted) {
         setState(() {
           _serverConnection = true;
         });
+        isConnected = true;
       }
+    }
+    if (!isConnected && mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_serverConnection) {
+          _openLoginScreen();
+        }
+      });
     }
   }
 
@@ -54,31 +61,20 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
     });
   }
 
-  void _onCreatePlaylist() async {
-    await widget.mediaHandler.createPlaylist();
-    _loadPlaylists();
-  }
-
-  void _onDeletePlaylist(Playlist playlist) async {
-    await widget.mediaHandler.deletePlaylist(playlist.playlistID);
-    _loadPlaylists();
-  }
-
-  void _onRenamePlaylist(Playlist playlist, String newName) async {
-    await widget.mediaHandler.editPlaylistTitle(playlist.playlistID, newName);
-    _loadPlaylists();
-  }
-
-  void _openLoginSheet() {
-    MobileLoginSheet.show(
+  void _openLoginScreen() {
+    Navigator.push(
       context,
-      serverClient: widget.serverClient,
-      onConnectionStateChanged: (isConnected) {
-        setState(() {
-          _serverConnection = isConnected;
-        });
-      },
-      onSyncPressed: _onMobileSync,
+      MaterialPageRoute(
+        builder: (context) => LoginScreen(
+          serverClient: widget.serverClient,
+          onLoginSuccess: () {
+            setState(() {
+              _serverConnection = true;
+            });
+            _onMobileSync();
+          },
+        ),
+      ),
     );
   }
 
@@ -90,36 +86,97 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
       return;
     }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Syncing with server...')),
+    final statusNotifier = ValueNotifier<_SyncStatus>(_SyncStatus(0.1, 'Fetching server metadata...'));
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => ValueListenableBuilder<_SyncStatus>(
+        valueListenable: statusNotifier,
+        builder: (context, status, child) {
+          return AlertDialog(
+            backgroundColor: const Color(0xFF161616),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+            title: Row(
+              children: const [
+                Icon(Icons.cloud_sync, color: Color(0xFFFF0000)),
+                SizedBox(width: 10),
+                Text('Cloud Sync', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              ],
+            ),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(status.message, style: const TextStyle(color: Color(0xFFCCCCCC), fontSize: 14)),
+                const SizedBox(height: 16),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: status.progress,
+                    color: const Color(0xFFFF0000),
+                    backgroundColor: const Color(0xFF333333),
+                    minHeight: 6,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: Text(
+                    '${(status.progress * 100).toInt()}%',
+                    style: const TextStyle(color: Color(0xFF888888), fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
     );
 
     try {
       final serverTracks = await widget.serverClient.getUserDownloadedTracks();
+      statusNotifier.value = _SyncStatus(0.3, 'Syncing local track downloads...');
       if (serverTracks != null) {
         final serverTrackIds = serverTracks.map((t) => t.trackID).toSet();
         final localTracks = await widget.mediaHandler.getAllTracks();
         final localTrackIds = localTracks.map((t) => t.trackID).toSet();
 
+        int totalTracks = serverTracks.length + localTracks.length;
+        int count = 0;
+
         for (var st in serverTracks) {
+          count++;
+          double p = 0.3 + (0.4 * count / (totalTracks == 0 ? 1 : totalTracks));
+          statusNotifier.value = _SyncStatus(p, 'Downloading "${st.title}"...');
           if (!localTrackIds.contains(st.trackID)) {
             await widget.serverClient.downloadTrack(st);
           }
         }
 
         for (var lt in localTracks) {
+          count++;
+          double p = 0.3 + (0.4 * count / (totalTracks == 0 ? 1 : totalTracks));
+          statusNotifier.value = _SyncStatus(p, 'Updating track state...');
           if (!serverTrackIds.contains(lt.trackID)) {
             await widget.serverClient.removeDownload(lt);
           }
         }
       }
 
+      statusNotifier.value = _SyncStatus(0.75, 'Pulling playlists from server...');
       final serverPlaylists = await widget.serverClient.pullSyncPlaylists();
       if (serverPlaylists != null) {
+        statusNotifier.value = _SyncStatus(0.9, 'Updating local playlists...');
         await widget.mediaHandler.syncLocalPlaylists(serverPlaylists);
       }
 
       _loadPlaylists();
+
+      statusNotifier.value = _SyncStatus(1.0, 'Sync Complete!');
+      await Future.delayed(const Duration(milliseconds: 400));
+
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -127,6 +184,7 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
         );
       }
     } catch (e) {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Sync failed: $e')),
@@ -141,67 +199,25 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
 
     return Scaffold(
       backgroundColor: const Color(0xFF000000),
-      body: Stack(
-        children: [
-          IndexedStack(
-            index: _currentIndex,
-            children: [
-              PlaylistListScreen(
-                playlists: _playlists,
-                onCreatePlaylist: _onCreatePlaylist,
-                onDeletePlaylist: _onDeletePlaylist,
-                onRenamePlaylist: _onRenamePlaylist,
-                appDataPath: widget.appDataPath,
-                mediaHandler: widget.mediaHandler,
-                serverClient: widget.serverClient,
-                isServerConnected: _serverConnection,
-                onOpenLogin: _openLoginSheet,
-              ),
-              SearchScreen(
-                mediaHandler: widget.mediaHandler,
-                appDataPath: widget.appDataPath,
-                allPlaylists: _playlists,
-              ),
-            ],
-          ),
-          
-          if (audioService.currentTrack != null)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: BottomPlayerBar(appDataPath: widget.appDataPath),
-            ),
-        ],
+      body: PlaylistListScreen(
+        playlists: _playlists,
+        appDataPath: widget.appDataPath,
+        mediaHandler: widget.mediaHandler,
+        serverClient: widget.serverClient,
+        isServerConnected: _serverConnection,
+        onOpenLogin: _onMobileSync,
       ),
-      bottomNavigationBar: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          if (audioService.currentTrack != null)
-            BottomPlayerBar(appDataPath: widget.appDataPath),
-          BottomNavigationBar(
-            backgroundColor: const Color(0xFF0F0F0F),
-            selectedItemColor: const Color(0xFFFF0000),
-            unselectedItemColor: const Color(0xFF555555),
-            currentIndex: _currentIndex,
-            onTap: (index) {
-              setState(() {
-                _currentIndex = index;
-              });
-            },
-            items: const [
-              BottomNavigationBarItem(
-                icon: Icon(Icons.home),
-                label: 'Home',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.search),
-                label: 'Search',
-              ),
-            ],
-          ),
-        ],
-      ),
+      bottomNavigationBar: audioService.currentTrack != null
+          ? BottomPlayerBar(appDataPath: widget.appDataPath)
+          : null,
     );
   }
 }
+
+class _SyncStatus {
+  final double progress;
+  final String message;
+  _SyncStatus(this.progress, this.message);
+}
+
+
