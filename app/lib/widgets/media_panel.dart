@@ -5,8 +5,15 @@ import '../services/audio_player_service.dart';
 import '../utils/layout_constants.dart';
 import '../models/track.dart';
 
-class MediaPanel extends StatelessWidget {
+class MediaPanel extends StatefulWidget {
   const MediaPanel({Key? key}) : super(key: key);
+
+  @override
+  State<MediaPanel> createState() => _MediaPanelState();
+}
+
+class _MediaPanelState extends State<MediaPanel> {
+  bool _isCollapsed = false;
 
   String _formatDuration(Duration duration) {
     String twoDigits(int n) => n.toString().padLeft(2, '0');
@@ -37,52 +44,162 @@ class MediaPanel extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: [
-                  // Cover Art
-                  Container(
-                    width: LayoutConstants.coverSize,
-                    height: LayoutConstants.coverSize,
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF1A1A1A),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xFF555555), width: 1),
+                  if (_isCollapsed)
+                    // Collapsed state: Small card
+                    MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            _isCollapsed = false;
+                          });
+                        },
+                        child: Container(
+                          width: LayoutConstants.coverSize,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                          decoration: const BoxDecoration(
+                            color: Colors.black,
+                            border: Border(
+                              top: BorderSide(color: Color(0xFF2A2A2A), width: 1),
+                              bottom: BorderSide(color: Color(0xFF2A2A2A), width: 1),
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.keyboard_arrow_right,
+                                color: Colors.white,
+                                size: 24,
+                              ),
+                              const SizedBox(width: 8),
+                              Container(
+                                width: 44,
+                                height: 44,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF1A1A1A),
+                                  borderRadius: BorderRadius.circular(6),
+                                  border: Border.all(color: const Color(0xFF444444), width: 1),
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(5),
+                                  child: currentTrack != null && appDataPath != null
+                                      ? Image.file(
+                                          File('$appDataPath/cover/${currentTrack.trackID}.jpg'),
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (context, error, stackTrace) =>
+                                              const Icon(Icons.music_note, color: Colors.white54, size: 24),
+                                        )
+                                      : const Icon(Icons.music_note, color: Colors.white54, size: 24),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      currentTrack?.title ?? 'No Track Playing',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      currentTrack?.artist ?? '',
+                                      style: const TextStyle(
+                                        color: Color(0xFF888888),
+                                        fontSize: 13,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    )
+                  else ...[
+                    // Expanded state: Down chevron above & left of large cover art
+                    SizedBox(
+                      width: LayoutConstants.coverSize,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            child: GestureDetector(
+                              onTap: () {
+                                setState(() {
+                                  _isCollapsed = true;
+                                });
+                              },
+                              child: const Padding(
+                                padding: EdgeInsets.only(bottom: 8.0),
+                                child: Icon(
+                                  Icons.keyboard_arrow_down,
+                                  color: Colors.white,
+                                  size: 26,
+                                ),
+                              ),
+                            ),
+                          ),
+                          Container(
+                            width: LayoutConstants.coverSize,
+                            height: LayoutConstants.coverSize,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF1A1A1A),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: const Color(0xFF555555), width: 1),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(7),
+                              child: currentTrack != null && appDataPath != null
+                                  ? Image.file(
+                                      File('$appDataPath/cover/${currentTrack.trackID}.jpg'),
+                                      fit: BoxFit.cover,
+                                      errorBuilder: (context, error, stackTrace) =>
+                                          const Icon(Icons.music_note, color: Colors.white54, size: 64),
+                                    )
+                                  : const Icon(Icons.music_note, color: Colors.white54, size: 64),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(7),
-                      child: currentTrack != null && appDataPath != null
-                          ? Image.file(
-                              File('$appDataPath/cover/${currentTrack.trackID}.jpg'),
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) =>
-                                  const Icon(Icons.music_note, color: Colors.white54, size: 64),
-                            )
-                          : const Icon(Icons.music_note, color: Colors.white54, size: 64),
+                    const SizedBox(height: 24),
+                    
+                    // Title and Artist
+                    Text(
+                      currentTrack?.title ?? 'No Track Playing',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                  const SizedBox(height: 24),
-                  
-                  // Title and Artist
-                  Text(
-                    currentTrack?.title ?? 'No Track Playing',
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
+                    const SizedBox(height: 8),
+                    Text(
+                      currentTrack?.artist ?? '',
+                      style: const TextStyle(
+                        color: Color(0xFF888888),
+                        fontSize: 15,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    currentTrack?.artist ?? '',
-                    style: const TextStyle(
-                      color: Color(0xFF888888),
-                      fontSize: 15,
-                    ),
-                    textAlign: TextAlign.center,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                  ],
                   const SizedBox(height: 24),
                   
                   // Seek Bar
@@ -142,64 +259,41 @@ class MediaPanel extends StatelessWidget {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      // Prev
-                      Expanded(
-                        flex: 43,
-                        child: Align(
-                          alignment: Alignment.centerRight,
-                          child: _HoverIconButton(
-                            iconPath: 'assets/prev.png',
-                            size: 25,
-                            onTap: () {
-                              // audioService.previous() (assuming next does next)
-                              // Just calling next() for now since previous isn't implemented in the stub
-                            },
-                          ),
-                        ),
+                      _HoverIconButton(
+                        iconPath: 'assets/prev.png',
+                        size: 25,
+                        onTap: () {
+                          // audioService.previous()
+                        },
                       ),
-                      // Play/Pause
-                      Expanded(
-                        flex: 15,
-                        child: Center(
-                          child: _HoverIconButton(
-                            iconPath: audioService.isPlaying ? 'assets/pause.png' : 'assets/play.png',
-                            size: 25,
-                            onTap: () {
-                              if (audioService.isPlaying) {
-                                audioService.pause();
-                              } else {
-                                audioService.resume();
-                              }
-                            },
-                          ),
-                        ),
+                      const SizedBox(width: 24),
+                      _HoverIconButton(
+                        iconPath: audioService.isPlaying ? 'assets/pause.png' : 'assets/play.png',
+                        size: 25,
+                        onTap: () {
+                          if (audioService.isPlaying) {
+                            audioService.pause();
+                          } else {
+                            audioService.resume();
+                          }
+                        },
                       ),
-                      // Next + Loop
-                      Expanded(
-                        flex: 43,
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          children: [
-                            _HoverIconButton(
-                              iconPath: 'assets/next.png',
-                              size: 25,
-                              onTap: () {
-                                audioService.next();
-                              },
-                            ),
-                            const SizedBox(width: 16),
-                            _HoverIconButton(
-                              iconPath: 'assets/loop.png',
-                              size: 26,
-                              color: audioService.loop ? const Color(0xFFFF0000) : Colors.white,
-                              onTap: () {
-                                audioService.loop = !audioService.loop;
-                                // audioService.notifyListeners(); should happen if there's a setLoop method, 
-                                // but we mock it here.
-                              },
-                            ),
-                          ],
-                        ),
+                      const SizedBox(width: 24),
+                      _HoverIconButton(
+                        iconPath: 'assets/next.png',
+                        size: 25,
+                        onTap: () {
+                          audioService.next();
+                        },
+                      ),
+                      const SizedBox(width: 24),
+                      _HoverIconButton(
+                        iconPath: 'assets/loop.png',
+                        size: 26,
+                        color: audioService.loop ? const Color(0xFFFF0000) : Colors.white,
+                        onTap: () {
+                          audioService.loop = !audioService.loop;
+                        },
                       ),
                     ],
                   ),
@@ -411,13 +505,20 @@ class __HoverIconButtonState extends State<_HoverIconButton> {
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         onTap: widget.onTap,
-        child: Opacity(
-          opacity: _isHovered ? 0.7 : 1.0,
-          child: Image.asset(
-            widget.iconPath,
-            width: widget.size,
-            height: widget.size,
-            color: widget.color ?? Colors.white,
+        child: SizedBox(
+          width: widget.size,
+          height: widget.size,
+          child: Opacity(
+            opacity: _isHovered ? 0.7 : 1.0,
+            child: Image.asset(
+              widget.iconPath,
+              width: widget.size,
+              height: widget.size,
+              fit: BoxFit.contain,
+              color: widget.color ?? Colors.white,
+              errorBuilder: (context, error, stackTrace) =>
+                  SizedBox(width: widget.size, height: widget.size),
+            ),
           ),
         ),
       ),
