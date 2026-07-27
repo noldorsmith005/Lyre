@@ -1,11 +1,11 @@
 # Napster
 
 ## Overview
-Napster is a full-stack media platform designed for music streaming, catalog management, high-fidelity audio playback, and synchronized media storage. The platform consists of a Flutter-based multi-platform client application and a Python Flask backend service powered by SQLite. It provides robust user authentication, seamless playlist synchronization, FLAC/WAV audio processing, song catalog search, and user listening analytics.
+Napster is a full-stack media platform designed for music streaming, catalog management, audio playback, and synchronized media storage. The platform consists of a Flutter-based multi-platform client application and a Python Flask backend service powered by SQLite. It provides robust user authentication, seamless playlist synchronization, FLAC/WAV audio processing, song catalog search, and user listening analytics.
 
 ## Key Features
 
-- **High-Fidelity Audio Streaming & Storage**: Supports high-quality WAV audio uploads, metadata processing, and optional FLAC audio compression.
+- **Audio Streaming & Storage**: Supports high-quality WAV audio uploads, metadata processing, and optional FLAC audio compression.
 - **Cross-Device Playlist & Library Sync**: Bidirectional sync protocol allowing client applications to push local playlists and pull server-managed track collections and state changes.
 - **User Authentication & Session Management**: Secure user registration, salted password hashing, token validation, and multi-session tracking.
 - **Media Playback & Queue Control**: Comprehensive media queue management, audio streaming with range support, local asset caching, and cover art retrieval.
