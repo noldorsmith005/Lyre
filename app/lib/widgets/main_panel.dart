@@ -149,9 +149,14 @@ class _MainPanelState extends State<MainPanel> {
             ),
             child: Row(
               children: [
-                const Padding(
-                  padding: EdgeInsets.only(left: 48, right: 12),
-                  child: Icon(Icons.search, color: Colors.white, size: 18),
+                Padding(
+                  padding: const EdgeInsets.only(left: 48, right: 12),
+                  child: Image.asset(
+                    'assets/search.png',
+                    width: 18,
+                    height: 18,
+                    color: Colors.white,
+                  ),
                 ),
                 Expanded(
                   child: TextField(
@@ -183,15 +188,21 @@ class _MainPanelState extends State<MainPanel> {
               ],
             ),
           ),
+          if (showServerFeatures) ...[
+            const SizedBox(width: 16),
+            Tooltip(
+              message: 'Connect to RLS',
+              child: _HoverIconButton(
+                iconPath: 'assets/library_selected.png',
+                hoverIconPath: 'assets/library_unselected.png',
+                size: 30,
+                onTap: widget.onRlsPressed,
+              ),
+            ),
+          ],
           const Spacer(),
           
           if (showServerFeatures) ...[
-            _HoverIconButton(
-              iconPath: 'assets/library_selected.png',
-              size: 30,
-              onTap: widget.onRlsPressed,
-            ),
-            const SizedBox(width: 16),
             _AccountMenuButton(
               onUploadPressed: widget.onUploadPressed,
               onClearConfigPressed: widget.onClearConfigPressed,
@@ -249,7 +260,8 @@ class _MainPanelState extends State<MainPanel> {
           ),
           const Spacer(),
           _HoverIconButton(
-            iconPath: 'assets/shuffle.png',
+            iconPath: 'assets/shuffle_unselected.png',
+            hoverIconPath: 'assets/shuffle_selected.png',
             size: 32,
             onTap: widget.onShufflePressed,
           ),
@@ -260,41 +272,39 @@ class _MainPanelState extends State<MainPanel> {
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        color: Colors.black,
-        child: Column(
-          children: [
-            _buildTopBar(),
-            _buildHeaderRow(),
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.all(20),
-                physics: const BouncingScrollPhysics(),
-                itemCount: widget.tracks.length,
-                itemBuilder: (context, index) {
-                  final track = widget.tracks[index];
-                  final isPlaying = widget.playingTrack?.trackID == track.trackID;
-                  // For the sake of this UI widget, assume tracks in the list are downloaded if not mobile,
-                  // or handled by parent. We'll pass a mock isDownloaded = true for now, 
-                  // but ideally it comes from the model or parent.
-                  return TrackCard(
-                    track: track,
-                    isDownloaded: true, // Placeholder for download state logic
-                    isPlaying: isPlaying,
-                    onPlay: () => widget.onPlayTrack(track),
-                    onDownload: widget.onDownloadTrack != null ? () => widget.onDownloadTrack!(track) : null,
-                    onQueue: () => widget.onQueueTrack(track),
-                    availablePlaylists: widget.availablePlaylists,
-                    onTogglePlaylist: widget.onTogglePlaylist,
-                    isTrackInPlaylist: widget.isTrackInPlaylist,
-                    appDataPath: Provider.of<AudioPlayerService>(context, listen: false).appDataPath ?? '',
-                  );
-                },
-              ),
+    return Container(
+      color: Colors.black,
+      child: Column(
+        children: [
+          _buildTopBar(),
+          _buildHeaderRow(),
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.all(20),
+              physics: const BouncingScrollPhysics(),
+              itemCount: widget.tracks.length,
+              itemBuilder: (context, index) {
+                final track = widget.tracks[index];
+                final isPlaying = widget.playingTrack?.trackID == track.trackID;
+                // For the sake of this UI widget, assume tracks in the list are downloaded if not mobile,
+                // or handled by parent. We'll pass a mock isDownloaded = true for now, 
+                // but ideally it comes from the model or parent.
+                return TrackCard(
+                  track: track,
+                  isDownloaded: true, // Placeholder for download state logic
+                  isPlaying: isPlaying,
+                  onPlay: () => widget.onPlayTrack(track),
+                  onDownload: widget.onDownloadTrack != null ? () => widget.onDownloadTrack!(track) : null,
+                  onQueue: () => widget.onQueueTrack(track),
+                  availablePlaylists: widget.availablePlaylists,
+                  onTogglePlaylist: widget.onTogglePlaylist,
+                  isTrackInPlaylist: widget.isTrackInPlaylist,
+                  appDataPath: Provider.of<AudioPlayerService>(context, listen: false).appDataPath ?? '',
+                );
+              },
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -302,13 +312,17 @@ class _MainPanelState extends State<MainPanel> {
 
 class _HoverIconButton extends StatefulWidget {
   final String iconPath;
+  final String? hoverIconPath;
   final double size;
   final VoidCallback onTap;
+  final Color? color;
 
   const _HoverIconButton({
     required this.iconPath,
+    this.hoverIconPath,
     required this.size,
     required this.onTap,
+    this.color,
   });
 
   @override
@@ -320,6 +334,10 @@ class __HoverIconButtonState extends State<_HoverIconButton> {
 
   @override
   Widget build(BuildContext context) {
+    final currentPath = (_isHovered && widget.hoverIconPath != null)
+        ? widget.hoverIconPath!
+        : widget.iconPath;
+
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -327,12 +345,12 @@ class __HoverIconButtonState extends State<_HoverIconButton> {
       child: GestureDetector(
         onTap: widget.onTap,
         child: Opacity(
-          opacity: _isHovered ? 0.7 : 1.0,
+          opacity: (_isHovered && widget.hoverIconPath == null) ? 0.7 : 1.0,
           child: Image.asset(
-            widget.iconPath,
+            currentPath,
             width: widget.size,
             height: widget.size,
-            color: Colors.white,
+            color: widget.color,
           ),
         ),
       ),

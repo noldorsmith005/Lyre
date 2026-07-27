@@ -148,7 +148,7 @@ class MediaPanel extends StatelessWidget {
                         child: Align(
                           alignment: Alignment.centerRight,
                           child: _HoverIconButton(
-                            iconPath: 'assets/prev.png',
+                            iconPath: 'assets/previous.png',
                             size: 25,
                             onTap: () {
                               // audioService.previous() (assuming next does next)
@@ -189,9 +189,8 @@ class MediaPanel extends StatelessWidget {
                             ),
                             const SizedBox(width: 16),
                             _HoverIconButton(
-                              iconPath: 'assets/loop.png',
+                              iconPath: audioService.loop ? 'assets/loop_selected.png' : 'assets/loop_unselected.png',
                               size: 26,
-                              color: audioService.loop ? const Color(0xFFFF0000) : Colors.white,
                               onTap: () {
                                 audioService.loop = !audioService.loop;
                                 // audioService.notifyListeners(); should happen if there's a setLoop method, 
@@ -385,12 +384,14 @@ class __QueueCardState extends State<_QueueCard> {
 
 class _HoverIconButton extends StatefulWidget {
   final String iconPath;
+  final String? hoverIconPath;
   final double size;
   final VoidCallback onTap;
   final Color? color;
 
   const _HoverIconButton({
     required this.iconPath,
+    this.hoverIconPath,
     required this.size,
     required this.onTap,
     this.color,
@@ -405,6 +406,10 @@ class __HoverIconButtonState extends State<_HoverIconButton> {
 
   @override
   Widget build(BuildContext context) {
+    final currentPath = (_isHovered && widget.hoverIconPath != null)
+        ? widget.hoverIconPath!
+        : widget.iconPath;
+
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -412,12 +417,12 @@ class __HoverIconButtonState extends State<_HoverIconButton> {
       child: GestureDetector(
         onTap: widget.onTap,
         child: Opacity(
-          opacity: _isHovered ? 0.7 : 1.0,
+          opacity: (_isHovered && widget.hoverIconPath == null) ? 0.7 : 1.0,
           child: Image.asset(
-            widget.iconPath,
+            currentPath,
             width: widget.size,
             height: widget.size,
-            color: widget.color ?? Colors.white,
+            color: widget.color,
           ),
         ),
       ),

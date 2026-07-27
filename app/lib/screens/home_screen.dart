@@ -9,9 +9,10 @@ import '../utils/layout_constants.dart';
 import '../widgets/sidebar.dart';
 import '../widgets/main_panel.dart';
 import '../widgets/media_panel.dart';
-import '../widgets/register_modal.dart';
 import '../widgets/upload_modal.dart';
 import '../widgets/confirmation_dialog.dart';
+import 'login_screen.dart';
+import 'register_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final MediaHandler mediaHandler;
@@ -86,28 +87,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _onRlsPressed() async {
     if (!_serverConnection && !widget.serverClient.registered()) {
-      RegisterModal.show(
-        context,
-        onSubmit: (isLogin, username, password) async {
-          try {
-            String? err;
-            if (isLogin) {
-              err = await widget.serverClient.login(username, password);
-            } else {
-              err = await widget.serverClient.createAndRegister(username, password);
-            }
-            if (err != null) {
-              if (mounted) _showAlert(isLogin ? 'Login Error' : 'Registration Error', err);
-            } else {
-              setState(() {
-                _serverConnection = true;
-              });
-              if (mounted) Navigator.of(context).pop();
-            }
-          } catch (e) {
-            if (mounted) _showAlert('Error', e.toString());
-          }
-        },
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => LoginScreen(
+            mediaHandler: widget.mediaHandler,
+            serverClient: widget.serverClient,
+          ),
+        ),
       );
     } else {
       final canPing = await widget.serverClient.ping();
@@ -148,14 +134,22 @@ class _HomeScreenState extends State<HomeScreen> {
   void _onClearConfigPressed() async {
     final confirmed = await ConfirmationDialog.show(
       context,
-      title: 'Confirm',
-      message: 'Are you sure you want to clear your server configuration? You will have to re-authenticate.',
+      title: 'Confirm Sign Out',
+      message: 'Are you sure you want to clear your server configuration and sign out?',
     );
     if (confirmed == true) {
-      widget.serverClient.clearRLSConfig();
-      setState(() {
-        _serverConnection = false;
-      });
+      await widget.serverClient.clearRLSConfig();
+      if (mounted) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (_) => LoginScreen(
+              mediaHandler: widget.mediaHandler,
+              serverClient: widget.serverClient,
+            ),
+          ),
+          (route) => false,
+        );
+      }
     }
   }
 

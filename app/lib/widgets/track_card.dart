@@ -142,7 +142,7 @@ class _TrackCardState extends State<TrackCard> {
                   child: GestureDetector(
                     onTap: widget.onPlay,
                     child: Image.asset(
-                      'assets/play_small.png',
+                      'assets/play.png',
                       width: 12,
                       height: 12,
                       color: Colors.white,
@@ -223,17 +223,12 @@ class _TrackCardState extends State<TrackCard> {
             if (widget.isDownloaded) ...[
               _buildTooltip(
                 message: 'Add to Queue',
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: GestureDetector(
-                    onTap: widget.onQueue,
-                    child: Image.asset(
-                      'assets/queue_add.png',
-                      width: 16,
-                      height: 16,
-                      color: const Color(0xFFB3B3B3),
-                    ),
-                  ),
+                child: _HoverImageAssetButton(
+                  iconPath: 'assets/add_to_queue.png',
+                  hoverIconPath: 'assets/add_to_queue_hover.png',
+                  size: 16,
+                  color: const Color(0xFFB3B3B3),
+                  onTap: widget.onQueue ?? () {},
                 ),
               ),
               const SizedBox(width: 16),
@@ -241,21 +236,16 @@ class _TrackCardState extends State<TrackCard> {
               Builder(
                 builder: (ctx) => _buildTooltip(
                   message: 'Add to Playlist',
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: GestureDetector(
-                      onTap: () {
-                        final renderBox = ctx.findRenderObject() as RenderBox;
-                        final position = renderBox.localToGlobal(Offset.zero);
-                        _showPlaylistPopup(context, position);
-                      },
-                      child: Image.asset(
-                        'assets/playlist_add.png',
-                        width: 16,
-                        height: 16,
-                        color: const Color(0xFFB3B3B3),
-                      ),
-                    ),
+                  child: _HoverImageAssetButton(
+                    iconPath: 'assets/add_to_playlist.png',
+                    hoverIconPath: 'assets/add_to_playlist_hover.png',
+                    size: 16,
+                    color: const Color(0xFFB3B3B3),
+                    onTap: () {
+                      final renderBox = ctx.findRenderObject() as RenderBox;
+                      final position = renderBox.localToGlobal(Offset.zero);
+                      _showPlaylistPopup(context, position);
+                    },
                   ),
                 ),
               ),
@@ -290,6 +280,52 @@ class _TrackCardState extends State<TrackCard> {
       height: LayoutConstants.thumbSize,
       color: const Color(0xFF2A2A2A),
       child: const Icon(Icons.music_note, color: Colors.white54, size: 20),
+    );
+  }
+}
+
+class _HoverImageAssetButton extends StatefulWidget {
+  final String iconPath;
+  final String? hoverIconPath;
+  final double size;
+  final Color? color;
+  final VoidCallback onTap;
+
+  const _HoverImageAssetButton({
+    Key? key,
+    required this.iconPath,
+    this.hoverIconPath,
+    required this.size,
+    this.color,
+    required this.onTap,
+  }) : super(key: key);
+
+  @override
+  _HoverImageAssetButtonState createState() => _HoverImageAssetButtonState();
+}
+
+class _HoverImageAssetButtonState extends State<_HoverImageAssetButton> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final path = (_isHovered && widget.hoverIconPath != null)
+        ? widget.hoverIconPath!
+        : widget.iconPath;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: Image.asset(
+          path,
+          width: widget.size,
+          height: widget.size,
+          color: widget.color,
+        ),
+      ),
     );
   }
 }

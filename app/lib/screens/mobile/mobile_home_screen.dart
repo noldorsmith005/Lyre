@@ -6,7 +6,7 @@ import '../../services/server_client.dart';
 import 'playlist_list_screen.dart';
 import 'search_screen.dart';
 import '../../widgets/mobile/bottom_player_bar.dart';
-import '../../widgets/mobile/mobile_login_sheet.dart';
+import '../login_screen.dart';
 
 class MobileHomeScreen extends StatefulWidget {
   final dynamic mediaHandler;
@@ -70,15 +70,13 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
   }
 
   void _openLoginSheet() {
-    MobileLoginSheet.show(
-      context,
-      serverClient: widget.serverClient,
-      onConnectionStateChanged: (isConnected) {
-        setState(() {
-          _serverConnection = isConnected;
-        });
-      },
-      onSyncPressed: _onMobileSync,
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => LoginScreen(
+          mediaHandler: widget.mediaHandler,
+          serverClient: widget.serverClient,
+        ),
+      ),
     );
   }
 

@@ -8,6 +8,7 @@ import 'services/server_client.dart';
 import 'services/audio_player_service.dart';
 import 'screens/home_screen.dart';
 import 'screens/mobile/mobile_home_screen.dart';
+import 'screens/login_screen.dart';
 import 'utils/platform_utils.dart';
 
 void main() async {
@@ -74,15 +75,20 @@ class NapsterApp extends StatelessWidget {
             ? '.AppleSystemUIFont'
             : 'Segoe UI',
       ),
-      home: isDesktop
-          ? _DesktopWrapper(
+      home: serverClient.registered()
+          ? (isDesktop
+              ? _DesktopWrapper(
+                  mediaHandler: mediaHandler,
+                  serverClient: serverClient,
+                )
+              : MobileHomeScreen(
+                  mediaHandler: mediaHandler,
+                  serverClient: serverClient,
+                  appDataPath: mediaHandler.appDataPath,
+                ))
+          : LoginScreen(
               mediaHandler: mediaHandler,
               serverClient: serverClient,
-            )
-          : MobileHomeScreen(
-              mediaHandler: mediaHandler,
-              serverClient: serverClient,
-              appDataPath: mediaHandler.appDataPath,
             ),
     );
   }
