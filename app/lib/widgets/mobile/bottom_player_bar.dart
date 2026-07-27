@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/audio_player_service.dart';
+import '../../services/theme_service.dart';
 import '../../screens/mobile/full_player_screen.dart';
 
 class BottomPlayerBar extends StatelessWidget {
@@ -124,12 +125,12 @@ class BottomPlayerBar extends StatelessWidget {
                     if (progress > 1.0) progress = 1.0;
                     if (progress < 0.0) progress = 0.0;
 
-                    return LinearProgressIndicator(
-                      value: progress,
-                      minHeight: 2,
-                      backgroundColor: const Color(0xFF333333),
-                      valueColor: const AlwaysStoppedAnimation<Color>(Color(0xFFFF0000)),
-                    );
+                      return LinearProgressIndicator(
+                        value: progress,
+                        minHeight: 2,
+                        backgroundColor: const Color(0xFF333333),
+                        valueColor: AlwaysStoppedAnimation<Color>(context.watch<ThemeService>().themeColor),
+                      );
                   }
                 );
               },

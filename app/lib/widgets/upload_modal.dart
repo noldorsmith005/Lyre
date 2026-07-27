@@ -1,6 +1,8 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:provider/provider.dart';
+import '../services/theme_service.dart';
 
 class UploadModal extends StatefulWidget {
   final Function(String title, String artist, String mediaPath, String coverPath) onUpload;
@@ -153,7 +155,7 @@ class _UploadModalState extends State<UploadModal> {
               height: 38,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFCC0000),
+                  backgroundColor: context.watch<ThemeService>().themeColor,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(6),
                   ),

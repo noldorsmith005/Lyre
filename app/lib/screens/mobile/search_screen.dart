@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/track.dart';
 import '../../models/playlist.dart';
 import '../../services/audio_player_service.dart';
+import '../../services/theme_service.dart';
 import '../../widgets/mobile/mobile_track_row.dart';
 import '../../widgets/mobile/bottom_player_bar.dart';
 
@@ -112,7 +113,7 @@ class _SearchScreenState extends State<SearchScreen> {
               ),
             ),
             if (_isSearching)
-              const Expanded(child: Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF0000)))))
+              Expanded(child: Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(context.watch<ThemeService>().themeColor))))
             else
               Expanded(
                 child: ListView.builder(

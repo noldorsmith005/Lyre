@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../models/playlist.dart';
+import '../../services/theme_service.dart';
+import '../settings_screen.dart';
 import 'playlist_detail_screen.dart';
 import 'search_screen.dart';
 
@@ -27,16 +30,219 @@ class PlaylistListScreen extends StatelessWidget {
     this.onPlaybackPressed,
   }) : super(key: key);
 
-  PopupMenuItem<String> _buildMenuItem(String value, IconData icon, String label) {
-    return PopupMenuItem<String>(
-      value: value,
-      height: 42,
-      child: Row(
-        children: [
-          Icon(icon, color: const Color(0xFF888888), size: 18),
-          const SizedBox(width: 12),
-          Text(label, style: const TextStyle(color: Color(0xFFE8E8E8), fontSize: 14)),
-        ],
+  Widget _buildMobileDrawer(BuildContext context) {
+    return Drawer(
+      backgroundColor: const Color(0xFF121212),
+      child: SafeArea(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Drawer Header
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: const BoxDecoration(
+                color: Color(0xFF1A1A1A),
+                border: Border(
+                  bottom: BorderSide(color: Color(0xFF2A2A2A), width: 1),
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.graphic_eq_rounded, color: context.watch<ThemeService>().themeColor, size: 26),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Napster',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 22,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Color(0xFF888888)),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  Row(
+                    children: [
+                      Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: const Color(0xFF2A2A2A),
+                          border: Border.all(color: const Color(0xFF555555), width: 1.5),
+                        ),
+                        child: Icon(Icons.person, color: context.watch<ThemeService>().themeColor, size: 26),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isServerConnected ? 'Connected User' : 'Guest Account',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              isServerConnected ? 'Server Connected' : 'Disconnected (Local)',
+                              style: TextStyle(
+                                color: isServerConnected ? const Color(0xFF00FF66) : const Color(0xFFFF8888),
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: 12),
+
+            // Navigation List Items
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                children: [
+                  _buildDrawerItem(
+                    context,
+                    icon: Icons.graphic_eq_rounded,
+                    title: 'Napster Playback',
+                    subtitle: 'Equalizer and playback statistics',
+                    onTap: () {
+                      Navigator.pop(context);
+                      if (onPlaybackPressed != null) onPlaybackPressed!();
+                    },
+                  ),
+                  const SizedBox(height: 6),
+                  _buildDrawerItem(
+                    context,
+                    icon: Icons.sync_rounded,
+                    title: 'Cloud Sync',
+                    subtitle: 'Sync playlists & tracks with server',
+                    onTap: () {
+                      Navigator.pop(context);
+                      onSyncPressed();
+                    },
+                  const SizedBox(height: 6),
+                  _buildDrawerItem(
+                    context,
+                    icon: Icons.settings_rounded,
+                    title: 'Settings',
+                    subtitle: 'Theme customization & app settings',
+                    onTap: () {
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                      );
+                    },
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12.0),
+                    child: Divider(color: Color(0xFF262626), height: 1),
+                  ),
+                  if (isServerConnected)
+                    _buildDrawerItem(
+                      context,
+                      icon: Icons.logout_rounded,
+                      title: 'Log Out',
+                      subtitle: 'Sign out and clear session',
+                      iconColor: const Color(0xFFFF4444),
+                      titleColor: const Color(0xFFFF4444),
+                      onTap: () {
+                        Navigator.pop(context);
+                        onLogoutPressed();
+                      },
+                    )
+                  else
+                    _buildDrawerItem(
+                      context,
+                      icon: Icons.login_rounded,
+                      title: 'Log In',
+                      subtitle: 'Connect to your Napster account',
+                      iconColor: context.watch<ThemeService>().themeColor,
+                      titleColor: context.watch<ThemeService>().themeColor,
+                      onTap: () {
+                        Navigator.pop(context);
+                        onOpenLogin();
+                      },
+                    ),
+                ],
+              ),
+            ),
+
+            // Footer
+            Container(
+              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+              decoration: const BoxDecoration(
+                border: Border(
+                  top: BorderSide(color: Color(0xFF222222), width: 1),
+                ),
+              ),
+              child: const Text(
+                'Napster Mobile',
+                style: TextStyle(color: Color(0xFF555555), fontSize: 12),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDrawerItem(
+    BuildContext context, {
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+    Color iconColor = const Color(0xFF888888),
+    Color titleColor = const Color(0xFFE8E8E8),
+  }) {
+    return Material(
+      color: Colors.transparent,
+      child: ListTile(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        leading: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1E1E1E),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: iconColor, size: 20),
+        ),
+        title: Text(
+          title,
+          style: TextStyle(color: titleColor, fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+        subtitle: Text(
+          subtitle,
+          style: const TextStyle(color: Color(0xFF666666), fontSize: 12),
+        ),
+        trailing: const Icon(Icons.chevron_right, color: Color(0xFF444444), size: 18),
+        onTap: onTap,
       ),
     );
   }
@@ -45,6 +251,7 @@ class PlaylistListScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.transparent,
+      endDrawer: _buildMobileDrawer(context),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -55,60 +262,21 @@ class PlaylistListScreen extends StatelessWidget {
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
-            child: PopupMenuButton<String>(
-              offset: const Offset(0, 44),
-              color: const Color(0xFF1E1E1E),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-                side: const BorderSide(color: Color(0xFF2A2A2A), width: 1),
-              ),
-              onSelected: (value) {
-                if (value == 'playback') {
-                  if (onPlaybackPressed != null) onPlaybackPressed!();
-                } else if (value == 'sync') {
-                  onSyncPressed();
-                } else if (value == 'logout') {
-                  onLogoutPressed();
-                } else if (value == 'login') {
-                  onOpenLogin();
-                }
-              },
-              itemBuilder: (context) => [
-                _buildMenuItem('playback', Icons.graphic_eq_rounded, 'Napster Playback'),
-                _buildMenuItem('sync', Icons.sync_rounded, 'Cloud Sync'),
-                if (isServerConnected)
-                  _buildMenuItem('logout', Icons.logout_rounded, 'Log Out')
-                else
-                  _buildMenuItem('login', Icons.login_rounded, 'Log In'),
-              ],
-              child: Stack(
-                clipBehavior: Clip.none,
-                alignment: Alignment.center,
-                children: [
-                  Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: const Color(0xFF2A2A2A),
-                      border: Border.all(color: const Color(0xFF555555), width: 1),
-                    ),
-                    child: const Icon(Icons.person, color: Colors.white, size: 20),
+            child: Builder(
+              builder: (context) => GestureDetector(
+                onTap: () {
+                  Scaffold.of(context).openEndDrawer();
+                },
+                child: Container(
+                  width: 34,
+                  height: 34,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFF2A2A2A),
+                    border: Border.all(color: const Color(0xFF555555), width: 1),
                   ),
-                  Positioned(
-                    right: 0,
-                    top: 0,
-                    child: Container(
-                      width: 9,
-                      height: 9,
-                      decoration: BoxDecoration(
-                        color: isServerConnected ? const Color(0xFF00FF66) : const Color(0xFFFF4444),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.black, width: 1.5),
-                      ),
-                    ),
-                  ),
-                ],
+                  child: Icon(Icons.person, color: context.watch<ThemeService>().themeColor, size: 20),
+                ),
               ),
             ),
           ),

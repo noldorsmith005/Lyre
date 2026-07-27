@@ -5,12 +5,14 @@ import '../models/track.dart';
 import '../services/media_handler.dart';
 import '../services/server_client.dart';
 import '../services/audio_player_service.dart';
+import '../services/theme_service.dart';
 import '../utils/layout_constants.dart';
 import '../widgets/sidebar.dart';
 import '../widgets/main_panel.dart';
 import '../widgets/media_panel.dart';
 import 'login_screen.dart';
 import 'playback_screen.dart';
+import 'settings_screen.dart';
 import '../widgets/upload_modal.dart';
 import '../widgets/confirmation_dialog.dart';
 
@@ -176,6 +178,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     final statusNotifier = ValueNotifier<_SyncStatus>(_SyncStatus(0.1, 'Loading playlists...'));
+    final themeColor = Provider.of<ThemeService>(context, listen: false).themeColor;
 
     showDialog(
       context: context,
@@ -187,10 +190,10 @@ class _HomeScreenState extends State<HomeScreen> {
             backgroundColor: const Color(0xFF1E1E1E),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             title: Row(
-              children: const [
-                Icon(Icons.sync, color: Color(0xFFFF0000)),
-                SizedBox(width: 10),
-                Text('Cloud Sync', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              children: [
+                Icon(Icons.sync, color: themeColor),
+                const SizedBox(width: 10),
+                const Text('Cloud Sync', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
               ],
             ),
             content: Column(
@@ -203,7 +206,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
                     value: status.progress,
-                    color: const Color(0xFFFF0000),
+                    color: themeColor,
                     backgroundColor: const Color(0xFF333333),
                     minHeight: 6,
                   ),

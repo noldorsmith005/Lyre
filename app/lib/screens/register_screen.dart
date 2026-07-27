@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../services/server_client.dart';
+import '../services/theme_service.dart';
 
 class RegisterScreen extends StatefulWidget {
   final ServerClient serverClient;
@@ -68,8 +70,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final themeColor = context.watch<ThemeService>().themeColor;
+
     return Scaffold(
-      backgroundColor: const Color(0xFF000000),
+      backgroundColor: const Color(0xFF101010),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -88,11 +92,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Icon / Logo
-                const Center(
+                Center(
                   child: Icon(
                     Icons.person_add_rounded,
                     size: 64,
-                    color: Color(0xFFFF0000),
+                    color: themeColor,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -158,7 +162,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                   height: 48,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFF0000),
+                      backgroundColor: themeColor,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
@@ -195,10 +199,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       onTap: () {
                         Navigator.of(context).pop();
                       },
-                      child: const Text(
+                      child: Text(
                         'Log In',
                         style: TextStyle(
-                          color: Color(0xFFFF0000),
+                          color: themeColor,
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
                         ),

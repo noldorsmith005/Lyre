@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/track.dart';
 import '../models/playlist.dart';
-import 'package:provider/provider.dart';
+import '../screens/settings_screen.dart';
+import '../services/theme_service.dart';
 import '../services/audio_player_service.dart';
 import '../utils/platform_utils.dart';
 import 'track_card.dart';
@@ -107,7 +109,7 @@ class _MainPanelState extends State<MainPanel> {
                   children: [
                     TextButton(
                       style: TextButton.styleFrom(
-                        backgroundColor: const Color(0xFFFF0000),
+                        backgroundColor: Provider.of<ThemeService>(context, listen: false).themeColor,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
                       ),
                       onPressed: () {
@@ -391,6 +393,11 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
             widget.onSyncPressed();
           } else if (value == 'upload') {
             widget.onUploadPressed();
+          } else if (value == 'settings') {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const SettingsScreen()),
+            );
           } else if (value == 'logout') {
             widget.onClearConfigPressed();
           }
@@ -399,37 +406,20 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
           _buildMenuItem('playback', Icons.graphic_eq_rounded, 'Napster Playback'),
           _buildMenuItem('sync', Icons.sync_rounded, 'Cloud Sync'),
           _buildMenuItem('upload', Icons.upload_rounded, 'Upload Track'),
+          _buildMenuItem('settings', Icons.settings_rounded, 'Settings'),
           _buildMenuItem('logout', Icons.logout_rounded, 'Log Out'),
         ],
         child: Opacity(
           opacity: _isHovered ? 0.7 : 1.0,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              Container(
-                width: 34,
-                height: 34,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: const Color(0xFF2A2A2A),
-                  border: Border.all(color: const Color(0xFF555555), width: 1),
-                ),
-                child: const Icon(Icons.person, color: Colors.white, size: 20),
-              ),
-              Positioned(
-                right: 0,
-                top: 0,
-                child: Container(
-                  width: 9,
-                  height: 9,
-                  decoration: BoxDecoration(
-                    color: widget.isServerConnected ? const Color(0xFF00FF66) : const Color(0xFFFF4444),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.black, width: 1.5),
-                  ),
-                ),
-              ),
-            ],
+          child: Container(
+            width: 34,
+            height: 34,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFF2A2A2A),
+              border: Border.all(color: const Color(0xFF555555), width: 1),
+            ),
+            child: Icon(Icons.person, color: Provider.of<ThemeService>(context).themeColor, size: 20),
           ),
         ),
       ),

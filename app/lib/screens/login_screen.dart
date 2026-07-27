@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../services/server_client.dart';
+import '../services/theme_service.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -68,14 +70,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final canPop = Navigator.of(context).canPop();
+    final themeColor = context.watch<ThemeService>().themeColor;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF000000),
+      backgroundColor: const Color(0xFF101010),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: canPop
+        leading: Navigator.of(context).canPop()
             ? IconButton(
                 icon: const Icon(Icons.arrow_back, color: Colors.white),
                 onPressed: () => Navigator.of(context).pop(),
@@ -84,19 +86,19 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
       body: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
-          child: ConstrainedBox(
+          child: Container(
             constraints: const BoxConstraints(maxWidth: 400),
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 // Icon / Logo
-                const Center(
+                Center(
                   child: Icon(
                     Icons.music_note_rounded,
                     size: 64,
-                    color: Color(0xFFFF0000),
+                    color: themeColor,
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -162,7 +164,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   height: 48,
                   child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFF0000),
+                      backgroundColor: themeColor,
                       foregroundColor: Colors.white,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(10),
@@ -207,10 +209,10 @@ class _LoginScreenState extends State<LoginScreen> {
                           ),
                         );
                       },
-                      child: const Text(
+                      child: Text(
                         'Register',
                         style: TextStyle(
-                          color: Color(0xFFFF0000),
+                          color: themeColor,
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
                         ),

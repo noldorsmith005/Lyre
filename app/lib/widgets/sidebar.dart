@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/playlist.dart';
+import '../screens/settings_screen.dart';
+import '../services/theme_service.dart';
 
 class Sidebar extends StatefulWidget {
   final List<Playlist> playlists;
@@ -80,6 +83,27 @@ class _SidebarState extends State<Sidebar> {
               },
             ),
           ),
+
+          // Settings Section
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: const BoxDecoration(
+              border: Border(
+                top: BorderSide(color: Color(0xFF2A2A2A), width: 1.0),
+              ),
+            ),
+            child: ListTile(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              leading: const Icon(Icons.settings, color: Colors.white70),
+              title: const Text('Settings', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600)),
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                );
+              },
+            ),
+          ),
         ],
       ),
     );
@@ -152,13 +176,15 @@ class __PlaylistListItemState extends State<_PlaylistListItem> {
 
   @override
   Widget build(BuildContext context) {
+    final themeColor = context.watch<ThemeService>().themeColor;
+
     final bgColor = widget.isSelected
-        ? const Color(0xFF2A2A2A)
+        ? themeColor.withOpacity(0.18)
         : (_isHovered ? const Color(0xFF0F0F0F) : Colors.transparent);
         
-    final textColor = (widget.isSelected || _isHovered)
-        ? const Color(0xFFFFFFFF)
-        : const Color(0xFFA0A0A0);
+    final textColor = widget.isSelected
+        ? Colors.white
+        : (_isHovered ? const Color(0xFFFFFFFF) : const Color(0xFFA0A0A0));
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -166,18 +192,23 @@ class __PlaylistListItemState extends State<_PlaylistListItem> {
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         onTap: widget.onTap,
-        child: Container(
-          margin: const EdgeInsets.only(bottom: 2),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          margin: const EdgeInsets.only(bottom: 4),
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
           decoration: BoxDecoration(
             color: bgColor,
             borderRadius: BorderRadius.circular(7),
+            border: widget.isSelected
+                ? Border(left: BorderSide(color: themeColor, width: 3.5))
+                : null,
           ),
           child: Text(
             widget.playlist.title,
             style: TextStyle(
               color: textColor,
               fontSize: 18,
+              fontWeight: widget.isSelected ? FontWeight.bold : FontWeight.normal,
             ),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,

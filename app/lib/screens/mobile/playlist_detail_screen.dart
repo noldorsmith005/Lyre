@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/playlist.dart';
 import '../../models/track.dart';
 import '../../services/audio_player_service.dart';
+import '../../services/theme_service.dart';
 import '../../widgets/mobile/mobile_track_row.dart';
 import '../../widgets/mobile/bottom_player_bar.dart';
 
@@ -69,7 +70,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
-            icon: Icon(audioService.shuffle ? Icons.shuffle_on : Icons.shuffle, color: audioService.shuffle ? const Color(0xFFFF0000) : Colors.white),
+            icon: Icon(audioService.shuffle ? Icons.shuffle_on : Icons.shuffle, color: audioService.shuffle ? context.watch<ThemeService>().themeColor : Colors.white),
             onPressed: () {
               audioService.setShuffle();
             },
@@ -77,7 +78,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         ],
       ),
       body: _isLoading 
-        ? const Center(child: CircularProgressIndicator(color: Color(0xFFFF0000)))
+        ? Center(child: CircularProgressIndicator(color: context.watch<ThemeService>().themeColor))
         : Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

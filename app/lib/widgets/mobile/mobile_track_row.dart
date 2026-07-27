@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../../models/track.dart';
+import '../../services/theme_service.dart';
 
 class MobileTrackRow extends StatelessWidget {
   final Track track;
@@ -46,10 +48,10 @@ class MobileTrackRow extends StatelessWidget {
         alignment: Alignment.centerLeft,
         padding: const EdgeInsets.symmetric(horizontal: 20.0),
         color: const Color(0xFF161616),
-        child: const Row(
+        child: Row(
           children: [
-            Icon(Icons.queue_music, color: Color(0xFFFF0000)),
-            SizedBox(width: 12),
+            Icon(Icons.queue_music, color: context.watch<ThemeService>().themeColor),
+            const SizedBox(width: 12),
             Text(
               'Add to Queue',
               style: TextStyle(
@@ -105,7 +107,7 @@ class MobileTrackRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 16,
-                        color: isPlaying ? const Color(0xFFFF0000) : const Color(0xFFE8E8E8),
+                        color: isPlaying ? context.watch<ThemeService>().themeColor : const Color(0xFFE8E8E8),
                         fontWeight: isPlaying ? FontWeight.bold : FontWeight.normal,
                       ),
                     ),

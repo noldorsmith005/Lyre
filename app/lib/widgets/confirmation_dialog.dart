@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../services/theme_service.dart';
 
 class ConfirmationDialog extends StatelessWidget {
   final String title;
@@ -112,12 +114,14 @@ class __ConfirmButtonState extends State<_ConfirmButton> {
 
   @override
   Widget build(BuildContext context) {
+    final themeColor = context.watch<ThemeService>().themeColor;
+
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       child: ElevatedButton(
         style: ElevatedButton.styleFrom(
-          backgroundColor: _isHovered ? const Color(0xFFCC0000) : const Color(0xFFFF0000),
+          backgroundColor: _isHovered ? themeColor.withOpacity(0.8) : themeColor,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(3),
           ),

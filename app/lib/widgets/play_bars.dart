@@ -1,5 +1,7 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../services/theme_service.dart';
 
 class PlayBars extends StatefulWidget {
   const PlayBars({Key? key}) : super(key: key);
@@ -105,7 +107,7 @@ class __AnimatedBarState extends State<_AnimatedBar>
         return Container(
           width: 4,
           height: _animation.value,
-          color: const Color(0xFFFF0000),
+          color: context.watch<ThemeService>().themeColor,
         );
       },
     );

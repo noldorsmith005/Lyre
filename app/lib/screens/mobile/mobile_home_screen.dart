@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/playlist.dart';
 import '../../services/audio_player_service.dart';
 import '../../services/server_client.dart';
+import '../../services/theme_service.dart';
 import 'playlist_list_screen.dart';
 import '../playback_screen.dart';
 import '../../services/listening_stats_service.dart';
@@ -92,6 +93,8 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
 
     final statusNotifier = ValueNotifier<_SyncStatus>(_SyncStatus(0.1, 'Fetching server metadata...'));
 
+    final themeColor = Provider.of<ThemeService>(context, listen: false).themeColor;
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -102,10 +105,10 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
             backgroundColor: const Color(0xFF161616),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
             title: Row(
-              children: const [
-                Icon(Icons.cloud_sync, color: Color(0xFFFF0000)),
-                SizedBox(width: 10),
-                Text('Cloud Sync', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
+              children: [
+                Icon(Icons.cloud_sync, color: themeColor),
+                const SizedBox(width: 10),
+                const Text('Cloud Sync', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
               ],
             ),
             content: Column(
@@ -118,7 +121,7 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
                   borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
                     value: status.progress,
-                    color: const Color(0xFFFF0000),
+                    color: themeColor,
                     backgroundColor: const Color(0xFF333333),
                     minHeight: 6,
                   ),

@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/audio_player_service.dart';
+import '../services/theme_service.dart';
 import '../utils/layout_constants.dart';
 import '../models/track.dart';
 
@@ -290,7 +291,7 @@ class _MediaPanelState extends State<MediaPanel> {
                       _HoverIconButton(
                         iconPath: 'assets/loop.png',
                         size: 26,
-                        color: audioService.loop ? const Color(0xFFFF0000) : Colors.white,
+                        color: audioService.loop ? context.watch<ThemeService>().themeColor : Colors.white,
                         onTap: () {
                           audioService.loop = !audioService.loop;
                         },

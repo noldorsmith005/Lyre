@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/track.dart';
 import '../models/playlist.dart';
+import '../services/theme_service.dart';
 import '../utils/layout_constants.dart';
 import 'play_bars.dart';
 
@@ -86,7 +88,7 @@ class _TrackCardState extends State<TrackCard> {
                           height: 13,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: inPlaylist ? const Color(0xFFFF0000) : const Color(0xFF7F8C8D),
+                            color: inPlaylist ? context.watch<ThemeService>().themeColor : const Color(0xFF7F8C8D),
                           ),
                         ),
                       ],
@@ -193,7 +195,7 @@ class _TrackCardState extends State<TrackCard> {
                   Text(
                     widget.track.title,
                     style: TextStyle(
-                      color: widget.isPlaying ? const Color(0xFFFF0000) : Colors.white,
+                      color: widget.isPlaying ? context.watch<ThemeService>().themeColor : Colors.white,
                       fontSize: LayoutConstants.titleFontSize,
                       fontWeight: FontWeight.bold,
                     ),
