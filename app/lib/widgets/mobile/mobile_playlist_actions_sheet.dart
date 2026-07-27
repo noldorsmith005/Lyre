@@ -5,14 +5,12 @@ import '../../models/playlist.dart';
 class MobilePlaylistActionsSheet extends StatelessWidget {
   final Track track;
   final List<Playlist> allPlaylists;
-  final VoidCallback onAddToQueue;
   final Function(Playlist) onAddToPlaylist;
 
   const MobilePlaylistActionsSheet({
     Key? key,
     required this.track,
     required this.allPlaylists,
-    required this.onAddToQueue,
     required this.onAddToPlaylist,
   }) : super(key: key);
 
@@ -62,14 +60,6 @@ class MobilePlaylistActionsSheet extends StatelessWidget {
               ),
             ),
             const Divider(color: Color(0xFF2A2A2A), height: 1),
-            ListTile(
-              leading: const Icon(Icons.queue_music, color: Color(0xFF888888)),
-              title: const Text('Add to Queue', style: TextStyle(fontSize: 16, color: Colors.white)),
-              onTap: () {
-                onAddToQueue();
-                Navigator.pop(context);
-              },
-            ),
             ExpansionTile(
               leading: const Icon(Icons.playlist_add, color: Color(0xFF888888)),
               title: const Text('Add to Playlist', style: TextStyle(fontSize: 16, color: Colors.white)),

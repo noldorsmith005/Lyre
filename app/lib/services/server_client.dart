@@ -72,6 +72,10 @@ class ServerClient {
     if (appKey != null) await _storage.write(key: 'app_key', value: appKey);
   }
 
+  Future<void> logout() async {
+    await clearRLSConfig();
+  }
+
   Future<void> clearRLSConfig() async {
     userID = null;
     sessionToken = null;
@@ -79,6 +83,7 @@ class ServerClient {
     await _storage.delete(key: 'user_id');
     await _storage.delete(key: 'session_token');
     await _storage.delete(key: 'username');
+    await mediaHandler.clearAllLocalData();
   }
 
   Future<bool> _pingUrl(String targetUrl) async {
@@ -354,6 +359,19 @@ class ServerClient {
     );
   }
 
+  Future<void> removeAllTrackedDownloadsServerSide() async {
+    if (!registered() || appUrl == null) return;
+    try {
+      final targetUrl = '$appUrl/tracks/downloads/clear_all';
+      await http.post(
+        Uri.parse(targetUrl),
+        headers: _headers(),
+      );
+    } catch (e) {
+      print('Clear all tracked downloads server-side failed: $e');
+    }
+  }
+
   Future<bool> ping() async {
     if (appUrl == null) await autoDetectServer();
     if (appUrl == null) return false;
@@ -379,11 +397,13 @@ class ServerClient {
     )).toList();
   }
 
-  Future<void> downloadTrack(Track track) async {
+  Future<void> downloadTrack(Track track, {bool updateServerTracking = true}) async {
     try {
       await _download('audio', track.trackID);
       await _download('cover', track.trackID);
-      await _updateDownloads(track.trackID);
+      if (updateServerTracking) {
+        await _updateDownloads(track.trackID);
+      }
       await mediaHandler.newTrack(track);
     } catch (e) {
       print('Track download failed.');
@@ -410,7 +430,7 @@ class ServerClient {
     }
   }
 
-  Future<void> removeDownload(Track track) async {
+  Future<void> removeDownload(Track track, {bool updateServerTracking = true}) async {
     final wavFile = File('$_appDataPath/audio/${track.trackID}.wav');
     final flacFile = File('$_appDataPath/audio/${track.trackID}.flac');
     final coverFile = File('$_appDataPath/cover/${track.trackID}.jpg');
@@ -425,10 +445,55 @@ class ServerClient {
     
     await mediaHandler.deleteTrack(track);
 
+    if (updateServerTracking) {
+      try {
+        await _updateRemoveDownloads(track.trackID);
+      } catch (e) {
+        print('Remove track from downloads failed.');
+      }
+    }
+  }
+
+  Future<bool> syncHistoryToServer(List<Map<String, dynamic>> historyItems) async {
+    if (!registered() || appUrl == null || historyItems.isEmpty) return false;
     try {
-      await _updateRemoveDownloads(track.trackID);
+      final response = await http.post(
+        Uri.parse('$appUrl/history/sync'),
+        headers: _headers(json: true),
+        body: jsonEncode({'history': historyItems}),
+      );
+      return response.statusCode == 200;
     } catch (e) {
-      print('Remove track from downloads failed.');
+      return false;
+    }
+  }
+
+  Future<Map<String, dynamic>?> fetchServerStats() async {
+    if (!registered() || appUrl == null || userID == null) return null;
+    try {
+      final response = await http.get(
+        Uri.parse('$appUrl/stats/$userID'),
+        headers: _headers(),
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+    } catch (e) {
+      print('Error fetching server stats: $e');
+    }
+    return null;
+  }
+
+  Future<bool> ackServerStats() async {
+    if (!registered() || appUrl == null || userID == null) return false;
+    try {
+      final response = await http.post(
+        Uri.parse('$appUrl/stats/ack/$userID'),
+        headers: _headers(),
+      );
+      return response.statusCode == 200;
+    } catch (e) {
+      return false;
     }
   }
 }

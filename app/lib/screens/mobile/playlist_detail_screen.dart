@@ -3,8 +3,9 @@ import 'package:provider/provider.dart';
 import '../../models/playlist.dart';
 import '../../models/track.dart';
 import '../../services/audio_player_service.dart';
+import '../../services/theme_service.dart';
 import '../../widgets/mobile/mobile_track_row.dart';
-import '../../widgets/mobile/mobile_playlist_actions_sheet.dart';
+import '../../widgets/mobile/bottom_player_bar.dart';
 
 class PlaylistDetailScreen extends StatefulWidget {
   final Playlist playlist;
@@ -49,30 +50,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     return '${d.inHours.toString().padLeft(2, '0')}:${(d.inMinutes % 60).toString().padLeft(2, '0')}:${(d.inSeconds % 60).toString().padLeft(2, '0')}';
   }
 
-
-
-  void _showTrackActions(BuildContext context, Track track) {
-    final audioService = Provider.of<AudioPlayerService>(context, listen: false);
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return MobilePlaylistActionsSheet(
-          track: track,
-          allPlaylists: widget.allPlaylists,
-          onAddToQueue: () {
-            audioService.addToQueue(track);
-          },
-          onAddToPlaylist: (targetPlaylist) {
-            // targetPlaylist.tracks.add(track);
-            // widget.mediaHandler.savePlaylist(targetPlaylist);
-          },
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final audioService = Provider.of<AudioPlayerService>(context);
@@ -93,7 +70,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         iconTheme: const IconThemeData(color: Colors.white),
         actions: [
           IconButton(
-            icon: Icon(audioService.shuffle ? Icons.shuffle_on : Icons.shuffle, color: audioService.shuffle ? const Color(0xFFFF0000) : Colors.white),
+            icon: Icon(audioService.shuffle ? Icons.shuffle_on : Icons.shuffle, color: audioService.shuffle ? context.watch<ThemeService>().themeColor : Colors.white),
             onPressed: () {
               audioService.setShuffle();
             },
@@ -101,7 +78,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         ],
       ),
       body: _isLoading 
-        ? const Center(child: CircularProgressIndicator(color: Color(0xFFFF0000)))
+        ? Center(child: CircularProgressIndicator(color: context.watch<ThemeService>().themeColor))
         : Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -123,7 +100,6 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                   isPlaying: audioService.currentTrack?.trackID == track.trackID,
                   appDataPath: widget.appDataPath,
                   onTap: () {
-                    // Play this track and add the rest to queue
                     final remaining = _tracks.sublist(index);
                     if (remaining.isNotEmpty) {
                       audioService.clearPlaylistQueue();
@@ -133,13 +109,20 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                       }
                     }
                   },
-                  onLongPress: () => _showTrackActions(context, track),
+                  onLongPress: () {},
+                  onQueue: () {
+                    audioService.addToQueue(track);
+                  },
                 );
               },
             ),
           ),
         ],
       ),
+      bottomNavigationBar: audioService.currentTrack != null
+          ? BottomPlayerBar(appDataPath: widget.appDataPath)
+          : null,
     );
   }
 }
+

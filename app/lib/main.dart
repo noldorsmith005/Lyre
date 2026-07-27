@@ -6,6 +6,7 @@ import 'package:window_manager/window_manager.dart';
 import 'services/media_handler.dart';
 import 'services/server_client.dart';
 import 'services/audio_player_service.dart';
+import 'services/theme_service.dart';
 import 'screens/home_screen.dart';
 import 'screens/mobile/mobile_home_screen.dart';
 import 'screens/login_screen.dart';
@@ -21,7 +22,7 @@ void main() async {
   final serverClient = ServerClient(mediaHandler: mediaHandler);
   await serverClient.init();
 
-  final audioPlayerService = AudioPlayerService(onRefresh: () {});
+  final audioPlayerService = AudioPlayerService();
 
   // Desktop window setup
   if (isDesktop) {
@@ -37,9 +38,14 @@ void main() async {
     });
   }
 
+  final themeService = ThemeService();
+
   runApp(
-    ChangeNotifierProvider<AudioPlayerService>.value(
-      value: audioPlayerService,
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider<AudioPlayerService>.value(value: audioPlayerService),
+        ChangeNotifierProvider<ThemeService>.value(value: themeService),
+      ],
       child: NapsterApp(
         mediaHandler: mediaHandler,
         serverClient: serverClient,
@@ -60,16 +66,18 @@ class NapsterApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final themeColor = context.watch<ThemeService>().themeColor;
+
     return MaterialApp(
       title: 'Napster',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
         scaffoldBackgroundColor: Colors.black,
-        primaryColor: const Color(0xFFFF0000),
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFFFF0000),
-          surface: Color(0xFF000000),
+        primaryColor: themeColor,
+        colorScheme: ColorScheme.dark(
+          primary: themeColor,
+          surface: const Color(0xFF000000),
         ),
         fontFamily: Platform.isMacOS
             ? '.AppleSystemUIFont'

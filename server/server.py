@@ -11,8 +11,9 @@ import shutil
 import tempfile
 from flask import Flask, send_file, request, jsonify, after_this_request
 
-from primes import genPrime
 from utils import Utils
+import time
+import secrets
 
 
 app = Flask(__name__)
@@ -31,58 +32,56 @@ SUPPORTED_TYPES = {
 
 
 # Helpers
-def genID():
-    with open('./sessions.json', 'r') as file:
-        data = json.load(file)
-        IDs = data['UserIDs']
-        while True:
-            id = random.randint(10000, 99999)
-            if id not in IDs:
-                break
+APP_TOKEN = "n8cQiw4z6oSHFixnEFK7"
+if os.path.exists('./sessions.json'):
+    try:
+        with open('./sessions.json', 'r') as file:
+            data = json.load(file)
+            if data.get('AppToken'):
+                APP_TOKEN = data.get('AppToken')
+    except Exception:
+        pass
 
-    return id
+def genID():
+    with sqlite3.connect(DATABASE_URL) as conn:
+        cursor = conn.cursor()
+        while True:
+            uid = random.randint(10000, 99999)
+            cursor.execute("SELECT 1 FROM Users WHERE id = ?", (uid,))
+            if not cursor.fetchone():
+                return uid
 
 def genTrackID():
     with sqlite3.connect(DATABASE_URL) as conn:
         cursor = conn.cursor()
-        
-        cursor.execute("SELECT track_id FROM Tracks")
-        
-        existing_ids = {int(row[0]) for row in cursor.fetchall()}
-        
-    while True:
-        new_id = random.randint(10000, 99999)
-        
-        if new_id not in existing_ids:
-            break
-
-    return new_id
+        while True:
+            new_id = random.randint(10000, 99999)
+            cursor.execute("SELECT 1 FROM Tracks WHERE track_id = ?", (new_id,))
+            if not cursor.fetchone():
+                return new_id
 
 def getUser(id):
-    with open('./sessions.json', 'r') as file:
-        data = json.load(file)
-        users = data['Users']
-        for user in users:
-            if user['id'] == int(id):
-                return user
-
+    with sqlite3.connect(DATABASE_URL) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, username, salt, password_hash FROM Users WHERE id = ?", (int(id),))
+        row = cursor.fetchone()
+        if row:
+            return {
+                "id": row[0],
+                "username": row[1],
+                "salt": row[2],
+                "password_hash": row[3]
+            }
         return False
 
 def userExists(username):
-    with open('./sessions.json', 'r') as file:
-        data = json.load(file)
-        users = data['Users']
-        for user in users:
-            if (user['username'] == username):
-                return True
-
-        return False
+    with sqlite3.connect(DATABASE_URL) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM Users WHERE username = ?", (username,))
+        return cursor.fetchone() is not None
 
 def userDownloaded(ids, id):
-    if id in ids:
-        return True 
-    else :
-        return False
+    return id in ids
 
 def compressFLAC(wav_path, flac_path):
     os.makedirs(os.path.dirname(flac_path), exist_ok=True)
@@ -128,82 +127,6 @@ def stripWAV(file_path):
             os.remove(temp_path)
         raise RuntimeError(f"Failed to strip metadata for {file_path}. Error: {e}")
 
-
-# Cryptography Helpers
-def genKeyPair():
-    p = genPrime(1024)
-    q = genPrime(1024)
-    n = p * q
-    phi = (p-1) * (q-1)
-    e = 65537
-    d = pow(e, -1, phi)
-
-    key_pair = {
-        "public": e,
-        "private": d,
-        "mod": n
-    }
-
-    return key_pair
-
-def hash(text):
-    text_bytes = text.encode('utf-8')
-    hash_object = hashlib.sha256(text_bytes)
-    hex_digest = hash_object.hexdigest()
-    
-    return hex_digest
-
-def unpad(message_bytes, message_len):
-    try:
-        trimmed_bytes = message_bytes[-message_len:]
-        return trimmed_bytes.decode('utf-8')
-    except (UnicodeDecodeError, Exception):
-        return False
-
-def encode(text):
-    text_bytes = text.encode('utf-8')
-    base64_bytes = base64.b64encode(text_bytes)
-    base64_string = base64_bytes.decode('utf-8')
-    
-    return base64_string
-
-def decode(encoded):
-    base64_bytes = encoded.encode('utf-8')
-    original_bytes = base64.b64decode(base64_bytes)
-    rsa_bigint = int.from_bytes(original_bytes, byteorder='big')
-    
-    return rsa_bigint
-
-def encrypt(message, public_key):
-    e, n = public_key
-    
-    message_bytes = message.encode('utf-8')
-    message_int = int.from_bytes(message_bytes, byteorder='big')
-    
-    if message_int >= n:
-        raise ValueError("Message is too large for the key size (m >= n).")
-    
-    cipher_int = pow(message_int, e, n)
-    
-    return str(cipher_int)
-
-
-def decrypt(ciphertext, key):
-    d, n = key
-    
-    cipher_int = int(ciphertext)
-    
-    message_int = pow(cipher_int, d, n)
-    
-    byte_length = (message_int.bit_length() + 7) // 8
-    message_bytes = message_int.to_bytes(byte_length, byteorder='big')
-    
-    return message_bytes
-
-
-import time
-import secrets
-
 def hashPassword(password, salt=None):
     if not password:
         return "", ""
@@ -220,51 +143,19 @@ def hashPassword(password, salt=None):
 # User creation and authentication
 def authUser(req):
     auth_header = req.headers.get("Authorization")
-    signature = req.headers.get("Signature")
 
-    # 1. Bearer Token Auth
+    # Bearer Token Auth
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
         try:
-            with open('./sessions.json', 'r') as file:
-                data = json.load(file)
-                active_sessions = data.get('ActiveSessions', {})
-                for uid, sess in active_sessions.items():
-                    if isinstance(sess, dict) and sess.get('token') == token:
-                        return str(uid)
+            with sqlite3.connect(DATABASE_URL) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT user_id FROM ActiveSessions WHERE token = ?", (token,))
+                row = cursor.fetchone()
+                if row:
+                    return str(row[0])
         except Exception:
             pass
-
-    # 2. Legacy Signature Auth
-    if signature:
-        parsed = signature.split("-")
-        userID = parsed[0]
-
-        user = getUser(userID)
-        if user != False:
-            secret = parsed[1]
-            encoded_cypher = parsed[2]
-            message_len = int(parsed[3])
-
-            hashed = hash(secret)
-            decoded_cypher = decode(encoded_cypher)
-
-            keys = []
-            if 'sig_keys' in user and isinstance(user['sig_keys'], list):
-                keys.extend(user['sig_keys'])
-            if 'sig_key' in user and user['sig_key'] not in keys:
-                keys.append(user['sig_key'])
-
-            for key_dict in keys:
-                try:
-                    key = (int(key_dict['public']), int(key_dict['mod']))
-                    decrypted = decrypt(decoded_cypher, key)
-                    match = unpad(decrypted, message_len)
-                    if match != False and hashed == match:
-                        return str(userID)
-                except Exception:
-                    continue
-
     return False
 
 # Routes
@@ -275,50 +166,34 @@ def ping():
 @app.post("/auth/register")
 def createUser():
     auth_token = request.headers.get("AppToken")
+    if auth_token != APP_TOKEN:
+        return "Invalid App Token", 401
     user_data = request.get_json() or {}
     username = user_data.get('username')
     password = user_data.get('password')
-    id = genID()
+    if not username or not password:
+        return "Username and password required", 400
+    if userExists(username):
+        return "User already exists", 409
 
-    with open('./sessions.json', 'r+') as file:
-        data = json.load(file)
+    uid = genID()
+    hashed_pw, salt = hashPassword(password)
+    session_token = secrets.token_hex(32)
 
-        if auth_token != data.get('AppToken'):
-            return "Invalid App Token", 401
-
-        if userExists(username):
-            return "User already exists", 409
-
-        hashed_pw, salt = hashPassword(password)
-        session_token = secrets.token_hex(32)
-
-        new_user = {
-            "id": id,
-            "username": username,
-            "admin": False,
-            "salt": salt,
-            "password_hash": hashed_pw
-        }
-
-        data['Users'].append(new_user)
-        data['UserIDs'].append(id)
-
-        if 'ActiveSessions' not in data:
-            data['ActiveSessions'] = {}
-
-        data['ActiveSessions'][str(id)] = {
-            "username": username,
-            "token": session_token,
-            "last_seen": int(time.time()),
-            "client_ip": request.remote_addr
-        }
-
-        file.seek(0)
-        json.dump(data, file, indent=4)
-        file.truncate()
+    with sqlite3.connect(DATABASE_URL) as conn:
+        cursor = conn.cursor()
+        cursor.execute(
+            "INSERT INTO Users (id, username, password_hash, salt) VALUES (?, ?, ?, ?)",
+            (uid, username, hashed_pw, salt)
+        )
+        cursor.execute(
+            "INSERT OR REPLACE INTO ActiveSessions (user_id, username, token, last_seen, client_ip) VALUES (?, ?, ?, ?, ?)",
+            (uid, username, session_token, int(time.time()), request.remote_addr)
+        )
+        conn.commit()
 
     return jsonify({
-        "userID": str(id),
+        "userID": str(uid),
         "sessionToken": session_token
     }), 201
 
@@ -326,48 +201,32 @@ def createUser():
 @app.post("/auth/login")
 def loginUser():
     auth_token = request.headers.get("AppToken")
+    if auth_token != APP_TOKEN:
+        return "Invalid App Token", 401
     user_data = request.get_json() or {}
     username = user_data.get('username')
     password = user_data.get('password')
 
-    with open('./sessions.json', 'r+') as file:
-        data = json.load(file)
-
-        if auth_token != data.get('AppToken'):
-            return "Invalid App Token", 401
-
-        user = None
-        for u in data.get('Users', []):
-            if u['username'] == username:
-                user = u
-                break
-
-        if not user:
+    with sqlite3.connect(DATABASE_URL) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, username, password_hash, salt FROM Users WHERE username = ?", (username,))
+        row = cursor.fetchone()
+        if not row:
             return "User not found", 404
-
-        if 'password_hash' in user and user['password_hash']:
-            expected_hash, _ = hashPassword(password, user.get('salt', ''))
-            if expected_hash != user['password_hash']:
+        uid, uname, pw_hash, salt = row
+        if pw_hash:
+            expected_hash, _ = hashPassword(password, salt)
+            if expected_hash != pw_hash:
                 return "Invalid credentials", 401
-
         session_token = secrets.token_hex(32)
-
-        if 'ActiveSessions' not in data:
-            data['ActiveSessions'] = {}
-        
-        data['ActiveSessions'][str(user['id'])] = {
-            "username": username,
-            "token": session_token,
-            "last_seen": int(time.time()),
-            "client_ip": request.remote_addr
-        }
-
-        file.seek(0)
-        json.dump(data, file, indent=4)
-        file.truncate()
+        cursor.execute(
+            "INSERT OR REPLACE INTO ActiveSessions (user_id, username, token, last_seen, client_ip) VALUES (?, ?, ?, ?, ?)",
+            (uid, uname, session_token, int(time.time()), request.remote_addr)
+        )
+        conn.commit()
 
         return jsonify({
-            "userID": str(user['id']),
+            "userID": str(uid),
             "sessionToken": session_token
         }), 200
 
@@ -375,36 +234,60 @@ def loginUser():
 @app.get("/auth/validate")
 def validateSession():
     auth_token = request.headers.get("AppToken")
-
-    with open('./sessions.json', 'r+') as file:
-        data = json.load(file)
-
-        if auth_token != data.get('AppToken'):
-            return "Invalid App Token", 401
-
-        authorized = authUser(request)
-        if authorized != False:
-            userID = str(authorized)
-            if 'ActiveSessions' not in data:
-                data['ActiveSessions'] = {}
-            
-            sess = data['ActiveSessions'].get(userID, {})
-            if isinstance(sess, dict):
-                sess["last_seen"] = int(time.time())
-                sess["client_ip"] = request.remote_addr
-
-            file.seek(0)
-            json.dump(data, file, indent=4)
-            file.truncate()
-
-            return jsonify({"status": "authenticated", "userID": authorized}), 200
-        else:
-            return "Unauthorized", 401
+    if auth_token != APP_TOKEN:
+        return "Invalid App Token", 401
+    authorized = authUser(request)
+    if authorized != False:
+        uid = int(authorized)
+        with sqlite3.connect(DATABASE_URL) as conn:
+            conn.execute(
+                "UPDATE ActiveSessions SET last_seen = ?, client_ip = ? WHERE user_id = ?",
+                (int(time.time()), request.remote_addr, uid)
+            )
+            conn.commit()
+        return jsonify({"status": "authenticated", "userID": authorized}), 200
+    else:
+        return "Unauthorized", 401
 
 
 def init_db():
     try:
         with sqlite3.connect(DATABASE_URL) as conn:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS Users (
+                    id INTEGER PRIMARY KEY,
+                    username TEXT UNIQUE,
+                    password_hash TEXT,
+                    salt TEXT
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS ActiveSessions (
+                    user_id INTEGER PRIMARY KEY,
+                    username TEXT,
+                    token TEXT,
+                    last_seen INTEGER,
+                    client_ip TEXT
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS Tracks (
+                    track_id INTEGER PRIMARY KEY,
+                    title TEXT,
+                    artist TEXT,
+                    duration TEXT,
+                    contributor TEXT,
+                    title_lower TEXT,
+                    artist_lower TEXT
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS user_downloads (
+                    user_id INTEGER,
+                    track_id INTEGER,
+                    PRIMARY KEY (user_id, track_id)
+                )
+            """)
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS user_playlists (
                     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -414,6 +297,47 @@ def init_db():
                     tracks      TEXT
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS History (
+                    user_id     INTEGER,
+                    track_id    INTEGER,
+                    play_count  INTEGER DEFAULT 1,
+                    PRIMARY KEY (user_id, track_id)
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS Stats (
+                    user_id              INTEGER PRIMARY KEY,
+                    month_year           TEXT,
+                    total_minutes        INTEGER,
+                    total_plays          INTEGER,
+                    daily_avg_minutes    INTEGER,
+                    percentile_text      TEXT,
+                    top_tracks_json      TEXT,
+                    top_artists_json     TEXT,
+                    top_percentages_json TEXT,
+                    theme_color          TEXT,
+                    new_release          INTEGER DEFAULT 1
+                )
+            """)
+            if os.path.exists('./sessions.json'):
+                try:
+                    with open('./sessions.json', 'r') as f:
+                        data = json.load(f)
+                        for u in data.get('Users', []):
+                            conn.execute(
+                                "INSERT OR IGNORE INTO Users (id, username, password_hash, salt) VALUES (?, ?, ?, ?)",
+                                (u.get('id'), u.get('username'), u.get('password_hash', ''), u.get('salt', ''))
+                            )
+                        for uid, sess in data.get('ActiveSessions', {}).items():
+                            if isinstance(sess, dict):
+                                conn.execute(
+                                    "INSERT OR IGNORE INTO ActiveSessions (user_id, username, token, last_seen, client_ip) VALUES (?, ?, ?, ?, ?)",
+                                    (int(uid), sess.get('username'), sess.get('token'), sess.get('last_seen', int(time.time())), sess.get('client_ip', ''))
+                                )
+                except Exception as e:
+                    print(f"Migration from sessions.json note: {e}")
+            conn.commit()
     except Exception as e:
         print(f"Error initializing DB: {e}")
 
@@ -424,19 +348,15 @@ init_db()
 @app.post("/sync/push")
 def pushSyncPlaylists():
     auth_token = request.headers.get("AppToken")
-    signature = request.headers.get("Signature")
-
-    with open('./sessions.json', 'r') as file:
-        data = json.load(file)
-        if auth_token != data.get('AppToken'):
-            return "Invalid App Token", 401
+    if auth_token != APP_TOKEN:
+        return "Invalid App Token", 401
 
     authorized = authUser(request)
     if authorized == False:
         return "Unauthorized", 401
 
     user_id = int(authorized)
-    payload = request.get_json()
+    payload = request.get_json() or {}
     playlists = payload.get("playlists", [])
 
     with sqlite3.connect(DATABASE_URL) as conn:
@@ -458,12 +378,8 @@ def pushSyncPlaylists():
 @app.get("/sync/pull")
 def pullSyncPlaylists():
     auth_token = request.headers.get("AppToken")
-    signature = request.headers.get("Signature")
-
-    with open('./sessions.json', 'r') as file:
-        data = json.load(file)
-        if auth_token != data.get('AppToken'):
-            return "Invalid App Token", 401
+    if auth_token != APP_TOKEN:
+        return "Invalid App Token", 401
 
     authorized = authUser(request)
     if authorized == False:
@@ -491,12 +407,8 @@ def pullSyncPlaylists():
 @app.get("/sync/user_downloads")
 def getUserDownloads():
     auth_token = request.headers.get("AppToken")
-    signature = request.headers.get("Signature")
-
-    with open('./sessions.json', 'r') as file:
-        data = json.load(file)
-        if auth_token != data.get('AppToken'):
-            return "Invalid App Token", 401
+    if auth_token != APP_TOKEN:
+        return "Invalid App Token", 401
 
     authorized = authUser(request)
     if authorized == False:
@@ -506,24 +418,23 @@ def getUserDownloads():
     tracks = []
     with sqlite3.connect(DATABASE_URL) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT * FROM Tracks")
+        cursor.execute("""
+            SELECT t.track_id, t.title, t.artist, t.duration, t.contributor
+            FROM Tracks t
+            JOIN user_downloads ud ON t.track_id = ud.track_id
+            WHERE ud.user_id = ?
+        """, (user_id,))
         for row in cursor.fetchall():
-            try:
-                downloaded_by = json.loads(row[5])
-            except Exception:
-                downloaded_by = []
-
-            if user_id in downloaded_by:
-                contributor = getUser(row[4])
-                contributor_name = contributor['username'] if contributor else ""
-                tracks.append({
-                    "trackID": row[0],
-                    "title": row[1],
-                    "artist": row[2],
-                    "duration": row[3],
-                    "contributor": contributor_name,
-                    "downloaded": True
-                })
+            contributor_user = getUser(row[4]) if row[4] and str(row[4]).isdigit() else None
+            contributor_name = contributor_user['username'] if contributor_user else str(row[4] or "")
+            tracks.append({
+                "trackID": row[0],
+                "title": row[1],
+                "artist": row[2],
+                "duration": row[3],
+                "contributor": contributor_name,
+                "downloaded": True
+            })
 
     return jsonify(tracks), 200
 
@@ -531,68 +442,50 @@ def getUserDownloads():
 def searchTracks(filter_text):
     filter_text = urllib.parse.unquote_plus(filter_text)
     auth_token = request.headers.get("AppToken")
-    signature = request.headers.get("Signature")
+    if auth_token != APP_TOKEN:
+        return "Invalid App Token", 401
 
-    with open('./sessions.json', 'r+') as file:
-        data = json.load(file)
+    authorized = authUser(request)
+    if authorized == False:
+        return "Unauthorized", 401
 
-        if (auth_token == data['AppToken']):
-            authorized = authUser(request)
-            if authorized != False:
-                userID = int(authorized)
+    userID = int(authorized)
+    if len(filter_text) > 2:
+        normalized_filter = re.sub(r'[^a-zA-Z0-9 ]', '', filter_text).lower().strip()
+        sql = "SELECT track_id, title, artist, duration, contributor FROM Tracks WHERE lower(title) LIKE ? OR lower(artist) LIKE ? OR title_lower LIKE ? OR artist_lower LIKE ? ORDER BY title ASC"
+        tracks = []
+        try:
+            with sqlite3.connect(DATABASE_URL) as conn:
+                cursor = conn.cursor()
+                like_val = f"%{normalized_filter}%"
+                cursor.execute(sql, (like_val, like_val, like_val, like_val))
+                for row in cursor.fetchall():
+                    contributor_user = getUser(row[4]) if row[4] and str(row[4]).isdigit() else None
+                    contributor_name = contributor_user['username'] if contributor_user else str(row[4] or "")
+                    cursor.execute("SELECT 1 FROM user_downloads WHERE user_id = ? AND track_id = ?", (userID, row[0]))
+                    downloaded = cursor.fetchone() is not None
+                    tracks.append({
+                        "trackID": row[0],
+                        "title": row[1],
+                        "artist": row[2],
+                        "duration": row[3],
+                        "contributor": contributor_name,
+                        "downloaded": downloaded
+                    })
+        except sqlite3.Error as e:
+            print(f"Could not load tracks: {e}")
 
-                if len(filter_text) > 2:
-                    def normalize(value):
-                        if value is None:
-                            return None
-                        return re.sub(r'[^a-zA-Z]', '', value).lower()
-
-                    normalized_filter = normalize(filter_text)
-
-                    sql = "SELECT * FROM Tracks WHERE NORMALIZE(title) LIKE ? OR NORMALIZE(artist) LIKE ? ORDER BY title ASC"
-                    tracks = []
-                    try:
-                        with sqlite3.connect(DATABASE_URL) as conn:
-                            conn.create_function("NORMALIZE", 1, normalize)
-                            cursor = conn.cursor()
-                            cursor.execute(sql, (f"%{normalized_filter}%", f"%{normalized_filter}%"))
-                            for row in cursor.fetchall():
-                                contributor = getUser(row[4])['username']
-                                downloaded = userDownloaded(json.loads(row[5]), userID)
-                                track = {
-                                    "trackID": row[0],
-                                    "title": row[1],
-                                    "artist": row[2],
-                                    "duration": row[3],
-                                    "contributor": contributor,
-                                    "downloaded": downloaded
-                                }
-                                tracks.append(track)
-                    except sqlite3.Error as e:
-                        print(f"Could not load tracks: {e}")
-
-                else :
-                    return [], 200
-
-                return tracks, 200
-
-            else :
-                return "Invalid Signature", 401
-
-        else :
-            return "Invalid App Token", 401
+        return tracks, 200
+    else:
+        return [], 200
 
 @app.get("/tracks/<int:id>/download/<any(cover, audio):type>")
 def download(id, type):
     auth_token = request.headers.get("AppToken")
-    signature = request.headers.get("Signature")
-
-    with open('./sessions.json', 'r+') as file:
-        data = json.load(file)
-        if auth_token != data['AppToken']:
-            return "Invalid App Token", 401
-        if authUser(request) == False:
-            return "Invalid Signature", 401
+    if auth_token != APP_TOKEN:
+        return "Invalid App Token", 401
+    if authUser(request) == False:
+        return "Unauthorized", 401
 
     if type == "audio":
         wav_path = f"./audio/{id}.wav"
@@ -628,14 +521,10 @@ def download(id, type):
 @app.route("/tracks/<int:id>/upload/<ext>", methods=["POST"])
 def uploadFile(id, ext):
     auth_token = request.headers.get("AppToken")
-    signature = request.headers.get("Signature")
-
-    with open('./sessions.json', 'r+') as file:
-        data = json.load(file)
-        if auth_token != data['AppToken']:
-            return "Invalid App Token", 401
-        if authUser(request) == False:
-            return "Invalid Signature", 401
+    if auth_token != APP_TOKEN:
+        return "Invalid App Token", 401
+    if authUser(request) == False:
+        return "Unauthorized", 401
 
     if not ext in SUPPORTED_TYPES:
         return "Invalid file type", 415
@@ -682,126 +571,330 @@ def uploadFile(id, ext):
 @app.post("/tracks/downloads/update/<int:id>")
 def addDownloaded(id):
     auth_token = request.headers.get("AppToken")
-    signature = request.headers.get("Signature")
+    if auth_token != APP_TOKEN:
+        return "Invalid App Token", 401
+    authorized = authUser(request)
+    if authorized == False:
+        return "Unauthorized", 401
+    userID = int(authorized)
 
-    with open('./sessions.json', 'r+') as file:
-        data = json.load(file)
+    try:
+        with sqlite3.connect(DATABASE_URL) as conn:
+            conn.execute("INSERT OR IGNORE INTO user_downloads (user_id, track_id) VALUES (?, ?)", (userID, id))
+            conn.commit()
+    except sqlite3.Error as e:
+        print(f"Could not update downloads: {e}")
 
-        if (auth_token == data['AppToken']):
-            authorized = authUser(request)
-            if authorized != False:
-                userID = int(authorized)
-
-                sql1 = "SELECT downloaded_by FROM Tracks WHERE track_id = ?"
-                sql2 = "UPDATE Tracks SET downloaded_by = ? WHERE track_id = ?"
-
-                try:
-                    with sqlite3.connect(DATABASE_URL) as conn:
-                        cursor = conn.cursor()
-
-                        cursor.execute(sql1, (id,))
-                        row = cursor.fetchone()
-
-                        if row is not None:
-                            raw_json = row[0]
-                            if raw_json:
-                                curr_list = json.loads(raw_json)
-                            else:
-                                curr_list = []
-
-                            curr_list.append(userID)
-                            json_string = json.dumps(curr_list)
-                            cursor.execute(sql2, (json_string, id))
-
-                except sqlite3.Error as e:
-                    print(f"Could not load tracks: {e}")
-
-                return "Downloads updated", 201
-
-            else :
-                return "Invalid Signature", 401
-
-        else :
-            return "Invalid App Token", 401
+    return "Downloads updated", 201
 
 @app.post("/tracks/uploads/update")
 def addUpload():
     auth_token = request.headers.get("AppToken")
-    signature = request.headers.get("Signature")
-    user_data = request.get_json()
+    if auth_token != APP_TOKEN:
+        return "Invalid App Token", 401
+    authorized = authUser(request)
+    if authorized == False:
+        return "Unauthorized", 401
+    userID = int(authorized)
+    user_data = request.get_json() or {}
 
-    with open('./sessions.json', 'r+') as file:
-        data = json.load(file)
+    new_id = genTrackID()
+    title_val = user_data.get('title', '')
+    artist_val = user_data.get('artist', '')
+    duration_val = user_data.get('duration', '')
+    title_lower = re.sub(r'[^a-zA-Z0-9 ]', '', title_val).lower().strip()
+    artist_lower = re.sub(r'[^a-zA-Z0-9 ]', '', artist_val).lower().strip()
 
-        if (auth_token == data['AppToken']):
-            authorized = authUser(request)
-            if authorized != False:
-                userID = int(authorized)
+    sql = "INSERT OR IGNORE INTO Tracks (track_id, title, artist, duration, contributor, title_lower, artist_lower) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    try:
+        with sqlite3.connect(DATABASE_URL) as conn:
+            conn.execute(sql, (new_id, title_val, artist_val, duration_val, str(userID), title_lower, artist_lower))
+            conn.commit()
+    except sqlite3.Error as e:
+        print(f"Could not add track to database: {e}")
 
-                sql = "INSERT OR IGNORE INTO Tracks (track_id, title, artist, duration, contributor, downloaded_by) VALUES (?, ?, ?, ?, ?, ?)";
-                new_id = genTrackID()
-                try:
-                    with sqlite3.connect(DATABASE_URL) as conn:
-                        cursor = conn.cursor()
-                        cursor.execute(sql, (new_id, user_data['title'], user_data['artist'], user_data['duration'], userID, '[]'))
-
-                except sqlite3.Error as e:
-                    print(f"Could not add track to database: {e}")
-
-                return str(new_id), 201
-
-            else :
-                return "Invalid Signature", 401
-
-        else :
-            return "Invalid App Token", 401
+    return str(new_id), 201
 
 @app.post("/tracks/downloads/remove/<int:id>")
 def removeDownloaded(id):
     auth_token = request.headers.get("AppToken")
-    signature = request.headers.get("Signature")
+    if auth_token != APP_TOKEN:
+        return "Invalid App Token", 401
+    authorized = authUser(request)
+    if authorized == False:
+        return "Unauthorized", 401
+    userID = int(authorized)
 
-    with open('./sessions.json', 'r+') as file:
-        data = json.load(file)
+    try:
+        with sqlite3.connect(DATABASE_URL) as conn:
+            conn.execute("DELETE FROM user_downloads WHERE user_id = ? AND track_id = ?", (userID, id))
+            conn.commit()
+    except sqlite3.Error as e:
+        print(f"Could not update downloads: {e}")
 
-        if (auth_token == data['AppToken']):
-            authorized = authUser(request)
-            if authorized != False:
-                userID = int(authorized)
+    return "Downloads updated", 201
 
-                sql1 = "SELECT downloaded_by FROM Tracks WHERE track_id = ?"
-                sql2 = "UPDATE Tracks SET downloaded_by = ? WHERE track_id = ?"
+@app.post("/tracks/downloads/clear_all")
+def clearAllDownloads():
+    auth_token = request.headers.get("AppToken")
+    if auth_token != APP_TOKEN:
+        return "Invalid App Token", 401
+    authorized = authUser(request)
+    if authorized == False:
+        return "Unauthorized", 401
+    userID = int(authorized)
 
-                try:
-                    with sqlite3.connect(DATABASE_URL) as conn:
-                        cursor = conn.cursor()
+    try:
+        with sqlite3.connect(DATABASE_URL) as conn:
+            conn.execute("DELETE FROM user_downloads WHERE user_id = ?", (userID,))
+            conn.commit()
+    except sqlite3.Error as e:
+        print(f"Could not clear user downloads: {e}")
 
-                        cursor.execute(sql1, (id,))
-                        row = cursor.fetchone()
-
-                        if row is not None:
-                            raw_json = row[0]
-                            if raw_json:
-                                curr_list = json.loads(raw_json)
-                            else:
-                                curr_list = []
-
-                            curr_list.remove(userID)
-                            json_string = json.dumps(curr_list)
-                            cursor.execute(sql2, (json_string, id))
-
-                except sqlite3.Error as e:
-                    print(f"Could not load tracks: {e}")
-
-                return "Downloads updated", 201
-
-            else :
-                return "Invalid Signature", 401
-
-        else :
-            return "Invalid App Token", 401
+    return "All downloads cleared", 200
 
 
+# History & Playback Stats Endpoints
+@app.post("/history/sync")
+def syncHistory():
+    auth_token = request.headers.get("AppToken")
+    if auth_token != APP_TOKEN:
+        return "Invalid App Token", 401
+
+    authorized = authUser(request)
+    if authorized == False:
+        return "Unauthorized", 401
+
+    user_id = int(authorized)
+    payload = request.get_json() or {}
+    items = payload.get("history", [])
+
+    with sqlite3.connect(DATABASE_URL) as conn:
+        cursor = conn.cursor()
+        for item in items:
+            track_id = int(item.get("track_id", 0))
+            p_count = int(item.get("play_count", 1))
+            if track_id <= 0:
+                continue
+            cursor.execute("""
+                INSERT INTO History (user_id, track_id, play_count)
+                VALUES (?, ?, ?)
+                ON CONFLICT(user_id, track_id) DO UPDATE SET
+                    play_count = play_count + excluded.play_count
+            """, (user_id, track_id, p_count))
+        conn.commit()
+
+    return jsonify({"status": "success"}), 200
+
+
+@app.get("/stats/<int:user_id>")
+def getUserStats(user_id):
+    auth_token = request.headers.get("AppToken")
+    if auth_token != APP_TOKEN:
+        return "Invalid App Token", 401
+
+    authorized = authUser(request)
+    if authorized == False:
+        return "Unauthorized", 401
+
+    with sqlite3.connect(DATABASE_URL) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id, month_year, total_minutes, total_plays, daily_avg_minutes, percentile_text, top_tracks_json, top_artists_json, top_percentages_json, theme_color, new_release FROM Stats WHERE user_id = ?", (user_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({
+                "user_id": user_id,
+                "month_year": "July 2026",
+                "total_minutes": 0,
+                "total_plays": 0,
+                "daily_avg_minutes": 0,
+                "percentile_text": "Napster Listener",
+                "top_tracks": [],
+                "top_artists": [],
+                "top_percentages": {"top_tracks": [], "top_artists": []},
+                "theme_color": "Neon Cyber Violet",
+                "new_release": 0
+            }), 200
+
+        return jsonify({
+            "user_id": row[0],
+            "month_year": row[1],
+            "total_minutes": row[2],
+            "total_plays": row[3],
+            "daily_avg_minutes": row[4],
+            "percentile_text": row[5],
+            "top_tracks": json.loads(row[6] or "[]"),
+            "top_artists": json.loads(row[7] or "[]"),
+            "top_percentages": json.loads(row[8] or "{}"),
+            "theme_color": row[9] or "Neon Cyber Violet",
+            "new_release": int(row[10])
+        }), 200
+
+
+@app.post("/stats/ack/<int:user_id>")
+def ackUserStats(user_id):
+    auth_token = request.headers.get("AppToken")
+    if auth_token != APP_TOKEN:
+        return "Invalid App Token", 401
+
+    authorized = authUser(request)
+    if authorized == False:
+        return "Unauthorized", 401
+
+    with sqlite3.connect(DATABASE_URL) as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE Stats SET new_release = 0 WHERE user_id = ?", (user_id,))
+        conn.commit()
+
+    return jsonify({"status": "acknowledged"}), 200
+
+
+def calculate_all_user_monthly_stats():
+    import datetime
+    now = datetime.datetime.now()
+    month_names = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+    month_label = f"{month_names[now.month - 1]} {now.year}"
+
+    # Generate single shared random theme palette for this monthly release (12 themes)
+    theme_palettes = [
+        'Neon Cyber Violet',
+        'Electric Cyan & Teal',
+        'Sunset Flare Orange',
+        'Emerald Mint',
+        'Solar Coral',
+        'Deep Velvet Pink',
+        'Midnight Sapphire',
+        'Crimson Ruby Noir',
+        'Golden Luxe',
+        'Aero Frost',
+        'Toxic Lime',
+        'Ultraviolet Synth'
+    ]
+    month_theme = random.choice(theme_palettes)
+
+    with sqlite3.connect(DATABASE_URL) as conn:
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT DISTINCT user_id FROM History")
+        users = [row[0] for row in cursor.fetchall()]
+
+        cursor.execute("SELECT track_id, title, artist, duration FROM Tracks")
+        tracks_db = {row[0]: {"title": row[1], "artist": row[2], "duration": row[3]} for row in cursor.fetchall()}
+
+        cursor.execute("SELECT user_id, track_id, play_count FROM History")
+        history_rows = cursor.fetchall()
+        
+        track_user_plays = {}
+        artist_user_plays = {}
+        user_track_plays = {}
+
+        for uid, tid, count in history_rows:
+            track_info = tracks_db.get(tid, {"title": f"Track {tid}", "artist": "Unknown Artist", "duration": "3:30"})
+            artist = track_info["artist"] or "Unknown Artist"
+
+            track_user_plays.setdefault(tid, {})[uid] = track_user_plays.get(tid, {}).get(uid, 0) + count
+            artist_user_plays.setdefault(artist, {})[uid] = artist_user_plays.get(artist, {}).get(uid, 0) + count
+            user_track_plays.setdefault(uid, {})[tid] = count
+
+        for uid in users:
+            u_history = user_track_plays.get(uid, {})
+            total_plays = sum(u_history.values())
+            
+            user_tracks_list = []
+            total_sec = 0
+            for tid, count in u_history.items():
+                t_info = tracks_db.get(tid, {"title": f"Track {tid}", "artist": "Unknown Artist", "duration": "3:30"})
+                dur_parts = str(t_info["duration"]).split(":")
+                dur_sec = (int(dur_parts[0]) * 60 + int(dur_parts[1])) if len(dur_parts) == 2 else 210
+                total_sec += dur_sec * count
+                user_tracks_list.append({
+                    "trackID": tid,
+                    "title": t_info["title"],
+                    "artist": t_info["artist"],
+                    "duration": t_info["duration"],
+                    "playCount": count
+                })
+
+            user_tracks_list.sort(key=lambda x: x["playCount"], reverse=True)
+            top_5_tracks = user_tracks_list[:5]
+
+            by_artist = {}
+            for t in user_tracks_list:
+                art = t["artist"] or "Unknown Artist"
+                by_artist[art] = by_artist.get(art, 0) + t["playCount"]
+            
+            user_artists_list = [{"artistName": a, "playCount": c, "totalMinutes": max(1, round(c * 3.5)), "topTrackTitle": "Top Track"} for a, c in by_artist.items()]
+            user_artists_list.sort(key=lambda x: x["playCount"], reverse=True)
+            top_5_artists = user_artists_list[:5]
+
+            # Track listener percentiles
+            track_percentiles = []
+            for tid, count in u_history.items():
+                all_listeners = track_user_plays.get(tid, {})
+                N = len(all_listeners)
+                higher_count = sum(1 for other_uid, p in all_listeners.items() if p > count)
+                pct = max(1, round((higher_count / max(1, N)) * 100))
+                t_title = tracks_db.get(tid, {}).get("title", f"Track {tid}")
+                track_percentiles.append({"track_id": tid, "title": t_title, "percentile_val": pct, "percentile": f"Top {pct}%"})
+
+            track_percentiles.sort(key=lambda x: x["percentile_val"])
+            top_2_tracks_pct = [{"title": x["title"], "percentile": x["percentile"]} for x in track_percentiles[:2]]
+
+            # Artist listener percentiles
+            artist_percentiles = []
+            for art, count in by_artist.items():
+                all_art_listeners = artist_user_plays.get(art, {})
+                N = len(all_art_listeners)
+                higher_count = sum(1 for other_uid, p in all_art_listeners.items() if p > count)
+                pct = max(1, round((higher_count / max(1, N)) * 100))
+                artist_percentiles.append({"artist": art, "percentile_val": pct, "percentile": f"Top {pct}%"})
+
+            artist_percentiles.sort(key=lambda x: x["percentile_val"])
+            top_2_artists_pct = [{"artist": x["artist"], "percentile": x["percentile"]} for x in artist_percentiles[:2]]
+
+            total_minutes = max(1, round(total_sec / 60))
+            daily_avg = max(1, round(total_minutes / max(1, now.day)))
+
+            top_percentages = {
+                "top_tracks": top_2_tracks_pct,
+                "top_artists": top_2_artists_pct
+            }
+
+            cursor.execute("""
+                INSERT INTO Stats (user_id, month_year, total_minutes, total_plays, daily_avg_minutes, percentile_text, top_tracks_json, top_artists_json, top_percentages_json, theme_color, new_release)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    month_year = excluded.month_year,
+                    total_minutes = excluded.total_minutes,
+                    total_plays = excluded.total_plays,
+                    daily_avg_minutes = excluded.daily_avg_minutes,
+                    percentile_text = excluded.percentile_text,
+                    top_tracks_json = excluded.top_tracks_json,
+                    top_artists_json = excluded.top_artists_json,
+                    top_percentages_json = excluded.top_percentages_json,
+                    theme_color = excluded.theme_color,
+                    new_release = 1
+            """, (
+                uid, month_label, total_minutes, total_plays, daily_avg,
+                "Top Music Listener", json.dumps(top_5_tracks), json.dumps(top_5_artists),
+                json.dumps(top_percentages), month_theme
+            ))
+
+            cursor.execute("DELETE FROM History WHERE user_id = ?", (uid,))
+
+        conn.commit()
+
+@app.post("/admin/calculate_monthly_stats")
+def triggerMonthlyStats():
+    auth_token = request.headers.get("AppToken")
+    if auth_token != APP_TOKEN:
+        return "Invalid App Token", 401
+    authorized = authUser(request)
+    if authorized == False:
+        return "Unauthorized", 401
+
+    calculate_all_user_monthly_stats()
+    return jsonify({"status": "monthly stats calculated and history cleared"}), 200
 
 
 if __name__ == "__main__":

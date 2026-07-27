@@ -1,25 +1,27 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/track.dart';
+import 'listening_stats_service.dart';
 
 class AudioPlayerService extends ChangeNotifier {
   final AudioPlayer _player = AudioPlayer();
+  StreamSubscription? _stateSubscription;
   Track? currentTrack;
   bool isPlaying = false;
   bool shuffle = false;
   bool loop = false;
   List<Track> queue = [];
   List<Track> playlist = [];
+  int _playlistIndex = 0;
   String? _appDataPath;
 
   String? get appDataPath => _appDataPath;
 
-  final VoidCallback onRefresh;
-
-  AudioPlayerService({required this.onRefresh}) {
+  AudioPlayerService() {
     _init();
   }
 
@@ -35,7 +37,7 @@ class AudioPlayerService extends ChangeNotifier {
       _appDataPath = '${dir.path}/Napster';
     }
 
-    _player.playerStateStream.listen((state) {
+    _stateSubscription = _player.playerStateStream.listen((state) {
       if (state.processingState == ProcessingState.completed) {
         next();
       }
@@ -49,6 +51,7 @@ class AudioPlayerService extends ChangeNotifier {
 
   @override
   void dispose() {
+    _stateSubscription?.cancel();
     _player.dispose();
     super.dispose();
   }
@@ -69,7 +72,7 @@ class AudioPlayerService extends ChangeNotifier {
     try {
       await _player.setFilePath(file.path);
       await _player.play();
-      onRefresh();
+      ListeningStatsService.instance.logPlay(track);
     } catch (e) {
       print('Error playing audio: $e');
     }
@@ -105,9 +108,15 @@ class AudioPlayerService extends ChangeNotifier {
       if (shuffle) {
         final random = Random();
         final idx = random.nextInt(playlist.length);
-        play(playlist.removeAt(idx));
+        play(playlist[idx]);
       } else {
-        play(playlist.removeAt(0));
+        if (_playlistIndex < playlist.length) {
+          play(playlist[_playlistIndex++]);
+        } else {
+          _player.stop();
+          isPlaying = false;
+          notifyListeners();
+        }
       }
     } else {
       _player.stop();
@@ -138,6 +147,19 @@ class AudioPlayerService extends ChangeNotifier {
 
   void clearPlaylistQueue() {
     playlist.clear();
+    _playlistIndex = 0;
+    notifyListeners();
+  }
+
+  Future<void> stopAndClear() async {
+    try {
+      await _player.stop();
+    } catch (_) {}
+    currentTrack = null;
+    isPlaying = false;
+    queue.clear();
+    playlist.clear();
+    _playlistIndex = 0;
     notifyListeners();
   }
 

@@ -3,8 +3,9 @@ import 'package:provider/provider.dart';
 import '../../models/track.dart';
 import '../../models/playlist.dart';
 import '../../services/audio_player_service.dart';
+import '../../services/theme_service.dart';
 import '../../widgets/mobile/mobile_track_row.dart';
-import '../../widgets/mobile/mobile_playlist_actions_sheet.dart';
+import '../../widgets/mobile/bottom_player_bar.dart';
 
 class SearchScreen extends StatefulWidget {
   final dynamic mediaHandler;
@@ -27,6 +28,12 @@ class _SearchScreenState extends State<SearchScreen> {
   List<Track> _searchResults = [];
   bool _isSearching = false;
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   void _performSearch(String query) async {
     if (query.trim().isEmpty) {
       setState(() {
@@ -40,13 +47,11 @@ class _SearchScreenState extends State<SearchScreen> {
     });
 
     try {
-      // Assuming mediaHandler has searchTracks for local lookup
       final results = await widget.mediaHandler.searchTracks(query); 
       setState(() {
         _searchResults = results.cast<Track>();
       });
     } catch (e) {
-      // Handle error gracefully
       setState(() {
         _searchResults = [];
       });
@@ -57,39 +62,26 @@ class _SearchScreenState extends State<SearchScreen> {
     }
   }
 
-  void _showTrackActions(BuildContext context, Track track) {
-    final audioService = Provider.of<AudioPlayerService>(context, listen: false);
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) {
-        return MobilePlaylistActionsSheet(
-          track: track,
-          allPlaylists: widget.allPlaylists,
-          onAddToQueue: () {
-            audioService.addToQueue(track);
-          },
-          onAddToPlaylist: (targetPlaylist) {
-            // targetPlaylist.tracks.add(track);
-            // widget.mediaHandler.savePlaylist(targetPlaylist);
-          },
-        );
-      },
-    );
-  }
-
   @override
   Widget build(BuildContext context) {
     final audioService = Provider.of<AudioPlayerService>(context);
 
     return Scaffold(
-      backgroundColor: Colors.transparent,
+      backgroundColor: const Color(0xFF000000),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.white),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: const Text('Search', style: TextStyle(color: Colors.white)),
+      ),
       body: SafeArea(
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.all(16.0),
+              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
               child: TextField(
                 controller: _searchController,
                 autofocus: true,
@@ -105,13 +97,23 @@ class _SearchScreenState extends State<SearchScreen> {
                   ),
                   contentPadding: const EdgeInsets.all(16),
                   prefixIcon: const Icon(Icons.search, color: Color(0xFF555555)),
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear, color: Color(0xFF555555)),
+                          onPressed: () {
+                            _searchController.clear();
+                            _performSearch('');
+                          },
+                        )
+                      : null,
                 ),
                 onSubmitted: _performSearch,
+                onChanged: _performSearch,
                 textInputAction: TextInputAction.search,
               ),
             ),
             if (_isSearching)
-              const Expanded(child: Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFFF0000)))))
+              Expanded(child: Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(context.watch<ThemeService>().themeColor))))
             else
               Expanded(
                 child: ListView.builder(
@@ -125,7 +127,10 @@ class _SearchScreenState extends State<SearchScreen> {
                       onTap: () {
                         audioService.play(track);
                       },
-                      onLongPress: () => _showTrackActions(context, track),
+                      onLongPress: () {},
+                      onQueue: () {
+                        audioService.addToQueue(track);
+                      },
                     );
                   },
                 ),
@@ -133,6 +138,10 @@ class _SearchScreenState extends State<SearchScreen> {
           ],
         ),
       ),
+      bottomNavigationBar: audioService.currentTrack != null
+          ? BottomPlayerBar(appDataPath: widget.appDataPath)
+          : null,
     );
   }
 }
+

@@ -1,7 +1,9 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/track.dart';
 import '../models/playlist.dart';
+import '../services/theme_service.dart';
 import '../utils/layout_constants.dart';
 import 'play_bars.dart';
 
@@ -11,6 +13,7 @@ class TrackCard extends StatefulWidget {
   final bool isPlaying;
   final VoidCallback onPlay;
   final VoidCallback? onDownload;
+  final VoidCallback? onRemoveDownload;
   final VoidCallback? onQueue;
   final List<Playlist> availablePlaylists;
   final Function(Playlist, Track) onTogglePlaylist;
@@ -24,6 +27,7 @@ class TrackCard extends StatefulWidget {
     required this.isPlaying,
     required this.onPlay,
     this.onDownload,
+    this.onRemoveDownload,
     this.onQueue,
     required this.availablePlaylists,
     required this.onTogglePlaylist,
@@ -50,7 +54,6 @@ class _TrackCardState extends State<TrackCard> {
       color: const Color(0xFF2B2B2B),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
       items: widget.availablePlaylists.map((playlist) {
-        final isInPlaylist = widget.isTrackInPlaylist(playlist, widget.track);
         return PopupMenuItem<Playlist>(
           value: playlist,
           padding: EdgeInsets.zero,
@@ -85,7 +88,7 @@ class _TrackCardState extends State<TrackCard> {
                           height: 13,
                           decoration: BoxDecoration(
                             shape: BoxShape.circle,
-                            color: inPlaylist ? const Color(0xFFFF0000) : const Color(0xFF7F8C8D),
+                            color: inPlaylist ? context.watch<ThemeService>().themeColor : const Color(0xFF7F8C8D),
                           ),
                         ),
                       ],
@@ -192,7 +195,7 @@ class _TrackCardState extends State<TrackCard> {
                   Text(
                     widget.track.title,
                     style: TextStyle(
-                      color: widget.isPlaying ? const Color(0xFFFF0000) : Colors.white,
+                      color: widget.isPlaying ? context.watch<ThemeService>().themeColor : Colors.white,
                       fontSize: LayoutConstants.titleFontSize,
                       fontWeight: FontWeight.bold,
                     ),
@@ -249,6 +252,23 @@ class _TrackCardState extends State<TrackCard> {
                   ),
                 ),
               ),
+              if (widget.onRemoveDownload != null) ...[
+                const SizedBox(width: 16),
+                _buildTooltip(
+                  message: 'Remove Download',
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: GestureDetector(
+                      onTap: widget.onRemoveDownload,
+                      child: const Icon(
+                        Icons.delete_outline,
+                        size: 18,
+                        color: Color(0xFFB3B3B3),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(width: 20),
               
               Text(

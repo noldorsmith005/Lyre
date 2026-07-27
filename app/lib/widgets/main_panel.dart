@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/track.dart';
 import '../models/playlist.dart';
-import 'package:provider/provider.dart';
+import '../screens/settings_screen.dart';
+import '../services/theme_service.dart';
 import '../services/audio_player_service.dart';
 import '../utils/platform_utils.dart';
 import 'track_card.dart';
@@ -15,16 +17,19 @@ class MainPanel extends StatefulWidget {
   final VoidCallback onUploadPressed;
   final VoidCallback onClearConfigPressed;
   final VoidCallback onSyncPressed;
+  final VoidCallback? onPlaybackPressed;
   final VoidCallback onShufflePressed;
   final Function(String) onEditPlaylistName;
   final VoidCallback onDeletePlaylist;
   final Track? playingTrack;
   final Function(Track) onPlayTrack;
   final Function(Track)? onDownloadTrack;
+  final Function(Track)? onRemoveDownloadTrack;
   final Function(Track) onQueueTrack;
   final List<Playlist> availablePlaylists;
   final Function(Playlist, Track) onTogglePlaylist;
   final bool Function(Playlist, Track) isTrackInPlaylist;
+  final bool isServerConnected;
 
   const MainPanel({
     Key? key,
@@ -36,16 +41,19 @@ class MainPanel extends StatefulWidget {
     required this.onUploadPressed,
     required this.onClearConfigPressed,
     required this.onSyncPressed,
+    this.onPlaybackPressed,
     required this.onShufflePressed,
     required this.onEditPlaylistName,
     required this.onDeletePlaylist,
     this.playingTrack,
     required this.onPlayTrack,
     this.onDownloadTrack,
+    this.onRemoveDownloadTrack,
     required this.onQueueTrack,
     required this.availablePlaylists,
     required this.onTogglePlaylist,
     required this.isTrackInPlaylist,
+    this.isServerConnected = false,
   }) : super(key: key);
 
   @override
@@ -101,7 +109,7 @@ class _MainPanelState extends State<MainPanel> {
                   children: [
                     TextButton(
                       style: TextButton.styleFrom(
-                        backgroundColor: const Color(0xFFFF0000),
+                        backgroundColor: Provider.of<ThemeService>(context, listen: false).themeColor,
                         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
                       ),
                       onPressed: () {
@@ -207,6 +215,8 @@ class _MainPanelState extends State<MainPanel> {
               onUploadPressed: widget.onUploadPressed,
               onClearConfigPressed: widget.onClearConfigPressed,
               onSyncPressed: widget.onSyncPressed,
+              onPlaybackPressed: widget.onPlaybackPressed,
+              isServerConnected: widget.isServerConnected,
             ),
           ],
         ],
@@ -286,15 +296,13 @@ class _MainPanelState extends State<MainPanel> {
               itemBuilder: (context, index) {
                 final track = widget.tracks[index];
                 final isPlaying = widget.playingTrack?.trackID == track.trackID;
-                // For the sake of this UI widget, assume tracks in the list are downloaded if not mobile,
-                // or handled by parent. We'll pass a mock isDownloaded = true for now, 
-                // but ideally it comes from the model or parent.
                 return TrackCard(
                   track: track,
-                  isDownloaded: true, // Placeholder for download state logic
+                  isDownloaded: track.downloaded,
                   isPlaying: isPlaying,
                   onPlay: () => widget.onPlayTrack(track),
                   onDownload: widget.onDownloadTrack != null ? () => widget.onDownloadTrack!(track) : null,
+                  onRemoveDownload: widget.onRemoveDownloadTrack != null ? () => widget.onRemoveDownloadTrack!(track) : null,
                   onQueue: () => widget.onQueueTrack(track),
                   availablePlaylists: widget.availablePlaylists,
                   onTogglePlaylist: widget.onTogglePlaylist,
@@ -362,11 +370,15 @@ class _AccountMenuButton extends StatefulWidget {
   final VoidCallback onUploadPressed;
   final VoidCallback onClearConfigPressed;
   final VoidCallback onSyncPressed;
+  final VoidCallback? onPlaybackPressed;
+  final bool isServerConnected;
 
   const _AccountMenuButton({
     required this.onUploadPressed,
     required this.onClearConfigPressed,
     required this.onSyncPressed,
+    this.onPlaybackPressed,
+    this.isServerConnected = false,
   });
 
   @override
@@ -390,18 +402,27 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
           side: const BorderSide(color: Color(0xFF2A2A2A), width: 1),
         ),
         onSelected: (value) {
-          if (value == 'sync') {
+          if (value == 'playback') {
+            if (widget.onPlaybackPressed != null) widget.onPlaybackPressed!();
+          } else if (value == 'sync') {
             widget.onSyncPressed();
           } else if (value == 'upload') {
             widget.onUploadPressed();
-          } else if (value == 'clear_config') {
+          } else if (value == 'settings') {
+            Navigator.push(
+              context,
+              MaterialPageRoute(builder: (context) => const SettingsScreen()),
+            );
+          } else if (value == 'logout') {
             widget.onClearConfigPressed();
           }
         },
         itemBuilder: (context) => [
-          _buildMenuItem('sync', Icons.sync_rounded, 'Sync Playlists'),
+          _buildMenuItem('playback', Icons.graphic_eq_rounded, 'Napster Playback'),
+          _buildMenuItem('sync', Icons.sync_rounded, 'Cloud Sync'),
           _buildMenuItem('upload', Icons.upload_rounded, 'Upload Track'),
-          _buildMenuItem('clear_config', Icons.delete_outline, 'Clear Server Config'),
+          _buildMenuItem('settings', Icons.settings_rounded, 'Settings'),
+          _buildMenuItem('logout', Icons.logout_rounded, 'Log Out'),
         ],
         child: Opacity(
           opacity: _isHovered ? 0.7 : 1.0,
@@ -413,7 +434,7 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
               color: const Color(0xFF2A2A2A),
               border: Border.all(color: const Color(0xFF555555), width: 1),
             ),
-            child: const Icon(Icons.person, color: Colors.white, size: 20),
+            child: Icon(Icons.person, color: Provider.of<ThemeService>(context).themeColor, size: 20),
           ),
         ),
       ),

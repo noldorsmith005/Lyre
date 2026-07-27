@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/audio_player_service.dart';
+import '../../services/theme_service.dart';
 import '../../models/track.dart';
 
 class FullPlayerScreen extends StatelessWidget {
@@ -117,7 +118,7 @@ class FullPlayerScreen extends StatelessWidget {
                             child: SliderTheme(
                               data: SliderTheme.of(context).copyWith(
                                 trackHeight: 4,
-                                activeTrackColor: const Color(0xFFFF0000),
+                                activeTrackColor: context.watch<ThemeService>().themeColor,
                                 inactiveTrackColor: const Color(0xFF333333),
                                 thumbColor: Colors.white,
                                 thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
@@ -149,7 +150,7 @@ class FullPlayerScreen extends StatelessWidget {
                 IconButton(
                   iconSize: 26,
                   icon: Icon(audioService.loop ? Icons.repeat_one : Icons.repeat),
-                  color: audioService.loop ? const Color(0xFFFF0000) : Colors.white,
+                  color: audioService.loop ? context.watch<ThemeService>().themeColor : Colors.white,
                   onPressed: () {
                     audioService.loop = !audioService.loop;
                     audioService.notifyListeners();
@@ -196,7 +197,7 @@ class FullPlayerScreen extends StatelessWidget {
                 IconButton(
                   iconSize: 26,
                   icon: Icon(audioService.shuffle ? Icons.shuffle_on_outlined : Icons.shuffle),
-                  color: audioService.shuffle ? const Color(0xFFFF0000) : Colors.white,
+                  color: audioService.shuffle ? context.watch<ThemeService>().themeColor : Colors.white,
                   onPressed: () {
                     audioService.setShuffle();
                   },
