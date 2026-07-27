@@ -64,6 +64,39 @@ class MediaHandler {
                 duration   TEXT
             )
           ''');
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS PlaylistTracks (
+                playlist_id INTEGER,
+                order_index INTEGER,
+                track_id    INTEGER,
+                PRIMARY KEY (playlist_id, track_id)
+            )
+          ''');
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS ListeningHistory (
+                history_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                track_id   INTEGER,
+                title      TEXT,
+                artist     TEXT,
+                duration   TEXT,
+                timestamp  TEXT
+            )
+          ''');
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS LocalStats (
+                user_id              INTEGER PRIMARY KEY,
+                month_year           TEXT,
+                total_minutes        INTEGER,
+                total_plays          INTEGER,
+                daily_avg_minutes    INTEGER,
+                percentile_text      TEXT,
+                top_tracks_json      TEXT,
+                top_artists_json     TEXT,
+                top_percentages_json TEXT,
+                theme_color          TEXT,
+                new_release          INTEGER DEFAULT 0
+            )
+          ''');
         },
       ),
     );
@@ -71,13 +104,11 @@ class MediaHandler {
   }
 
   Future<List<Track>> searchTracks(String filter) async {
-    final normalizedFilter = filter.replaceAll(RegExp(r'[^a-zA-Z]'), '').toLowerCase();
+    final normalizedFilter = filter.replaceAll(RegExp(r'[^a-zA-Z0-9 ]'), '').toLowerCase().trim();
     if (normalizedFilter.isEmpty) {
       return [];
     }
 
-    // Since we do Dart-side normalization for the search text, 
-    // we use standard LIKE to match as closely as possible to the Java implementation
     final result = await _db.rawQuery(
       'SELECT * FROM Tracks WHERE LOWER(title) LIKE ? OR LOWER(artist) LIKE ? ORDER BY title ASC',
       ['%$normalizedFilter%', '%$normalizedFilter%']
@@ -102,10 +133,14 @@ class MediaHandler {
   }
 
   Future<List<Track>> loadPlaylistTracks(int playlistID) async {
-    final tableName = 'playlist_$playlistID';
     List<Map<String, dynamic>> idResults;
     try {
-      idResults = await _db.rawQuery('SELECT * FROM $tableName ORDER BY [order] ASC');
+      idResults = await _db.query(
+        'PlaylistTracks',
+        where: 'playlist_id = ?',
+        whereArgs: [playlistID],
+        orderBy: 'order_index ASC',
+      );
     } catch (e) {
       print('Could not load playlist track IDs: $e');
       return [];
@@ -130,11 +165,10 @@ class MediaHandler {
   }
 
   Future<void> addToPlaylist(int playlistId, int trackId) async {
-    final tableName = 'playlist_$playlistId';
     try {
       await _db.rawInsert(
-        'INSERT INTO $tableName ([order], track_id) VALUES ((SELECT COALESCE(MAX([order]), 0) + 1 FROM $tableName), ?)',
-        [trackId]
+        'INSERT OR IGNORE INTO PlaylistTracks (playlist_id, order_index, track_id) VALUES (?, (SELECT COALESCE(MAX(order_index), 0) + 1 FROM PlaylistTracks WHERE playlist_id = ?), ?)',
+        [playlistId, playlistId, trackId]
       );
     } catch (e) {
       print('Could not add track to playlist: $e');
@@ -142,27 +176,24 @@ class MediaHandler {
   }
 
   Future<void> removeFromPlaylist(int playlistId, int trackId) async {
-    final tableName = 'playlist_$playlistId';
     try {
-      await _db.delete(tableName, where: 'track_id = ?', whereArgs: [trackId]);
+      await _db.delete('PlaylistTracks', where: 'playlist_id = ? AND track_id = ?', whereArgs: [playlistId, trackId]);
     } catch (e) {
       print('Could not remove track from playlist: $e');
     }
   }
 
   Future<void> changeTrackOrder(int playlistId, int trackId, int newOrder) async {
-    final tableName = 'playlist_$playlistId';
     try {
-      await _db.update(tableName, {'order': newOrder}, where: 'track_id = ?', whereArgs: [trackId]);
+      await _db.update('PlaylistTracks', {'order_index': newOrder}, where: 'playlist_id = ? AND track_id = ?', whereArgs: [playlistId, trackId]);
     } catch (e) {
       print('Could not change track order: $e');
     }
   }
 
   Future<bool> isInPlaylist(int playlistId, int trackId) async {
-    final tableName = 'playlist_$playlistId';
     try {
-      final result = await _db.query(tableName, where: 'track_id = ?', whereArgs: [trackId], limit: 1);
+      final result = await _db.query('PlaylistTracks', where: 'playlist_id = ? AND track_id = ?', whereArgs: [playlistId, trackId], limit: 1);
       return result.isNotEmpty;
     } catch (e) {
       print('Could not check playlist contents: $e');
@@ -181,15 +212,7 @@ class MediaHandler {
       if (result.isEmpty) break;
     }
 
-    final tableName = 'playlist_$newPlaylistId';
     try {
-      await _db.execute('''
-        CREATE TABLE $tableName (
-            [order] INTEGER,
-            track_id INTEGER
-        )
-      ''');
-      
       await _db.insert('Playlists', {
         'playlist_id': newPlaylistId,
         'title': title
@@ -204,9 +227,8 @@ class MediaHandler {
   }
 
   Future<void> deletePlaylist(int playlistId) async {
-    final tableName = 'playlist_$playlistId';
     try {
-      await _db.execute('DROP TABLE IF EXISTS $tableName');
+      await _db.delete('PlaylistTracks', where: 'playlist_id = ?', whereArgs: [playlistId]);
       await _db.delete('Playlists', where: 'playlist_id = ?', whereArgs: [playlistId]);
       await _db.delete('PlaylistIDs', where: 'playlist_id = ?', whereArgs: [playlistId]);
     } catch (e) {
@@ -241,10 +263,7 @@ class MediaHandler {
 
   Future<void> deleteTrack(Track track) async {
     try {
-      final playlists = await _db.query('Playlists', columns: ['playlist_id']);
-      for (var row in playlists) {
-        await removeFromPlaylist(row['playlist_id'] as int, track.trackID);
-      }
+      await _db.delete('PlaylistTracks', where: 'track_id = ?', whereArgs: [track.trackID]);
       await _db.delete('Tracks', where: 'track_id = ?', whereArgs: [track.trackID]);
     } catch (e) {
       print('Could not delete track: $e');
@@ -279,15 +298,6 @@ class MediaHandler {
         final trackIds = (sp['tracks'] as List<dynamic>? ?? []).map((e) => e as int).toList();
         serverMap[pid] = {'name': name, 'tracks': trackIds};
 
-        final tableName = 'playlist_$pid';
-        // Create table if not exists
-        await _db.execute('''
-          CREATE TABLE IF NOT EXISTS $tableName (
-              [order] INTEGER,
-              track_id INTEGER
-          )
-        ''');
-
         if (!localMap.containsKey(pid)) {
           await _db.insert('Playlists', {'playlist_id': pid, 'title': name}, conflictAlgorithm: ConflictAlgorithm.replace);
           await _db.insert('PlaylistIDs', {'playlist_id': pid}, conflictAlgorithm: ConflictAlgorithm.replace);
@@ -295,11 +305,12 @@ class MediaHandler {
           await _db.update('Playlists', {'title': name}, where: 'playlist_id = ?', whereArgs: [pid]);
         }
 
-        // Clear and re-insert tracks in sequence
-        await _db.delete(tableName);
+        // Clear and re-insert tracks for this playlist in sequence
+        await _db.delete('PlaylistTracks', where: 'playlist_id = ?', whereArgs: [pid]);
         for (int i = 0; i < trackIds.length; i++) {
-          await _db.insert(tableName, {
-            'order': i + 1,
+          await _db.insert('PlaylistTracks', {
+            'playlist_id': pid,
+            'order_index': i + 1,
             'track_id': trackIds[i],
           });
         }
@@ -318,19 +329,15 @@ class MediaHandler {
 
   Future<void> clearAllLocalData() async {
     try {
-      // 1. Drop all custom playlist tables
-      final playlists = await _db.query('Playlists', columns: ['playlist_id']);
-      for (var row in playlists) {
-        final pid = row['playlist_id'] as int;
-        await _db.execute('DROP TABLE IF EXISTS playlist_$pid');
-      }
-
-      // 2. Clear core SQLite tables
+      // 1. Clear database tables
+      await _db.delete('PlaylistTracks');
       await _db.delete('Playlists');
       await _db.delete('PlaylistIDs');
       await _db.delete('Tracks');
+      await _db.delete('ListeningHistory');
+      await _db.delete('LocalStats');
 
-      // 3. Clear all downloaded audio files
+      // 2. Clear all downloaded audio files
       final audioDir = Directory(p.join(_appDataPath, 'audio'));
       if (await audioDir.exists()) {
         final files = audioDir.listSync();
@@ -341,7 +348,7 @@ class MediaHandler {
         }
       }
 
-      // 4. Clear all cover image files
+      // 3. Clear all cover image files
       final coverDir = Directory(p.join(_appDataPath, 'cover'));
       if (await coverDir.exists()) {
         final files = coverDir.listSync();

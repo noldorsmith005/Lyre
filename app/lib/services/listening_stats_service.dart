@@ -135,40 +135,6 @@ class ListeningStatsService {
 
   void setDatabase(Database db) {
     _db = db;
-    _createTables();
-  }
-
-  Future<void> _createTables() async {
-    if (_db == null) return;
-    try {
-      await _db!.execute('''
-        CREATE TABLE IF NOT EXISTS ListeningHistory (
-            history_id INTEGER PRIMARY KEY AUTOINCREMENT,
-            track_id   INTEGER,
-            title      TEXT,
-            artist     TEXT,
-            duration   TEXT,
-            timestamp  TEXT
-        )
-      ''');
-      await _db!.execute('''
-        CREATE TABLE IF NOT EXISTS LocalStats (
-            user_id              INTEGER PRIMARY KEY,
-            month_year           TEXT,
-            total_minutes        INTEGER,
-            total_plays          INTEGER,
-            daily_avg_minutes    INTEGER,
-            percentile_text      TEXT,
-            top_tracks_json      TEXT,
-            top_artists_json     TEXT,
-            top_percentages_json TEXT,
-            theme_color          TEXT,
-            new_release          INTEGER DEFAULT 0
-        )
-      ''');
-    } catch (e) {
-      print('Error creating tables: $e');
-    }
   }
 
   Future<void> logPlay(Track track) async {

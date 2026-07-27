@@ -20,7 +20,7 @@ void main() async {
   final serverClient = ServerClient(mediaHandler: mediaHandler);
   await serverClient.init();
 
-  final audioPlayerService = AudioPlayerService(onRefresh: () {});
+  final audioPlayerService = AudioPlayerService();
 
   // Desktop window setup
   if (isDesktop) {

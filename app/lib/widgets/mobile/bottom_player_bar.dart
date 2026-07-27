@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/audio_player_service.dart';
-import '../../models/track.dart';
 import '../../screens/mobile/full_player_screen.dart';
 
 class BottomPlayerBar extends StatelessWidget {

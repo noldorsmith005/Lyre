@@ -27,6 +27,12 @@ class _SearchScreenState extends State<SearchScreen> {
   List<Track> _searchResults = [];
   bool _isSearching = false;
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   void _performSearch(String query) async {
     if (query.trim().isEmpty) {
       setState(() {
