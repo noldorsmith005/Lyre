@@ -10,6 +10,9 @@ class PlaylistListScreen extends StatelessWidget {
   final dynamic serverClient;
   final bool isServerConnected;
   final VoidCallback onOpenLogin;
+  final VoidCallback onSyncPressed;
+  final VoidCallback onLogoutPressed;
+  final VoidCallback? onPlaybackPressed;
 
   const PlaylistListScreen({
     Key? key,
@@ -19,7 +22,24 @@ class PlaylistListScreen extends StatelessWidget {
     required this.serverClient,
     required this.isServerConnected,
     required this.onOpenLogin,
+    required this.onSyncPressed,
+    required this.onLogoutPressed,
+    this.onPlaybackPressed,
   }) : super(key: key);
+
+  PopupMenuItem<String> _buildMenuItem(String value, IconData icon, String label) {
+    return PopupMenuItem<String>(
+      value: value,
+      height: 42,
+      child: Row(
+        children: [
+          Icon(icon, color: const Color(0xFF888888), size: 18),
+          const SizedBox(width: 12),
+          Text(label, style: const TextStyle(color: Color(0xFFE8E8E8), fontSize: 14)),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,27 +53,64 @@ class PlaylistListScreen extends StatelessWidget {
           style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
         ),
         actions: [
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              IconButton(
-                icon: const Icon(Icons.cloud_outlined, color: Colors.white),
-                onPressed: onOpenLogin,
+          Padding(
+            padding: const EdgeInsets.only(right: 16.0),
+            child: PopupMenuButton<String>(
+              offset: const Offset(0, 44),
+              color: const Color(0xFF1E1E1E),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+                side: const BorderSide(color: Color(0xFF2A2A2A), width: 1),
               ),
-              Positioned(
-                right: 8,
-                top: 10,
-                child: Container(
-                  width: 9,
-                  height: 9,
-                  decoration: BoxDecoration(
-                    color: isServerConnected ? const Color(0xFF00FF66) : const Color(0xFFFF4444),
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.black, width: 1.5),
+              onSelected: (value) {
+                if (value == 'playback') {
+                  if (onPlaybackPressed != null) onPlaybackPressed!();
+                } else if (value == 'sync') {
+                  onSyncPressed();
+                } else if (value == 'logout') {
+                  onLogoutPressed();
+                } else if (value == 'login') {
+                  onOpenLogin();
+                }
+              },
+              itemBuilder: (context) => [
+                _buildMenuItem('playback', Icons.graphic_eq_rounded, 'Napster Playback'),
+                _buildMenuItem('sync', Icons.sync_rounded, 'Cloud Sync'),
+                if (isServerConnected)
+                  _buildMenuItem('logout', Icons.logout_rounded, 'Log Out')
+                else
+                  _buildMenuItem('login', Icons.login_rounded, 'Log In'),
+              ],
+              child: Stack(
+                clipBehavior: Clip.none,
+                alignment: Alignment.center,
+                children: [
+                  Container(
+                    width: 34,
+                    height: 34,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF2A2A2A),
+                      border: Border.all(color: const Color(0xFF555555), width: 1),
+                    ),
+                    child: const Icon(Icons.person, color: Colors.white, size: 20),
                   ),
-                ),
+                  Positioned(
+                    right: 0,
+                    top: 0,
+                    child: Container(
+                      width: 9,
+                      height: 9,
+                      decoration: BoxDecoration(
+                        color: isServerConnected ? const Color(0xFF00FF66) : const Color(0xFFFF4444),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.black, width: 1.5),
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ],
       ),

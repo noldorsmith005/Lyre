@@ -4,6 +4,8 @@ import '../../models/playlist.dart';
 import '../../services/audio_player_service.dart';
 import '../../services/server_client.dart';
 import 'playlist_list_screen.dart';
+import '../playback_screen.dart';
+import '../../services/listening_stats_service.dart';
 import '../../widgets/mobile/bottom_player_bar.dart';
 import '../login_screen.dart';
 
@@ -43,6 +45,8 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
           _serverConnection = true;
         });
         isConnected = true;
+        // Background history sync to server
+        ListeningStatsService.instance.syncLocalHistoryToServer(widget.serverClient);
       }
     }
     if (!isConnected && mounted) {
@@ -150,7 +154,7 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
           double p = 0.3 + (0.4 * count / (totalTracks == 0 ? 1 : totalTracks));
           statusNotifier.value = _SyncStatus(p, 'Downloading "${st.title}"...');
           if (!localTrackIds.contains(st.trackID)) {
-            await widget.serverClient.downloadTrack(st);
+            await widget.serverClient.downloadTrack(st, updateServerTracking: false);
           }
         }
 
@@ -159,7 +163,7 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
           double p = 0.3 + (0.4 * count / (totalTracks == 0 ? 1 : totalTracks));
           statusNotifier.value = _SyncStatus(p, 'Updating track state...');
           if (!serverTrackIds.contains(lt.trackID)) {
-            await widget.serverClient.removeDownload(lt);
+            await widget.serverClient.removeDownload(lt, updateServerTracking: false);
           }
         }
       }
@@ -193,6 +197,36 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
     }
   }
 
+  void _onMobileLogout() async {
+    final audioService = Provider.of<AudioPlayerService>(context, listen: false);
+    await audioService.stopAndClear();
+    await widget.serverClient.logout();
+    _loadPlaylists();
+    setState(() {
+      _serverConnection = false;
+    });
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Logged out and cleared all local data.')),
+      );
+    }
+  }
+
+  void _onMobilePlayback() async {
+    final allTracks = await widget.mediaHandler.getAllTracks();
+    if (mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PlaybackScreen(
+            allTracks: allTracks,
+            serverClient: widget.serverClient,
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final audioService = Provider.of<AudioPlayerService>(context);
@@ -205,7 +239,10 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
         mediaHandler: widget.mediaHandler,
         serverClient: widget.serverClient,
         isServerConnected: _serverConnection,
-        onOpenLogin: _onMobileSync,
+        onOpenLogin: _openLoginScreen,
+        onSyncPressed: _onMobileSync,
+        onLogoutPressed: _onMobileLogout,
+        onPlaybackPressed: _onMobilePlayback,
       ),
       bottomNavigationBar: audioService.currentTrack != null
           ? BottomPlayerBar(appDataPath: widget.appDataPath)

@@ -5,6 +5,7 @@ import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import '../models/track.dart';
 import '../models/playlist.dart';
+import 'listening_stats_service.dart';
 import 'dart:math';
 
 class MediaHandler {
@@ -66,6 +67,7 @@ class MediaHandler {
         },
       ),
     );
+    ListeningStatsService.instance.setDatabase(_db);
   }
 
   Future<List<Track>> searchTracks(String filter) async {
@@ -311,6 +313,46 @@ class MediaHandler {
       }
     } catch (e) {
       print('Error syncing local playlists: $e');
+    }
+  }
+
+  Future<void> clearAllLocalData() async {
+    try {
+      // 1. Drop all custom playlist tables
+      final playlists = await _db.query('Playlists', columns: ['playlist_id']);
+      for (var row in playlists) {
+        final pid = row['playlist_id'] as int;
+        await _db.execute('DROP TABLE IF EXISTS playlist_$pid');
+      }
+
+      // 2. Clear core SQLite tables
+      await _db.delete('Playlists');
+      await _db.delete('PlaylistIDs');
+      await _db.delete('Tracks');
+
+      // 3. Clear all downloaded audio files
+      final audioDir = Directory(p.join(_appDataPath, 'audio'));
+      if (await audioDir.exists()) {
+        final files = audioDir.listSync();
+        for (var file in files) {
+          try {
+            await file.delete(recursive: true);
+          } catch (_) {}
+        }
+      }
+
+      // 4. Clear all cover image files
+      final coverDir = Directory(p.join(_appDataPath, 'cover'));
+      if (await coverDir.exists()) {
+        final files = coverDir.listSync();
+        for (var file in files) {
+          try {
+            await file.delete(recursive: true);
+          } catch (_) {}
+        }
+      }
+    } catch (e) {
+      print('Error clearing all local data: $e');
     }
   }
 }

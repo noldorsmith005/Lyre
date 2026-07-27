@@ -10,8 +10,11 @@ import '../widgets/sidebar.dart';
 import '../widgets/main_panel.dart';
 import '../widgets/media_panel.dart';
 import 'login_screen.dart';
+import 'playback_screen.dart';
 import '../widgets/upload_modal.dart';
 import '../widgets/confirmation_dialog.dart';
+
+import '../services/listening_stats_service.dart';
 
 class HomeScreen extends StatefulWidget {
   final MediaHandler mediaHandler;
@@ -49,6 +52,8 @@ class _HomeScreenState extends State<HomeScreen> {
           _serverConnection = true;
         });
         isConnected = true;
+        // Background history sync to server
+        ListeningStatsService.instance.syncLocalHistoryToServer(widget.serverClient);
       }
     }
     if (!isConnected && mounted) {
@@ -147,12 +152,18 @@ class _HomeScreenState extends State<HomeScreen> {
   void _onClearConfigPressed() async {
     final confirmed = await ConfirmationDialog.show(
       context,
-      title: 'Confirm',
-      message: 'Are you sure you want to clear your server configuration? You will have to re-authenticate.',
+      title: 'Log Out',
+      message: 'Are you sure you want to log out? This will clear all local playlists, downloaded tracks, server-tracked downloads, and session data.',
     );
     if (confirmed == true) {
-      widget.serverClient.clearRLSConfig();
+      final audioService = Provider.of<AudioPlayerService>(context, listen: false);
+      await audioService.stopAndClear();
+      await widget.serverClient.removeAllTrackedDownloadsServerSide();
+      await widget.serverClient.logout();
+      await _loadPlaylists();
       setState(() {
+        _currentPlaylist = null;
+        _tracks = [];
         _serverConnection = false;
       });
     }
@@ -356,6 +367,21 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void _onOpenPlayback() async {
+    final allTracks = await widget.mediaHandler.getAllTracks();
+    if (mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => PlaybackScreen(
+            allTracks: allTracks,
+            serverClient: widget.serverClient,
+          ),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final audioService = context.watch<AudioPlayerService>();
@@ -392,6 +418,7 @@ class _HomeScreenState extends State<HomeScreen> {
               onUploadPressed: _onUploadPressed,
               onClearConfigPressed: _onClearConfigPressed,
               onSyncPressed: _onSyncPressed,
+              onPlaybackPressed: _onOpenPlayback,
               onShufflePressed: _onShufflePressed,
               onEditPlaylistName: _onEditPlaylistName,
               onDeletePlaylist: _onDeletePlaylist,
@@ -403,6 +430,7 @@ class _HomeScreenState extends State<HomeScreen> {
               availablePlaylists: _playlists,
               onTogglePlaylist: _onTogglePlaylist,
               isTrackInPlaylist: (playlist, track) => false,
+              isServerConnected: _serverConnection,
             ),
           ),
           // Media Panel

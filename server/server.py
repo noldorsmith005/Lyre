@@ -308,6 +308,29 @@ def init_db():
                     tracks      TEXT
                 )
             """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS History (
+                    user_id     INTEGER,
+                    track_id    INTEGER,
+                    play_count  INTEGER DEFAULT 1,
+                    PRIMARY KEY (user_id, track_id)
+                )
+            """)
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS Stats (
+                    user_id              INTEGER PRIMARY KEY,
+                    month_year           TEXT,
+                    total_minutes        INTEGER,
+                    total_plays          INTEGER,
+                    daily_avg_minutes    INTEGER,
+                    percentile_text      TEXT,
+                    top_tracks_json      TEXT,
+                    top_artists_json     TEXT,
+                    top_percentages_json TEXT,
+                    theme_color          TEXT,
+                    new_release          INTEGER DEFAULT 1
+                )
+            """)
     except Exception as e:
         print(f"Error initializing DB: {e}")
 
@@ -596,9 +619,10 @@ def addDownloaded(id):
                             else:
                                 curr_list = []
 
-                            curr_list.append(userID)
-                            json_string = json.dumps(curr_list)
-                            cursor.execute(sql2, (json_string, id))
+                            if userID not in curr_list:
+                                curr_list.append(userID)
+                                json_string = json.dumps(curr_list)
+                                cursor.execute(sql2, (json_string, id))
 
                 except sqlite3.Error as e:
                     print(f"Could not load tracks: {e}")
@@ -671,9 +695,10 @@ def removeDownloaded(id):
                             else:
                                 curr_list = []
 
-                            curr_list.remove(userID)
-                            json_string = json.dumps(curr_list)
-                            cursor.execute(sql2, (json_string, id))
+                            if userID in curr_list:
+                                curr_list = [u for u in curr_list if u != userID]
+                                json_string = json.dumps(curr_list)
+                                cursor.execute(sql2, (json_string, id))
 
                 except sqlite3.Error as e:
                     print(f"Could not load tracks: {e}")
@@ -683,10 +708,282 @@ def removeDownloaded(id):
             else :
                 return "Unauthorized", 401
 
-        else :
+@app.post("/tracks/downloads/clear_all")
+def clearAllDownloads():
+    auth_token = request.headers.get("AppToken")
+
+    with open('./sessions.json', 'r+') as file:
+        data = json.load(file)
+
+        if (auth_token == data['AppToken']):
+            authorized = authUser(request)
+            if authorized != False:
+                userID = int(authorized)
+
+                try:
+                    with sqlite3.connect(DATABASE_URL) as conn:
+                        cursor = conn.cursor()
+                        cursor.execute("SELECT track_id, downloaded_by FROM Tracks")
+                        rows = cursor.fetchall()
+                        for track_id, raw_json in rows:
+                            if raw_json:
+                                try:
+                                    curr_list = json.loads(raw_json)
+                                    if userID in curr_list:
+                                        curr_list.remove(userID)
+                                        cursor.execute("UPDATE Tracks SET downloaded_by = ? WHERE track_id = ?", (json.dumps(curr_list), track_id))
+                                except Exception:
+                                    pass
+                except sqlite3.Error as e:
+                    print(f"Could not clear user downloads: {e}")
+
+                return "All downloads cleared", 200
+            else:
+                return "Unauthorized", 401
+        else:
             return "Invalid App Token", 401
 
 
+# History & Playback Stats Endpoints
+@app.post("/history/sync")
+def syncHistory():
+    auth_token = request.headers.get("AppToken")
+    with open('./sessions.json', 'r') as file:
+        data = json.load(file)
+        if auth_token != data.get('AppToken'):
+            return "Invalid App Token", 401
+
+    authorized = authUser(request)
+    if authorized == False:
+        return "Unauthorized", 401
+
+    user_id = int(authorized)
+    payload = request.get_json() or {}
+    items = payload.get("history", [])
+
+    with sqlite3.connect(DATABASE_URL) as conn:
+        cursor = conn.cursor()
+        for item in items:
+            track_id = int(item.get("track_id", 0))
+            p_count = int(item.get("play_count", 1))
+            if track_id <= 0:
+                continue
+            cursor.execute("""
+                INSERT INTO History (user_id, track_id, play_count)
+                VALUES (?, ?, ?)
+                ON CONFLICT(user_id, track_id) DO UPDATE SET
+                    play_count = play_count + excluded.play_count
+            """, (user_id, track_id, p_count))
+        conn.commit()
+
+    return jsonify({"status": "success"}), 200
+
+
+@app.get("/stats/<int:user_id>")
+def getUserStats(user_id):
+    auth_token = request.headers.get("AppToken")
+    with open('./sessions.json', 'r') as file:
+        data = json.load(file)
+        if auth_token != data.get('AppToken'):
+            return "Invalid App Token", 401
+
+    authorized = authUser(request)
+    if authorized == False:
+        return "Unauthorized", 401
+
+    with sqlite3.connect(DATABASE_URL) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT user_id, month_year, total_minutes, total_plays, daily_avg_minutes, percentile_text, top_tracks_json, top_artists_json, top_percentages_json, theme_color, new_release FROM Stats WHERE user_id = ?", (user_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({
+                "user_id": user_id,
+                "month_year": "July 2026",
+                "total_minutes": 0,
+                "total_plays": 0,
+                "daily_avg_minutes": 0,
+                "percentile_text": "Napster Listener",
+                "top_tracks": [],
+                "top_artists": [],
+                "top_percentages": {"top_tracks": [], "top_artists": []},
+                "theme_color": "Neon Cyber Violet",
+                "new_release": 0
+            }), 200
+
+        return jsonify({
+            "user_id": row[0],
+            "month_year": row[1],
+            "total_minutes": row[2],
+            "total_plays": row[3],
+            "daily_avg_minutes": row[4],
+            "percentile_text": row[5],
+            "top_tracks": json.loads(row[6] or "[]"),
+            "top_artists": json.loads(row[7] or "[]"),
+            "top_percentages": json.loads(row[8] or "{}"),
+            "theme_color": row[9] or "Neon Cyber Violet",
+            "new_release": int(row[10])
+        }), 200
+
+
+@app.post("/stats/ack/<int:user_id>")
+def ackUserStats(user_id):
+    auth_token = request.headers.get("AppToken")
+    with open('./sessions.json', 'r') as file:
+        data = json.load(file)
+        if auth_token != data.get('AppToken'):
+            return "Invalid App Token", 401
+
+    authorized = authUser(request)
+    if authorized == False:
+        return "Unauthorized", 401
+
+    with sqlite3.connect(DATABASE_URL) as conn:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE Stats SET new_release = 0 WHERE user_id = ?", (user_id,))
+        conn.commit()
+
+    return jsonify({"status": "acknowledged"}), 200
+
+
+def calculate_all_user_monthly_stats():
+    import datetime
+    now = datetime.datetime.now()
+    month_names = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+    month_label = f"{month_names[now.month - 1]} {now.year}"
+
+    # Generate single shared random theme palette for this monthly release (12 themes)
+    theme_palettes = [
+        'Neon Cyber Violet',
+        'Electric Cyan & Teal',
+        'Sunset Flare Orange',
+        'Emerald Mint',
+        'Solar Coral',
+        'Deep Velvet Pink',
+        'Midnight Sapphire',
+        'Crimson Ruby Noir',
+        'Golden Luxe',
+        'Aero Frost',
+        'Toxic Lime',
+        'Ultraviolet Synth'
+    ]
+    month_theme = random.choice(theme_palettes)
+
+    with sqlite3.connect(DATABASE_URL) as conn:
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT DISTINCT user_id FROM History")
+        users = [row[0] for row in cursor.fetchall()]
+
+        cursor.execute("SELECT track_id, title, artist, duration FROM Tracks")
+        tracks_db = {row[0]: {"title": row[1], "artist": row[2], "duration": row[3]} for row in cursor.fetchall()}
+
+        cursor.execute("SELECT user_id, track_id, play_count FROM History")
+        history_rows = cursor.fetchall()
+        
+        track_user_plays = {}
+        artist_user_plays = {}
+        user_track_plays = {}
+
+        for uid, tid, count in history_rows:
+            track_info = tracks_db.get(tid, {"title": f"Track {tid}", "artist": "Unknown Artist", "duration": "3:30"})
+            artist = track_info["artist"] or "Unknown Artist"
+
+            track_user_plays.setdefault(tid, {})[uid] = track_user_plays.get(tid, {}).get(uid, 0) + count
+            artist_user_plays.setdefault(artist, {})[uid] = artist_user_plays.get(artist, {}).get(uid, 0) + count
+            user_track_plays.setdefault(uid, {})[tid] = count
+
+        for uid in users:
+            u_history = user_track_plays.get(uid, {})
+            total_plays = sum(u_history.values())
+            
+            user_tracks_list = []
+            total_sec = 0
+            for tid, count in u_history.items():
+                t_info = tracks_db.get(tid, {"title": f"Track {tid}", "artist": "Unknown Artist", "duration": "3:30"})
+                dur_parts = str(t_info["duration"]).split(":")
+                dur_sec = (int(dur_parts[0]) * 60 + int(dur_parts[1])) if len(dur_parts) == 2 else 210
+                total_sec += dur_sec * count
+                user_tracks_list.append({
+                    "trackID": tid,
+                    "title": t_info["title"],
+                    "artist": t_info["artist"],
+                    "duration": t_info["duration"],
+                    "playCount": count
+                })
+
+            user_tracks_list.sort(key=lambda x: x["playCount"], reverse=True)
+            top_5_tracks = user_tracks_list[:5]
+
+            by_artist = {}
+            for t in user_tracks_list:
+                art = t["artist"] or "Unknown Artist"
+                by_artist[art] = by_artist.get(art, 0) + t["playCount"]
+            
+            user_artists_list = [{"artistName": a, "playCount": c, "totalMinutes": max(1, round(c * 3.5)), "topTrackTitle": "Top Track"} for a, c in by_artist.items()]
+            user_artists_list.sort(key=lambda x: x["playCount"], reverse=True)
+            top_5_artists = user_artists_list[:5]
+
+            # Track listener percentiles
+            track_percentiles = []
+            for tid, count in u_history.items():
+                all_listeners = track_user_plays.get(tid, {})
+                N = len(all_listeners)
+                higher_count = sum(1 for other_uid, p in all_listeners.items() if p > count)
+                pct = max(1, round((higher_count / max(1, N)) * 100))
+                t_title = tracks_db.get(tid, {}).get("title", f"Track {tid}")
+                track_percentiles.append({"track_id": tid, "title": t_title, "percentile_val": pct, "percentile": f"Top {pct}%"})
+
+            track_percentiles.sort(key=lambda x: x["percentile_val"])
+            top_2_tracks_pct = [{"title": x["title"], "percentile": x["percentile"]} for x in track_percentiles[:2]]
+
+            # Artist listener percentiles
+            artist_percentiles = []
+            for art, count in by_artist.items():
+                all_art_listeners = artist_user_plays.get(art, {})
+                N = len(all_art_listeners)
+                higher_count = sum(1 for other_uid, p in all_art_listeners.items() if p > count)
+                pct = max(1, round((higher_count / max(1, N)) * 100))
+                artist_percentiles.append({"artist": art, "percentile_val": pct, "percentile": f"Top {pct}%"})
+
+            artist_percentiles.sort(key=lambda x: x["percentile_val"])
+            top_2_artists_pct = [{"artist": x["artist"], "percentile": x["percentile"]} for x in artist_percentiles[:2]]
+
+            total_minutes = max(1, round(total_sec / 60))
+            daily_avg = max(1, round(total_minutes / max(1, now.day)))
+
+            top_percentages = {
+                "top_tracks": top_2_tracks_pct,
+                "top_artists": top_2_artists_pct
+            }
+
+            cursor.execute("""
+                INSERT INTO Stats (user_id, month_year, total_minutes, total_plays, daily_avg_minutes, percentile_text, top_tracks_json, top_artists_json, top_percentages_json, theme_color, new_release)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                ON CONFLICT(user_id) DO UPDATE SET
+                    month_year = excluded.month_year,
+                    total_minutes = excluded.total_minutes,
+                    total_plays = excluded.total_plays,
+                    daily_avg_minutes = excluded.daily_avg_minutes,
+                    percentile_text = excluded.percentile_text,
+                    top_tracks_json = excluded.top_tracks_json,
+                    top_artists_json = excluded.top_artists_json,
+                    top_percentages_json = excluded.top_percentages_json,
+                    theme_color = excluded.theme_color,
+                    new_release = 1
+            """, (
+                uid, month_label, total_minutes, total_plays, daily_avg,
+                "Top Music Listener", json.dumps(top_5_tracks), json.dumps(top_5_artists),
+                json.dumps(top_percentages), month_theme
+            ))
+
+            cursor.execute("DELETE FROM History WHERE user_id = ?", (uid,))
+
+        conn.commit()
+
+@app.post("/admin/calculate_monthly_stats")
+def triggerMonthlyStats():
+    calculate_all_user_monthly_stats()
+    return jsonify({"status": "monthly stats calculated and history cleared"}), 200
 
 
 if __name__ == "__main__":
