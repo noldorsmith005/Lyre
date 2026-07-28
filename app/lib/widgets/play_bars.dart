@@ -4,27 +4,52 @@ import 'package:provider/provider.dart';
 import '../services/theme_service.dart';
 
 class PlayBars extends StatefulWidget {
-  const PlayBars({Key? key}) : super(key: key);
+  final int barCount;
+  final double maxHeight;
+  final double minHeight;
+  final double barWidth;
+  final double barSpacing;
+  final bool isPlaying;
+  final Color? color;
+
+  const PlayBars({
+    Key? key,
+    this.barCount = 12,
+    this.maxHeight = 20.0,
+    this.minHeight = 4.0,
+    this.barWidth = 3.5,
+    this.barSpacing = 3.0,
+    this.isPlaying = true,
+    this.color,
+  }) : super(key: key);
 
   @override
   _PlayBarsState createState() => _PlayBarsState();
 }
 
 class _PlayBarsState extends State<PlayBars> {
-  final int _barCount = 15;
   final Random _random = Random();
 
   @override
   Widget build(BuildContext context) {
+    final activeColor = widget.color ?? context.watch<ThemeService>().themeColor;
+
     return Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.end,
-      children: List.generate(_barCount, (index) {
+      children: List.generate(widget.barCount, (index) {
         return Padding(
-          padding: EdgeInsets.only(right: index == _barCount - 1 ? 0 : 3.0),
+          padding: EdgeInsets.only(
+            right: index == widget.barCount - 1 ? 0 : widget.barSpacing,
+          ),
           child: _AnimatedBar(
             random: _random,
             index: index,
+            maxHeight: widget.maxHeight,
+            minHeight: widget.minHeight,
+            barWidth: widget.barWidth,
+            isPlaying: widget.isPlaying,
+            color: activeColor,
           ),
         );
       }),
@@ -35,10 +60,20 @@ class _PlayBarsState extends State<PlayBars> {
 class _AnimatedBar extends StatefulWidget {
   final Random random;
   final int index;
+  final double maxHeight;
+  final double minHeight;
+  final double barWidth;
+  final bool isPlaying;
+  final Color color;
 
   const _AnimatedBar({
     required this.random,
     required this.index,
+    required this.maxHeight,
+    required this.minHeight,
+    required this.barWidth,
+    required this.isPlaying,
+    required this.color,
   });
 
   @override
@@ -57,30 +92,43 @@ class __AnimatedBarState extends State<_AnimatedBar>
     super.initState();
     _startHeight = _getRandomHeight();
     _endHeight = _getRandomHeight();
-    
+
     _controller = AnimationController(
       vsync: this,
-      duration: Duration(milliseconds: 200 + widget.random.nextInt(201)),
+      duration: Duration(milliseconds: 180 + widget.random.nextInt(180)),
     );
 
     _setupAnimation();
 
-    // Staggered start
-    Future.delayed(Duration(milliseconds: widget.index * 40), () {
-      if (mounted) {
-        _controller.forward();
-      }
-    });
+    if (widget.isPlaying) {
+      Future.delayed(Duration(milliseconds: widget.index * 35), () {
+        if (mounted && widget.isPlaying) {
+          _controller.forward();
+        }
+      });
+    }
 
     _controller.addStatusListener((status) {
-      if (status == AnimationStatus.completed) {
+      if (status == AnimationStatus.completed && widget.isPlaying) {
         _startHeight = _endHeight;
         _endHeight = _getRandomHeight();
-        _controller.duration = Duration(milliseconds: 200 + widget.random.nextInt(201));
+        _controller.duration = Duration(milliseconds: 180 + widget.random.nextInt(180));
         _setupAnimation();
         _controller.forward(from: 0.0);
       }
     });
+  }
+
+  @override
+  void didUpdateWidget(covariant _AnimatedBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isPlaying != oldWidget.isPlaying) {
+      if (widget.isPlaying) {
+        _controller.forward();
+      } else {
+        _controller.stop();
+      }
+    }
   }
 
   void _setupAnimation() {
@@ -90,7 +138,8 @@ class __AnimatedBarState extends State<_AnimatedBar>
   }
 
   double _getRandomHeight() {
-    return 4.0 + widget.random.nextInt(15); // 4 to 18px
+    final range = widget.maxHeight - widget.minHeight;
+    return widget.minHeight + widget.random.nextDouble() * (range > 0 ? range : 1.0);
   }
 
   @override
@@ -102,14 +151,28 @@ class __AnimatedBarState extends State<_AnimatedBar>
   @override
   Widget build(BuildContext context) {
     return AnimatedBuilder(
-      animation: _animation,
+      animation: _controller,
       builder: (context, child) {
-        return Container(
-          width: 4,
-          height: _animation.value,
-          color: context.watch<ThemeService>().themeColor,
+        final currentVal = widget.isPlaying ? _animation.value : widget.minHeight;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          width: widget.barWidth,
+          height: currentVal,
+          decoration: BoxDecoration(
+            color: widget.color,
+            borderRadius: BorderRadius.circular(widget.barWidth / 2),
+            boxShadow: [
+              if (widget.isPlaying)
+                BoxShadow(
+                  color: widget.color.withOpacity(0.35),
+                  blurRadius: 4,
+                  spreadRadius: 0.5,
+                ),
+            ],
+          ),
         );
       },
     );
   }
 }
+

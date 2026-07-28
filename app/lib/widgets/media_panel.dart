@@ -5,6 +5,7 @@ import '../services/audio_player_service.dart';
 import '../services/theme_service.dart';
 import '../utils/layout_constants.dart';
 import '../models/track.dart';
+import 'play_bars.dart';
 
 class MediaPanel extends StatefulWidget {
   const MediaPanel({Key? key}) : super(key: key);
@@ -200,9 +201,24 @@ class _MediaPanelState extends State<MediaPanel> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
+                    const SizedBox(height: 16),
+
+                    // Audio Visualizer Banner
+                    if (currentTrack != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 4.0),
+                        child: PlayBars(
+                          barCount: 16,
+                          maxHeight: 24.0,
+                          minHeight: 4.0,
+                          barWidth: 4.0,
+                          barSpacing: 3.5,
+                          isPlaying: audioService.isPlaying,
+                        ),
+                      ),
                   ],
-                  const SizedBox(height: 24),
-                  
+                  const SizedBox(height: 20),
+
                   // Seek Bar
                   StreamBuilder<Duration>(
                     stream: audioService.positionStream,
@@ -218,21 +234,33 @@ class _MediaPanelState extends State<MediaPanel> {
                             progress = position.inMilliseconds / duration.inMilliseconds;
                           }
 
+                          final themeColor = context.watch<ThemeService>().themeColor;
+
                           return Row(
                             children: [
                               Text(
                                 _formatDuration(position),
-                                style: const TextStyle(color: Color(0xFF888888), fontSize: 11),
+                                style: const TextStyle(
+                                  color: Color(0xFF9E9E9E),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  fontFeatures: [FontFeature.tabularFigures()],
+                                ),
                               ),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: SliderTheme(
                                   data: SliderTheme.of(context).copyWith(
-                                    activeTrackColor: context.watch<ThemeService>().themeColor,
-                                    inactiveTrackColor: const Color(0xFF282828),
+                                    activeTrackColor: themeColor,
+                                    inactiveTrackColor: const Color(0xFF262626),
                                     thumbColor: Colors.white,
                                     trackHeight: 4,
-                                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                                    thumbShape: const RoundSliderThumbShape(
+                                      enabledThumbRadius: 6,
+                                      elevation: 3,
+                                      pressedElevation: 6,
+                                    ),
+                                    overlayColor: themeColor.withOpacity(0.2),
                                     overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
                                   ),
                                   child: Slider(
@@ -246,7 +274,12 @@ class _MediaPanelState extends State<MediaPanel> {
                               const SizedBox(width: 8),
                               Text(
                                 _formatDuration(duration),
-                                style: const TextStyle(color: Color(0xFF888888), fontSize: 11),
+                                style: const TextStyle(
+                                  color: Color(0xFF9E9E9E),
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w600,
+                                  fontFeatures: [FontFeature.tabularFigures()],
+                                ),
                               ),
                             ],
                           );

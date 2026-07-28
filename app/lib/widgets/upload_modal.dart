@@ -17,9 +17,9 @@ class UploadModal extends StatefulWidget {
   static void show(BuildContext context, {required Function(String, String, String, String) onUpload, String? errorMessage}) {
     showDialog(
       context: context,
-      barrierColor: Colors.black.withOpacity(0.65),
+      barrierColor: Colors.black.withValues(alpha: 0.65),
       builder: (context) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
         child: UploadModal(onUpload: onUpload, errorMessage: errorMessage),
       ),
     );
@@ -63,12 +63,12 @@ class _UploadModalState extends State<UploadModal> {
   Widget _buildTextField(String hint, TextEditingController controller) {
     return Container(
       width: 260,
-      height: 38,
-      margin: const EdgeInsets.only(bottom: 12),
+      height: 42,
+      margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        border: Border.all(color: const Color(0xFF2A2A2A), width: 1),
-        borderRadius: BorderRadius.circular(6),
+        color: const Color(0xFF1E1E26),
+        border: Border.all(color: const Color(0xFF2E2E3A), width: 1),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: TextField(
         controller: controller,
@@ -76,7 +76,7 @@ class _UploadModalState extends State<UploadModal> {
         decoration: InputDecoration(
           hintText: hint,
           hintStyle: const TextStyle(color: Color(0xFF888888)),
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           border: InputBorder.none,
           isDense: true,
         ),
@@ -85,50 +85,78 @@ class _UploadModalState extends State<UploadModal> {
   }
 
   Widget _buildFileButton(String text, VoidCallback onPressed, bool hasFile) {
+    final themeColor = context.watch<ThemeService>().themeColor;
     return Container(
       width: 260,
-      height: 38,
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ElevatedButton(
+      height: 42,
+      margin: const EdgeInsets.only(bottom: 14),
+      child: ElevatedButton.icon(
         style: ElevatedButton.styleFrom(
-          backgroundColor: hasFile ? const Color(0xFF555555) : const Color(0xFF808080),
+          backgroundColor: hasFile ? themeColor.withValues(alpha: 0.25) : const Color(0xFF2A2A36),
+          side: BorderSide(color: hasFile ? themeColor : const Color(0xFF3A3A4A)),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(10),
+          ),
+        ),
+        icon: Icon(
+          hasFile ? Icons.check_circle_rounded : Icons.folder_open_rounded,
+          color: hasFile ? themeColor : Colors.white70,
+          size: 18,
+        ),
+        label: Text(
+          hasFile ? 'File Selected' : text,
+          style: TextStyle(
+            color: hasFile ? themeColor : Colors.white,
+            fontSize: 13,
+            fontWeight: hasFile ? FontWeight.bold : FontWeight.normal,
           ),
         ),
         onPressed: onPressed,
-        child: Text(
-          hasFile ? 'File Selected' : text,
-          style: const TextStyle(color: Colors.white, fontSize: 14),
-        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final themeColor = context.watch<ThemeService>().themeColor;
+
     return Dialog(
       backgroundColor: Colors.transparent,
-      elevation: 0,
+      elevation: 12,
       child: Container(
-        width: 600,
-        height: 300,
-        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+        width: 580,
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 28),
         decoration: BoxDecoration(
-          color: const Color(0xFF181818),
-          border: Border.all(color: const Color(0xFF282828), width: 1),
-          borderRadius: BorderRadius.circular(10),
+          color: const Color(0xEE18181E),
+          border: Border.all(color: const Color(0xFF2E2E3A), width: 1),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.5),
+              blurRadius: 24,
+              spreadRadius: 4,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
-            const Text(
-              'Upload to RLS:',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.cloud_upload_rounded, color: themeColor, size: 24),
+                const SizedBox(width: 10),
+                const Text(
+                  'Upload Track to RLS',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 24),
             Row(
@@ -143,8 +171,8 @@ class _UploadModalState extends State<UploadModal> {
                 const SizedBox(width: 16),
                 Column(
                   children: [
-                    _buildFileButton('Select a media file.', _pickMedia, _mediaPath != null),
-                    _buildFileButton('Select a cover file.', _pickCover, _coverPath != null),
+                    _buildFileButton('Select a media file', _pickMedia, _mediaPath != null),
+                    _buildFileButton('Select a cover file', _pickCover, _coverPath != null),
                   ],
                 ),
               ],
@@ -152,12 +180,14 @@ class _UploadModalState extends State<UploadModal> {
             const SizedBox(height: 12),
             SizedBox(
               width: 260,
-              height: 38,
+              height: 42,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: context.watch<ThemeService>().themeColor,
+                  backgroundColor: themeColor,
+                  elevation: 4,
+                  shadowColor: themeColor.withValues(alpha: 0.4),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
                 onPressed: () {
@@ -172,7 +202,7 @@ class _UploadModalState extends State<UploadModal> {
                 },
                 child: const Text(
                   'Upload',
-                  style: TextStyle(color: Colors.white, fontSize: 14),
+                  style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                 ),
               ),
             ),
@@ -181,8 +211,8 @@ class _UploadModalState extends State<UploadModal> {
               Text(
                 widget.errorMessage!,
                 style: const TextStyle(
-                  color: Color(0xFFFF4444),
-                  fontSize: 12,
+                  color: Color(0xFFFF5252),
+                  fontSize: 13,
                 ),
               ),
             ],

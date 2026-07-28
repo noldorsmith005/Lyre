@@ -1,15 +1,17 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import '../services/theme_service.dart';
 
 class RegisterModal extends StatefulWidget {
   final Function(bool isLogin, String username, String password) onSubmit;
   final String? errorMessage;
 
   const RegisterModal({
-    Key? key,
+    super.key,
     required this.onSubmit,
     this.errorMessage,
-  }) : super(key: key);
+  });
 
   static void show(
     BuildContext context, {
@@ -20,14 +22,14 @@ class RegisterModal extends StatefulWidget {
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.65),
       builder: (context) => BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 4, sigmaY: 4),
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
         child: RegisterModal(onSubmit: onSubmit, errorMessage: errorMessage),
       ),
     );
   }
 
   @override
-  _RegisterModalState createState() => _RegisterModalState();
+  State<RegisterModal> createState() => _RegisterModalState();
 }
 
 class _RegisterModalState extends State<RegisterModal> {
@@ -44,13 +46,13 @@ class _RegisterModalState extends State<RegisterModal> {
 
   Widget _buildTextField(String hint, TextEditingController controller, {bool obscure = false}) {
     return Container(
-      width: 280,
-      height: 40,
+      width: 290,
+      height: 42,
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
-        color: const Color(0xFF1E1E1E),
-        border: Border.all(color: const Color(0xFF2A2A2A), width: 1),
-        borderRadius: BorderRadius.circular(6),
+        color: const Color(0xFF1E1E26),
+        border: Border.all(color: const Color(0xFF2E2E3A), width: 1),
+        borderRadius: BorderRadius.circular(10),
       ),
       child: TextField(
         controller: controller,
@@ -69,76 +71,97 @@ class _RegisterModalState extends State<RegisterModal> {
 
   @override
   Widget build(BuildContext context) {
+    final themeColor = context.watch<ThemeService>().themeColor;
+
     return Dialog(
       backgroundColor: Colors.transparent,
-      elevation: 0,
+      elevation: 12,
       child: Container(
-        width: 380,
-        height: 320,
-        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+        width: 390,
+        padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 28),
         decoration: BoxDecoration(
-          color: const Color(0xFF111111),
-          border: Border.all(color: const Color(0xFF2A2A2A), width: 1),
-          borderRadius: BorderRadius.circular(10),
+          color: const Color(0xEE18181E),
+          border: Border.all(color: const Color(0xFF2E2E3A), width: 1),
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.5),
+              blurRadius: 24,
+              spreadRadius: 4,
+              offset: const Offset(0, 8),
+            ),
+          ],
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
           children: [
             // Mode Toggle Tabs
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                GestureDetector(
-                  onTap: () => setState(() => _isLogin = true),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: _isLogin ? const Color(0xFFCC0000) : Colors.transparent,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      'Login',
-                      style: TextStyle(
-                        color: _isLogin ? Colors.white : const Color(0xFF888888),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
+            Container(
+              padding: const EdgeInsets.all(4),
+              decoration: BoxDecoration(
+                color: const Color(0xFF121218),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: const Color(0xFF262632), width: 1),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  GestureDetector(
+                    onTap: () => setState(() => _isLogin = true),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: _isLogin ? themeColor : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'Login',
+                        style: TextStyle(
+                          color: _isLogin ? Colors.white : const Color(0xFF888888),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: 12),
-                GestureDetector(
-                  onTap: () => setState(() => _isLogin = false),
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    decoration: BoxDecoration(
-                      color: !_isLogin ? const Color(0xFFCC0000) : Colors.transparent,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      'Register',
-                      style: TextStyle(
-                        color: !_isLogin ? Colors.white : const Color(0xFF888888),
-                        fontWeight: FontWeight.bold,
-                        fontSize: 14,
+                  GestureDetector(
+                    onTap: () => setState(() => _isLogin = false),
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 180),
+                      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: !_isLogin ? themeColor : Colors.transparent,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Text(
+                        'Register',
+                        style: TextStyle(
+                          color: !_isLogin ? Colors.white : const Color(0xFF888888),
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
             const SizedBox(height: 24),
             _buildTextField('Username', _usernameController),
             _buildTextField('Password', _passwordController, obscure: true),
-            const SizedBox(height: 4),
+            const SizedBox(height: 6),
             SizedBox(
-              width: 280,
-              height: 40,
+              width: 290,
+              height: 42,
               child: ElevatedButton(
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFCC0000),
+                  backgroundColor: themeColor,
+                  elevation: 4,
+                  shadowColor: themeColor.withValues(alpha: 0.4),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(6),
+                    borderRadius: BorderRadius.circular(10),
                   ),
                 ),
                 onPressed: () {
@@ -150,17 +173,17 @@ class _RegisterModalState extends State<RegisterModal> {
                 },
                 child: Text(
                   _isLogin ? 'Login' : 'Register Account',
-                  style: const TextStyle(color: Colors.white, fontSize: 14, fontWeight: FontWeight.bold),
+                  style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
                 ),
               ),
             ),
             if (widget.errorMessage != null) ...[
-              const SizedBox(height: 12),
+              const SizedBox(height: 14),
               Text(
                 widget.errorMessage!,
                 style: const TextStyle(
-                  color: Color(0xFFFF4444),
-                  fontSize: 12,
+                  color: Color(0xFFFF5252),
+                  fontSize: 13,
                 ),
               ),
             ],

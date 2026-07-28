@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../services/audio_player_service.dart';
 import '../../services/theme_service.dart';
 import '../../models/track.dart';
+import '../../widgets/play_bars.dart';
 
 class FullPlayerScreen extends StatelessWidget {
   final String appDataPath;
@@ -54,21 +55,35 @@ class FullPlayerScreen extends StatelessWidget {
             
             // Cover Art
             Center(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: hasCover
-                    ? Image.file(
-                        coverFile,
-                        width: coverSize,
-                        height: coverSize,
-                        fit: BoxFit.cover,
-                      )
-                    : Image.asset(
-                        'assets/default.jpg',
-                        width: coverSize,
-                        height: coverSize,
-                        fit: BoxFit.cover,
-                      ),
+              child: Hero(
+                tag: 'mobile_player_cover_${currentTrack.trackID}',
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    decoration: BoxDecoration(
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.5),
+                          blurRadius: 20,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: hasCover
+                        ? Image.file(
+                            coverFile,
+                            width: coverSize,
+                            height: coverSize,
+                            fit: BoxFit.cover,
+                          )
+                        : Image.asset(
+                            'assets/default.jpg',
+                            width: coverSize,
+                            height: coverSize,
+                            fit: BoxFit.cover,
+                          ),
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 24),
@@ -93,6 +108,15 @@ class FullPlayerScreen extends StatelessWidget {
                     style: const TextStyle(fontSize: 16, color: Color(0xFF888888)),
                     textAlign: TextAlign.center,
                   ),
+                  const SizedBox(height: 12),
+                  PlayBars(
+                    barCount: 14,
+                    maxHeight: 20.0,
+                    minHeight: 4.0,
+                    barWidth: 3.5,
+                    barSpacing: 3.0,
+                    isPlaying: audioService.isPlaying,
+                  ),
                 ],
               ),
             ),
@@ -108,21 +132,23 @@ class FullPlayerScreen extends StatelessWidget {
                     final position = posSnapshot.data ?? Duration.zero;
                     final duration = durSnapshot.data ?? const Duration(seconds: 1);
                     final durationMs = duration.inMilliseconds > 0 ? duration.inMilliseconds : 1;
-                    
+                    final themeColor = context.watch<ThemeService>().themeColor;
+
                     return Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: Row(
                         children: [
-                          Text(_formatDuration(position), style: const TextStyle(fontSize: 13, color: Color(0xFF888888))),
+                          Text(_formatDuration(position), style: const TextStyle(fontSize: 13, color: Color(0xFF888888), fontFeatures: [FontFeature.tabularFigures()])),
                           Expanded(
                             child: SliderTheme(
                               data: SliderTheme.of(context).copyWith(
                                 trackHeight: 4,
-                                activeTrackColor: context.watch<ThemeService>().themeColor,
+                                activeTrackColor: themeColor,
                                 inactiveTrackColor: const Color(0xFF333333),
                                 thumbColor: Colors.white,
-                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                                overlayShape: const RoundSliderOverlayShape(overlayRadius: 12),
+                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6, elevation: 3),
+                                overlayColor: themeColor.withOpacity(0.2),
+                                overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
                               ),
                               child: Slider(
                                 value: (position.inMilliseconds / durationMs).clamp(0.0, 1.0),
@@ -132,7 +158,7 @@ class FullPlayerScreen extends StatelessWidget {
                               ),
                             ),
                           ),
-                          Text(_formatDuration(duration), style: const TextStyle(fontSize: 13, color: Color(0xFF888888))),
+                          Text(_formatDuration(duration), style: const TextStyle(fontSize: 13, color: Color(0xFF888888), fontFeatures: [FontFeature.tabularFigures()])),
                         ],
                       ),
                     );

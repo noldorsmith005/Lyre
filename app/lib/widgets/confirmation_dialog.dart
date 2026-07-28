@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/theme_service.dart';
@@ -11,14 +12,14 @@ class ConfirmationDialog extends StatelessWidget {
   final VoidCallback onCancel;
 
   const ConfirmationDialog({
-    Key? key,
+    super.key,
     required this.title,
     required this.message,
     this.confirmText = 'OK',
     this.cancelText = 'Cancel',
     required this.onConfirm,
     required this.onCancel,
-  }) : super(key: key);
+  });
 
   static Future<bool?> show(
     BuildContext context, {
@@ -29,61 +30,95 @@ class ConfirmationDialog extends StatelessWidget {
   }) {
     return showDialog<bool>(
       context: context,
-      builder: (context) => ConfirmationDialog(
-        title: title,
-        message: message,
-        confirmText: confirmText,
-        cancelText: cancelText,
-        onConfirm: () => Navigator.of(context).pop(true),
-        onCancel: () => Navigator.of(context).pop(false),
+      barrierColor: Colors.black.withValues(alpha: 0.65),
+      builder: (context) => BackdropFilter(
+        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+        child: ConfirmationDialog(
+          title: title,
+          message: message,
+          confirmText: confirmText,
+          cancelText: cancelText,
+          onConfirm: () => Navigator.of(context).pop(true),
+          onCancel: () => Navigator.of(context).pop(false),
+        ),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final themeColor = context.watch<ThemeService>().themeColor;
+
     return Dialog(
-      backgroundColor: const Color(0xFF181818),
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: const BorderSide(color: Color(0xFF282828), width: 1),
-      ),
+      backgroundColor: Colors.transparent,
+      elevation: 12,
       child: Container(
-        width: 400,
-        padding: const EdgeInsets.all(24),
+        width: 420,
+        padding: const EdgeInsets.all(28),
+        decoration: BoxDecoration(
+          color: const Color(0xEE18181E),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: const Color(0xFF2E2E3A), width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.5),
+              blurRadius: 24,
+              spreadRadius: 4,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              title,
-              style: const TextStyle(
-                color: Colors.white,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: themeColor.withValues(alpha: 0.15),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(Icons.info_outline_rounded, color: themeColor, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 19,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             Text(
               message,
               style: const TextStyle(
-                color: Color(0xFFE8E8E8),
+                color: Color(0xFFCCCCCC),
                 fontSize: 14,
+                height: 1.45,
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 28),
             Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF808080),
+                OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white70,
+                    side: const BorderSide(color: Color(0xFF3E3E4D)),
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(4),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                   ),
                   onPressed: onCancel,
-                  child: Text(cancelText, style: const TextStyle(color: Colors.white)),
+                  child: Text(cancelText, style: const TextStyle(fontWeight: FontWeight.w600)),
                 ),
                 const SizedBox(width: 12),
                 _ConfirmButton(
@@ -109,10 +144,10 @@ class _ConfirmButton extends StatefulWidget {
   });
 
   @override
-  __ConfirmButtonState createState() => __ConfirmButtonState();
+  State<_ConfirmButton> createState() => _ConfirmButtonState();
 }
 
-class __ConfirmButtonState extends State<_ConfirmButton> {
+class _ConfirmButtonState extends State<_ConfirmButton> {
   bool _isHovered = false;
 
   @override
@@ -122,15 +157,36 @@ class __ConfirmButtonState extends State<_ConfirmButton> {
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
-      child: ElevatedButton(
-        style: ElevatedButton.styleFrom(
-          backgroundColor: _isHovered ? themeColor.withOpacity(0.8) : themeColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(3),
+      cursor: SystemMouseCursors.click,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        decoration: BoxDecoration(
+          color: _isHovered ? themeColor.withValues(alpha: 0.85) : themeColor,
+          borderRadius: BorderRadius.circular(10),
+          boxShadow: [
+            if (_isHovered)
+              BoxShadow(
+                color: themeColor.withValues(alpha: 0.4),
+                blurRadius: 10,
+                spreadRadius: 1,
+              ),
+          ],
+        ),
+        child: ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.transparent,
+            shadowColor: Colors.transparent,
+            padding: const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+          onPressed: widget.onPressed,
+          child: Text(
+            widget.text,
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
           ),
         ),
-        onPressed: widget.onPressed,
-        child: Text(widget.text, style: const TextStyle(color: Colors.white)),
       ),
     );
   }

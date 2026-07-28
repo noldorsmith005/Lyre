@@ -48,11 +48,15 @@ class _TrackCardState extends State<TrackCard> {
       position: RelativeRect.fromLTRB(
         position.dx,
         position.dy + 20,
-        position.dx + 200,
-        position.dy + 200,
+        position.dx + 220,
+        position.dy + 220,
       ),
-      color: const Color(0xFF2B2B2B),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+      color: const Color(0xEE1E1E26),
+      elevation: 8,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: Color(0xFF2E2E3A), width: 1),
+      ),
       items: widget.availablePlaylists.map((playlist) {
         return PopupMenuItem<Playlist>(
           value: playlist,
@@ -227,7 +231,14 @@ class _TrackCardState extends State<TrackCard> {
               Expanded(
                 child: Center(
                   child: widget.isPlaying
-                      ? const PlayBars()
+                      ? PlayBars(
+                          barCount: 8,
+                          maxHeight: 16.0,
+                          minHeight: 3.0,
+                          barWidth: 3.0,
+                          barSpacing: 2.5,
+                          isPlaying: widget.isPlaying,
+                        )
                       : const SizedBox.shrink(),
                 ),
               ),
