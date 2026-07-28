@@ -1,5 +1,5 @@
-name: napster
-description: "Napster - Music sharing, downloading, and playback application"
+name: lyre
+description: "Lyre - Music sharing, downloading, and playback application"
 publish_to: 'none'
 version: 1.0.0+1
 

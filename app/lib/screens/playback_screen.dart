@@ -326,7 +326,7 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
                           ),
                           const SizedBox(width: 8),
                           Text(
-                            'NAPSTER PLAYBACK',
+                            'LYRE PLAYBACK',
                             style: TextStyle(
                               color: Colors.white.withOpacity(0.9),
                               fontSize: 13,

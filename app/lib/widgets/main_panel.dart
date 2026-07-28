@@ -487,7 +487,7 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
           }
         },
         itemBuilder: (context) => [
-          _buildMenuItem('playback', Icons.graphic_eq_rounded, 'Napster Playback'),
+          _buildMenuItem('playback', Icons.graphic_eq_rounded, 'Lyre Playback'),
           _buildMenuItem('sync', Icons.sync_rounded, 'Cloud Sync'),
           _buildMenuItem('upload', Icons.upload_rounded, 'Upload Track'),
           _buildMenuItem('settings', Icons.settings_rounded, 'Settings'),

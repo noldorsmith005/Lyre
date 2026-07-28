@@ -722,7 +722,7 @@ def getUserStats(user_id):
                 "total_minutes": 0,
                 "total_plays": 0,
                 "daily_avg_minutes": 0,
-                "percentile_text": "Napster Listener",
+                "percentile_text": "Lyre Listener",
                 "top_tracks": [],
                 "top_artists": [],
                 "top_percentages": {"top_tracks": [], "top_artists": []},

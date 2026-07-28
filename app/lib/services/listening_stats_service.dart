@@ -364,7 +364,7 @@ class ListeningStatsService {
       monthYearLabel: monthLabel,
       totalMinutes: totalMinutes,
       totalPlays: totalPlaysCount,
-      percentileText: 'Napster Listener',
+      percentileText: 'Lyre Listener',
       dailyAverageMinutes: dailyAvg,
       topTracks: top5Tracks,
       topArtists: top5Artists,

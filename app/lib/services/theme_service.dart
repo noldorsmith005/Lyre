@@ -3,7 +3,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 class ThemeService extends ChangeNotifier {
   static const _storage = FlutterSecureStorage();
-  static const String _storageKey = 'napster_theme_color_key';
+  static const String _storageKey = 'lyre_theme_color_key';
 
   String _themeColorKey = 'red';
 

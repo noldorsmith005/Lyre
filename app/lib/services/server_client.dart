@@ -27,13 +27,13 @@ class ServerClient {
   Future<void> init() async {
     if (Platform.isMacOS) {
       final home = Platform.environment['HOME'];
-      _appDataPath = '$home/Library/Application Support/Napster';
+      _appDataPath = '$home/Library/Application Support/Lyre';
     } else if (Platform.isWindows) {
       final appData = Platform.environment['APPDATA'];
-      _appDataPath = '$appData/Napster';
+      _appDataPath = '$appData/Lyre';
     } else {
       final dir = await getApplicationDocumentsDirectory();
-      _appDataPath = p.join(dir.path, 'Napster');
+      _appDataPath = p.join(dir.path, 'Lyre');
     }
     
     await _loadBundledConfig();

@@ -1,4 +1,4 @@
-# napster
+# lyre
 
 A new Flutter project.
 

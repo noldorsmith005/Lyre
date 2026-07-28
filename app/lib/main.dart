@@ -46,7 +46,7 @@ void main() async {
         ChangeNotifierProvider<AudioPlayerService>.value(value: audioPlayerService),
         ChangeNotifierProvider<ThemeService>.value(value: themeService),
       ],
-      child: NapsterApp(
+      child: LyreApp(
         mediaHandler: mediaHandler,
         serverClient: serverClient,
       ),
@@ -54,11 +54,11 @@ void main() async {
   );
 }
 
-class NapsterApp extends StatelessWidget {
+class LyreApp extends StatelessWidget {
   final MediaHandler mediaHandler;
   final ServerClient serverClient;
 
-  const NapsterApp({
+  const LyreApp({
     Key? key,
     required this.mediaHandler,
     required this.serverClient,
@@ -69,7 +69,7 @@ class NapsterApp extends StatelessWidget {
     final themeColor = context.watch<ThemeService>().themeColor;
 
     return MaterialApp(
-      title: 'Napster',
+      title: 'Lyre',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,

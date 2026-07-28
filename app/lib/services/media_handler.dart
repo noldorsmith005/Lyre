@@ -17,13 +17,13 @@ class MediaHandler {
   Future<String> _getAppDataPath() async {
     if (Platform.isMacOS) {
       final home = Platform.environment['HOME'];
-      return '$home/Library/Application Support/Napster';
+      return '$home/Library/Application Support/Lyre';
     } else if (Platform.isWindows) {
       final appData = Platform.environment['APPDATA'];
-      return '$appData/Napster';
+      return '$appData/Lyre';
     } else {
       final dir = await getApplicationDocumentsDirectory();
-      return '${dir.path}/Napster';
+      return '${dir.path}/Lyre';
     }
   }
 

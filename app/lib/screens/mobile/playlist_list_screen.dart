@@ -57,7 +57,7 @@ class PlaylistListScreen extends StatelessWidget {
                           Icon(Icons.graphic_eq_rounded, color: context.watch<ThemeService>().themeColor, size: 26),
                           const SizedBox(width: 10),
                           Text(
-                            'Napster',
+                            'Lyre',
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 22,
@@ -127,7 +127,7 @@ class PlaylistListScreen extends StatelessWidget {
                   _buildDrawerItem(
                     context,
                     icon: Icons.graphic_eq_rounded,
-                    title: 'Napster Playback',
+                    title: 'Lyre Playback',
                     subtitle: 'Equalizer and playback statistics',
                     onTap: () {
                       Navigator.pop(context);
@@ -181,7 +181,7 @@ class PlaylistListScreen extends StatelessWidget {
                       context,
                       icon: Icons.login_rounded,
                       title: 'Log In',
-                      subtitle: 'Connect to your Napster account',
+                      subtitle: 'Connect to your Lyre account',
                       iconColor: context.watch<ThemeService>().themeColor,
                       titleColor: context.watch<ThemeService>().themeColor,
                       onTap: () {
@@ -202,7 +202,7 @@ class PlaylistListScreen extends StatelessWidget {
                 ),
               ),
               child: const Text(
-                'Napster Mobile',
+                'Lyre Mobile',
                 style: TextStyle(color: Color(0xFF555555), fontSize: 12),
                 textAlign: TextAlign.center,
               ),
@@ -257,7 +257,7 @@ class PlaylistListScreen extends StatelessWidget {
         backgroundColor: Colors.transparent,
         elevation: 0,
         title: const Text(
-          'Napster',
+          'Lyre',
           style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
         ),
         actions: [

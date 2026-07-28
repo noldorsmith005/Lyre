@@ -162,7 +162,7 @@ class _LoginScreenState extends State<LoginScreen> {
 
                 // Heading
                 const Text(
-                  'Log In to Napster',
+                  'Log In to Lyre',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     fontSize: 26,

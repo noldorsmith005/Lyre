@@ -1,7 +1,7 @@
-# Napster
+# Lyre
 
 ## Overview
-Napster is a full-stack media platform designed for music streaming, catalog management, audio playback, and synchronized media storage. The platform consists of a Flutter-based multi-platform client application and a Python Flask backend service powered by SQLite. It provides robust user authentication, seamless playlist synchronization, FLAC/WAV audio processing, song catalog search, and user listening analytics.
+Lyre is a full-stack media platform designed for music streaming, catalog management, audio playback, and synchronized media storage. The platform consists of a Flutter-based multi-platform client application and a Python Flask backend service powered by SQLite. It provides robust user authentication, seamless playlist synchronization, FLAC/WAV audio processing, song catalog search, and user listening analytics.
 
 ## Key Features
 
@@ -15,9 +15,9 @@ Napster is a full-stack media platform designed for music streaming, catalog man
 
 ## Architecture & Project Structure
 
-- [app/](file:///Users/nate/Desktop/Dev/temp/Napster/app): Flutter client application supporting desktop (macOS, Windows, Linux) and mobile platforms (iOS, Android).
-- [server/](file:///Users/nate/Desktop/Dev/temp/Napster/server): Python Flask backend server handling API requests, user authentication, database operations, and audio compression.
-- [setup/](file:///Users/nate/Desktop/Dev/temp/Napster/setup): Utility scripts for database initialization and environment configuration.
+- [app/](file:///Users/nate/Desktop/Dev/temp/Lyre/app): Flutter client application supporting desktop (macOS, Windows, Linux) and mobile platforms (iOS, Android).
+- [server/](file:///Users/nate/Desktop/Dev/temp/Lyre/server): Python Flask backend server handling API requests, user authentication, database operations, and audio compression.
+- [setup/](file:///Users/nate/Desktop/Dev/temp/Lyre/setup): Utility scripts for database initialization and environment configuration.
 
 ## Prerequisites
 
@@ -59,7 +59,7 @@ The server will initialize default sessions, verify database connectivity, and l
 ## Client Setup & Execution
 
 ### 1. Client Configuration
-Copy and populate the configuration template from [setup/client.config](file:///Users/nate/Desktop/Dev/temp/Napster/setup/client.config):
+Copy and populate the configuration template from [setup/client.config](file:///Users/nate/Desktop/Dev/temp/Lyre/setup/client.config):
 ```ini
 appKey=<YOUR_APP_KEY>
 appUrl=<YOUR_SERVER_URL>
@@ -69,7 +69,7 @@ sig-key-mod=0
 sig-key-private=0
 user-id=<USER_ID>
 ```
-For desktop runtime environments, place `client.config`, SQLite data files, and local `audio/` and `cover/` directories in your platform's application support folder (e.g., `~/Library/Application Support/Napster` on macOS).
+For desktop runtime environments, place `client.config`, SQLite data files, and local `audio/` and `cover/` directories in your platform's application support folder (e.g., `~/Library/Application Support/Lyre` on macOS).
 
 ### 2. Run Flutter Client
 Navigate to the client application root and fetch project dependencies:
