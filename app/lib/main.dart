@@ -106,7 +106,7 @@ class LyreApp extends StatelessWidget {
 }
 
 /// Desktop wrapper adds global keyboard shortcuts (Spacebar = play/pause)
-class _DesktopWrapper extends StatelessWidget {
+class _DesktopWrapper extends StatefulWidget {
   final MediaHandler mediaHandler;
   final ServerClient serverClient;
 
@@ -116,9 +116,28 @@ class _DesktopWrapper extends StatelessWidget {
   });
 
   @override
+  State<_DesktopWrapper> createState() => _DesktopWrapperState();
+}
+
+class _DesktopWrapperState extends State<_DesktopWrapper> {
+  late final FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode = FocusNode()..requestFocus();
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     return KeyboardListener(
-      focusNode: FocusNode()..requestFocus(),
+      focusNode: _focusNode,
       autofocus: true,
       onKeyEvent: (event) {
         if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.space) {
@@ -131,8 +150,8 @@ class _DesktopWrapper extends StatelessWidget {
         }
       },
       child: HomeScreen(
-        mediaHandler: mediaHandler,
-        serverClient: serverClient,
+        mediaHandler: widget.mediaHandler,
+        serverClient: widget.serverClient,
       ),
     );
   }

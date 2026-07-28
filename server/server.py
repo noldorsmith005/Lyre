@@ -324,6 +324,10 @@ def init_db():
                     new_release          INTEGER DEFAULT 1
                 )
             """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_user_playlists_uid ON user_playlists(user_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_user_downloads_uid ON user_downloads(user_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_history_uid ON History(user_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_tracks_search ON Tracks(title_lower, artist_lower);")
             if os.path.exists('./sessions.json'):
                 try:
                     with open('./sessions.json', 'r') as f:
@@ -447,8 +451,9 @@ def getUserDownloads():
 
     return jsonify(tracks), 200
 
+@app.get("/tracks/")
 @app.get("/tracks/<string:filter_text>")
-def searchTracks(filter_text):
+def searchTracks(filter_text=""):
     filter_text = urllib.parse.unquote_plus(filter_text)
     auth_token = request.headers.get("AppToken")
     if auth_token != APP_TOKEN:

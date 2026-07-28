@@ -49,8 +49,8 @@ class ServerClient {
       fallbackUrl = config['fallback_url'] as String?;
       appKey = config['app_key'] as String?;
     } catch (e) {
-      primaryUrl = 'https://127.0.0.1:57967';
-      fallbackUrl = 'https://localhost:57967';
+      primaryUrl = 'http://127.0.0.1:57967';
+      fallbackUrl = 'http://localhost:57967';
       appKey = 'n8cQiw4z6oSHFixnEFK7';
     }
   }
@@ -270,8 +270,9 @@ class ServerClient {
     final request = http.Request('GET', Uri.parse(targetUrl))
       ..headers.addAll(_headers());
 
+    final client = http.Client();
     try {
-      final response = await http.Client().send(request);
+      final response = await client.send(request);
       if (response.statusCode == 200) {
         final sink = tmpFile.openWrite();
         await response.stream.pipe(sink);
@@ -284,6 +285,8 @@ class ServerClient {
     } catch (e) {
       print('An error occurred during transmission: $e');
       rethrow;
+    } finally {
+      client.close();
     }
   }
 
@@ -381,12 +384,17 @@ class ServerClient {
   }
 
   Future<List<Track>> searchTracks(String filter) async {
-    final encodedFilter = Uri.encodeComponent(filter);
+    if (filter.trim().isEmpty) return [];
+    final encodedFilter = Uri.encodeComponent(filter.trim());
     final targetUrl = '$appUrl/tracks/$encodedFilter';
     final response = await http.get(
       Uri.parse(targetUrl),
       headers: _headers(),
     );
+
+    if (response.statusCode != 200) {
+      return [];
+    }
 
     final List<dynamic> jsonList = jsonDecode(response.body);
     return jsonList.map((json) => Track(
@@ -422,8 +430,13 @@ class ServerClient {
         final seconds = totalSeconds % 60;
         track.duration = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
       }
+    } catch (e) {
+      print('Error calculating audio duration: $e');
+    } finally {
       await player.dispose();
-      
+    }
+
+    try {
       final newId = await _updateUploads(track);
       await _upload('audio', audioPath, newId);
       await _upload('cover', coverPath, newId);

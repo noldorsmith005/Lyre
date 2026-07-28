@@ -1,14 +1,20 @@
+# Server data and temporary files
 server/audio/
 server/cover/
+server/tmp/
 server/__pycache__/
-server/data.db
+server/*.db
 server/sqlite.py
 server/reader.py
 
+# Build & packaging artifacts
 bin/
 dist/
 input/
 packaging/
+tmp/
+*.db
 
+# OS metadata
+.DS_Store
 *.DS_Store
-
