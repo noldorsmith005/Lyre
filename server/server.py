@@ -14,6 +14,7 @@ from flask import Flask, send_file, request, jsonify, after_this_request
 from utils import Utils
 import time
 import secrets
+import uuid
 
 
 app = Flask(__name__)
@@ -92,7 +93,7 @@ def compressFLAC(wav_path, flac_path):
         else:
             raise FileNotFoundError("flac command-line tool not found on the system.")
     result = subprocess.run(
-        [flac_bin, "-f", "--silent", wav_path, "-o", flac_path],
+        [flac_bin, "-6", "-f", "--silent", wav_path, "-o", flac_path],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.PIPE
     )
@@ -214,10 +215,11 @@ def loginUser():
         if not row:
             return "User not found", 404
         uid, uname, pw_hash, salt = row
-        if pw_hash:
-            expected_hash, _ = hashPassword(password, salt)
-            if expected_hash != pw_hash:
-                return "Invalid credentials", 401
+        if not pw_hash:
+            return "Invalid credentials", 401
+        expected_hash, _ = hashPassword(password, salt)
+        if expected_hash != pw_hash:
+            return "Invalid credentials", 401
         session_token = secrets.token_hex(32)
         cursor.execute(
             "INSERT OR REPLACE INTO ActiveSessions (user_id, username, token, last_seen, client_ip) VALUES (?, ?, ?, ?, ?)",
@@ -253,6 +255,8 @@ def validateSession():
 def init_db():
     try:
         with sqlite3.connect(DATABASE_URL) as conn:
+            conn.execute("PRAGMA journal_mode=WAL;")
+            conn.execute("PRAGMA busy_timeout=5000;")
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS Users (
                     id INTEGER PRIMARY KEY,
@@ -361,16 +365,21 @@ def pushSyncPlaylists():
 
     with sqlite3.connect(DATABASE_URL) as conn:
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM user_playlists WHERE user_id = ?", (user_id,))
-        for pl in playlists:
-            playlist_id = pl.get("playlist_id")
-            name = pl.get("name")
-            tracks_json = json.dumps(pl.get("tracks", []))
-            cursor.execute(
-                "INSERT INTO user_playlists (user_id, playlist_id, name, tracks) VALUES (?, ?, ?, ?)",
-                (user_id, playlist_id, name, tracks_json)
-            )
-        conn.commit()
+        try:
+            conn.execute("BEGIN TRANSACTION")
+            cursor.execute("DELETE FROM user_playlists WHERE user_id = ?", (user_id,))
+            for pl in playlists:
+                playlist_id = pl.get("playlist_id")
+                name = pl.get("name")
+                tracks_json = json.dumps(pl.get("tracks", []))
+                cursor.execute(
+                    "INSERT INTO user_playlists (user_id, playlist_id, name, tracks) VALUES (?, ?, ?, ?)",
+                    (user_id, playlist_id, name, tracks_json)
+                )
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            return jsonify({"error": f"Failed to sync playlists: {e}"}), 500
 
     return jsonify({"status": "success"}), 200
 
@@ -450,27 +459,31 @@ def searchTracks(filter_text):
         return "Unauthorized", 401
 
     userID = int(authorized)
-    if len(filter_text) > 2:
+    if len(filter_text) > 0:
         normalized_filter = re.sub(r'[^a-zA-Z0-9 ]', '', filter_text).lower().strip()
-        sql = "SELECT track_id, title, artist, duration, contributor FROM Tracks WHERE lower(title) LIKE ? OR lower(artist) LIKE ? OR title_lower LIKE ? OR artist_lower LIKE ? ORDER BY title ASC"
+        sql = """
+            SELECT t.track_id, t.title, t.artist, t.duration, t.contributor, ud.user_id
+            FROM Tracks t
+            LEFT JOIN user_downloads ud ON t.track_id = ud.track_id AND ud.user_id = ?
+            WHERE lower(t.title) LIKE ? OR lower(t.artist) LIKE ? OR t.title_lower LIKE ? OR t.artist_lower LIKE ?
+            ORDER BY t.title ASC
+        """
         tracks = []
         try:
             with sqlite3.connect(DATABASE_URL) as conn:
                 cursor = conn.cursor()
                 like_val = f"%{normalized_filter}%"
-                cursor.execute(sql, (like_val, like_val, like_val, like_val))
+                cursor.execute(sql, (userID, like_val, like_val, like_val, like_val))
                 for row in cursor.fetchall():
                     contributor_user = getUser(row[4]) if row[4] and str(row[4]).isdigit() else None
                     contributor_name = contributor_user['username'] if contributor_user else str(row[4] or "")
-                    cursor.execute("SELECT 1 FROM user_downloads WHERE user_id = ? AND track_id = ?", (userID, row[0]))
-                    downloaded = cursor.fetchone() is not None
                     tracks.append({
                         "trackID": row[0],
                         "title": row[1],
                         "artist": row[2],
                         "duration": row[3],
                         "contributor": contributor_name,
-                        "downloaded": downloaded
+                        "downloaded": row[5] is not None
                     })
         except sqlite3.Error as e:
             print(f"Could not load tracks: {e}")
@@ -492,7 +505,8 @@ def download(id, type):
         if not os.path.exists(wav_path):
             return {"error": "Audio file not found"}, 404
 
-        tmp_flac_path = f"./tmp/{id}.flac"
+        unique_id = uuid.uuid4().hex
+        tmp_flac_path = f"./tmp/{id}_{unique_id}.flac"
         try:
             compressFLAC(wav_path, tmp_flac_path)
         except Exception as e:

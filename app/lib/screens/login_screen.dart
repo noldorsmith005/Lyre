@@ -130,7 +130,7 @@ class _LoginScreenState extends State<LoginScreen> {
     final themeColor = context.watch<ThemeService>().themeColor;
 
     return Scaffold(
-      backgroundColor: const Color(0xFF101010),
+      backgroundColor: const Color(0xFF121212),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -292,19 +292,19 @@ class _LoginScreenState extends State<LoginScreen> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF161616),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xFF2A2A2A)),
+        color: const Color(0xFF242424),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xFF282828)),
       ),
       child: TextField(
         controller: controller,
         obscureText: obscure,
         style: const TextStyle(color: Colors.white),
         decoration: InputDecoration(
-          prefixIcon: Icon(icon, color: const Color(0xFF666666), size: 20),
+          prefixIcon: Icon(icon, color: const Color(0xFFB3B3B3), size: 20),
           suffixIcon: suffixIcon,
           hintText: hint,
-          hintStyle: const TextStyle(color: Color(0xFF666666)),
+          hintStyle: const TextStyle(color: Color(0xFF757575)),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         ),

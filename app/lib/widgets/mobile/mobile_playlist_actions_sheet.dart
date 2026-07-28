@@ -18,7 +18,7 @@ class MobilePlaylistActionsSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       decoration: const BoxDecoration(
-        color: Color(0xFF1E1E1E),
+        color: Color(0xFF181818),
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
       child: SafeArea(
@@ -30,11 +30,11 @@ class MobilePlaylistActionsSheet extends StatelessWidget {
               child: Column(
                 children: [
                   Container(
-                    width: 40,
+                    width: 36,
                     height: 4,
                     margin: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
-                      color: const Color(0xFF555555),
+                      color: const Color(0xFF3E3E3E),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -52,14 +52,14 @@ class MobilePlaylistActionsSheet extends StatelessWidget {
                     track.artist,
                     style: const TextStyle(
                       fontSize: 14,
-                      color: Color(0xFF888888),
+                      color: Color(0xFFB3B3B3),
                     ),
                     textAlign: TextAlign.center,
                   ),
                 ],
               ),
             ),
-            const Divider(color: Color(0xFF2A2A2A), height: 1),
+            const Divider(color: Color(0xFF282828), height: 1),
             ExpansionTile(
               leading: const Icon(Icons.playlist_add, color: Color(0xFF888888)),
               title: const Text('Add to Playlist', style: TextStyle(fontSize: 16, color: Colors.white)),

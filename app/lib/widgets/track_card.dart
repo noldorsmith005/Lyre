@@ -123,112 +123,120 @@ class _TrackCardState extends State<TrackCard> {
       child: MouseRegion(
         onEnter: (_) => setState(() => _isHovered = true),
         onExit: (_) => setState(() => _isHovered = false),
-        child: Container(
-        height: LayoutConstants.cellSize,
-        padding: EdgeInsets.symmetric(
-          vertical: LayoutConstants.paddingV,
-          horizontal: LayoutConstants.paddingH,
-        ),
-        margin: EdgeInsets.only(bottom: LayoutConstants.cellSpacing),
-        decoration: BoxDecoration(
-          color: _isHovered ? const Color(0xFF0F0F0F) : Colors.transparent,
-          border: Border.all(color: const Color(0xFF1A1A1A), width: 2),
-          borderRadius: BorderRadius.circular(15),
-        ),
-        child: Row(
-          children: [
-            if (widget.isDownloaded) ...[
-              _buildTooltip(
-                message: 'Play',
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: GestureDetector(
-                    onTap: widget.onPlay,
-                    child: Image.asset(
-                      'assets/play.png',
-                      width: 12,
-                      height: 12,
-                      color: Colors.white,
-                    ),
-                  ),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          height: LayoutConstants.cellSize,
+          padding: EdgeInsets.symmetric(
+            vertical: LayoutConstants.paddingV,
+            horizontal: LayoutConstants.paddingH,
+          ),
+          margin: EdgeInsets.only(bottom: LayoutConstants.cellSpacing),
+          decoration: BoxDecoration(
+            color: _isHovered
+                ? const Color(0xFF282828)
+                : (widget.isPlaying ? const Color(0xFF1E1E1E) : const Color(0xFF121212)),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: _isHovered ? const Color(0xFF3E3E3E) : const Color(0xFF1E1E1E),
+              width: 1.0,
+            ),
+          ),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 28,
+                child: Center(
+                  child: widget.isDownloaded
+                      ? _buildTooltip(
+                          message: 'Play',
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            child: GestureDetector(
+                              onTap: widget.onPlay,
+                              child: const Icon(
+                                Icons.play_arrow_rounded,
+                                size: 22,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        )
+                      : _buildTooltip(
+                          message: 'Download',
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            child: GestureDetector(
+                              onTap: widget.onDownload ?? () {},
+                              child: Icon(
+                                Icons.file_download_outlined,
+                                size: 22,
+                                color: context.watch<ThemeService>().themeColor,
+                              ),
+                            ),
+                          ),
+                        ),
                 ),
               ),
-            ] else ...[
-              _buildTooltip(
-                message: 'Download',
-                child: MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: GestureDetector(
-                    onTap: widget.onDownload,
-                    child: Image.asset(
-                      'assets/download.png',
-                      width: 22,
-                      height: 22,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-            const SizedBox(width: 16),
-            
-            // Thumb
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: Image.file(
-                      File('${widget.appDataPath}/cover/${widget.track.trackID}.jpg'),
-                      width: LayoutConstants.thumbSize,
-                      height: LayoutConstants.thumbSize,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => _buildFallbackThumb(),
-                    ),
-            ),
-            const SizedBox(width: 16),
-            
-            // Title and Artist
-            SizedBox(
-              width: LayoutConstants.trackCardTextSize,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    widget.track.title,
-                    style: TextStyle(
-                      color: widget.isPlaying ? context.watch<ThemeService>().themeColor : Colors.white,
-                      fontSize: LayoutConstants.titleFontSize,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    widget.track.artist,
-                    style: TextStyle(
-                      color: const Color(0xFF555555),
-                      fontSize: LayoutConstants.subFontSize,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-            
-            if (widget.isPlaying) ...[
               const SizedBox(width: 12),
-              const PlayBars(),
-            ],
-            
-            const Spacer(),
-            
-            if (widget.isDownloaded) ...[
+              
+              // Thumb
+              ClipRRect(
+                borderRadius: BorderRadius.circular(6),
+                child: Image.file(
+                  File('${widget.appDataPath}/cover/${widget.track.trackID}.jpg'),
+                  width: LayoutConstants.thumbSize,
+                  height: LayoutConstants.thumbSize,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => _buildFallbackThumb(),
+                ),
+              ),
+              const SizedBox(width: 16),
+              
+              // Title and Artist
+              SizedBox(
+                width: LayoutConstants.trackCardTextSize,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      widget.track.title,
+                      style: TextStyle(
+                        color: widget.isPlaying ? context.watch<ThemeService>().themeColor : Colors.white,
+                        fontSize: LayoutConstants.titleFontSize,
+                        fontWeight: FontWeight.bold,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      widget.track.artist,
+                      style: TextStyle(
+                        color: const Color(0xFFB3B3B3),
+                        fontSize: LayoutConstants.subFontSize,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Equalizer bar horizontally centered between title/thumb and duration/actions
+              Expanded(
+                child: Center(
+                  child: widget.isPlaying
+                      ? const PlayBars()
+                      : const SizedBox.shrink(),
+                ),
+              ),
+              
+              if (widget.isDownloaded) ...[
               _buildTooltip(
                 message: 'Add to Queue',
-                child: _HoverImageAssetButton(
-                  iconPath: 'assets/add_to_queue.png',
-                  hoverIconPath: 'assets/add_to_queue_hover.png',
+                child: _HoverIconButton(
+                  icon: Icons.queue_music_rounded,
                   size: 16,
                   color: const Color(0xFFB3B3B3),
                   onTap: widget.onQueue ?? () {},
@@ -239,9 +247,8 @@ class _TrackCardState extends State<TrackCard> {
               Builder(
                 builder: (ctx) => _buildTooltip(
                   message: 'Add to Playlist',
-                  child: _HoverImageAssetButton(
-                    iconPath: 'assets/add_to_playlist.png',
-                    hoverIconPath: 'assets/add_to_playlist_hover.png',
+                  child: _HoverIconButton(
+                    icon: Icons.playlist_add_rounded,
                     size: 16,
                     color: const Color(0xFFB3B3B3),
                     onTap: () {
@@ -304,46 +311,42 @@ class _TrackCardState extends State<TrackCard> {
   }
 }
 
-class _HoverImageAssetButton extends StatefulWidget {
-  final String iconPath;
-  final String? hoverIconPath;
+class _HoverIconButton extends StatefulWidget {
+  final IconData icon;
   final double size;
   final Color? color;
   final VoidCallback onTap;
 
-  const _HoverImageAssetButton({
+  const _HoverIconButton({
     Key? key,
-    required this.iconPath,
-    this.hoverIconPath,
+    required this.icon,
     required this.size,
     this.color,
     required this.onTap,
   }) : super(key: key);
 
   @override
-  _HoverImageAssetButtonState createState() => _HoverImageAssetButtonState();
+  _HoverIconButtonState createState() => _HoverIconButtonState();
 }
 
-class _HoverImageAssetButtonState extends State<_HoverImageAssetButton> {
+class _HoverIconButtonState extends State<_HoverIconButton> {
   bool _isHovered = false;
 
   @override
   Widget build(BuildContext context) {
-    final path = (_isHovered && widget.hoverIconPath != null)
-        ? widget.hoverIconPath!
-        : widget.iconPath;
-
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         onTap: widget.onTap,
-        child: Image.asset(
-          path,
-          width: widget.size,
-          height: widget.size,
-          color: widget.color,
+        child: Opacity(
+          opacity: _isHovered ? 0.7 : 1.0,
+          child: Icon(
+            widget.icon,
+            size: widget.size,
+            color: widget.color ?? Colors.white,
+          ),
         ),
       ),
     );

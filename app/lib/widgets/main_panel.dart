@@ -78,10 +78,10 @@ class _MainPanelState extends State<MainPanel> {
       context: context,
       builder: (context) {
         return Dialog(
-          backgroundColor: const Color(0xFF2B2B2B),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+          backgroundColor: const Color(0xFF282828),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           child: Container(
-            width: 300,
+            width: 320,
             padding: const EdgeInsets.all(20),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -96,9 +96,9 @@ class _MainPanelState extends State<MainPanel> {
                   style: const TextStyle(color: Colors.white),
                   decoration: InputDecoration(
                     filled: true,
-                    fillColor: const Color(0xFF3C3F41),
+                    fillColor: const Color(0xFF1E1E1E),
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(5),
+                      borderRadius: BorderRadius.circular(6),
                       borderSide: BorderSide.none,
                     ),
                   ),
@@ -109,24 +109,25 @@ class _MainPanelState extends State<MainPanel> {
                   children: [
                     TextButton(
                       style: TextButton.styleFrom(
-                        backgroundColor: Provider.of<ThemeService>(context, listen: false).themeColor,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+                        foregroundColor: Colors.redAccent,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                       ),
                       onPressed: () {
                         Navigator.pop(context);
                         widget.onDeletePlaylist();
                       },
-                      child: const Text('Delete', style: TextStyle(color: Colors.white)),
+                      child: const Text('Delete'),
                     ),
                     ElevatedButton(
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF555555),
+                        backgroundColor: Provider.of<ThemeService>(context, listen: false).themeColor,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(6)),
                       ),
                       onPressed: () {
                         widget.onEditPlaylistName(nameController.text);
                         Navigator.pop(context);
                       },
-                      child: const Text('Save', style: TextStyle(color: Colors.white)),
+                      child: const Text('Save', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                     ),
                   ],
                 ),
@@ -140,70 +141,29 @@ class _MainPanelState extends State<MainPanel> {
 
   Widget _buildTopBar() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 32, 16, 16),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFF2A2A2A), width: 1)),
+        color: Color(0xFF121212),
+        border: Border(bottom: BorderSide(color: Color(0xFF282828), width: 1)),
       ),
       child: Row(
         children: [
-          // Search Field
-          Container(
-            width: 360,
-            height: 50,
-            decoration: BoxDecoration(
-              color: Colors.black,
-              borderRadius: BorderRadius.circular(500),
-              border: Border.all(color: Colors.white, width: 0.8),
-            ),
-            child: Row(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(left: 48, right: 12),
-                  child: Image.asset(
-                    'assets/search.png',
-                    width: 18,
-                    height: 18,
-                    color: Colors.white,
-                  ),
-                ),
-                Expanded(
-                  child: TextField(
-                    controller: _searchController,
-                    onChanged: widget.onSearch,
-                    style: const TextStyle(color: Colors.white, fontSize: 16),
-                    decoration: const InputDecoration(
-                      hintText: 'Search songs...',
-                      hintStyle: TextStyle(color: Color(0xFFB3B3B3), fontSize: 16),
-                      border: InputBorder.none,
-                    ),
-                  ),
-                ),
-                if (_searchController.text.isNotEmpty)
-                  MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: GestureDetector(
-                      onTap: () {
-                        _searchController.clear();
-                        widget.onClearSearch();
-                      },
-                      child: const Padding(
-                        padding: EdgeInsets.only(right: 16),
-                        child: Icon(Icons.close, color: Color(0xFF555555), size: 18),
-                      ),
-                    ),
-                  ),
-                const SizedBox(width: 42),
-              ],
-            ),
+          // Spotify-style Pill Search Bar
+          _SpotifySearchBar(
+            controller: _searchController,
+            onSearch: widget.onSearch,
+            onClearSearch: widget.onClearSearch,
           ),
           if (showServerFeatures) ...[
             const SizedBox(width: 16),
             Tooltip(
               message: 'Connect to RLS',
               child: _HoverIconButton(
-                iconPath: 'assets/library_selected.png',
-                hoverIconPath: 'assets/library_unselected.png',
-                size: 30,
+                icon: widget.isServerConnected ? Icons.cloud : Icons.cloud_outlined,
+                size: 26,
+                color: widget.isServerConnected
+                    ? Provider.of<ThemeService>(context).themeColor
+                    : const Color(0xFFB3B3B3),
                 onTap: widget.onRlsPressed,
               ),
             ),
@@ -226,9 +186,10 @@ class _MainPanelState extends State<MainPanel> {
 
   Widget _buildHeaderRow() {
     return Container(
-      padding: const EdgeInsets.fromLTRB(28, 32, 20, 32),
+      padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
       decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: Color(0xFF2A2A2A), width: 1)),
+        color: Color(0xFF121212),
+        border: Border(bottom: BorderSide(color: Color(0xFF282828), width: 1)),
       ),
       child: Row(
         children: [
@@ -241,7 +202,7 @@ class _MainPanelState extends State<MainPanel> {
                     widget.currentPlaylist?.title ?? 'All Songs',
                     style: const TextStyle(
                       color: Colors.white,
-                      fontSize: 25,
+                      fontSize: 24,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -250,30 +211,39 @@ class _MainPanelState extends State<MainPanel> {
                     TextButton(
                       onPressed: _showEditPlaylistDialog,
                       style: TextButton.styleFrom(
-                        foregroundColor: const Color(0xFF555555),
-                        textStyle: const TextStyle(fontSize: 14),
+                        foregroundColor: const Color(0xFFB3B3B3),
+                        textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
                       ),
                       child: const Text('Edit Playlist'),
                     ),
                   ],
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 6),
               Text(
                 '${widget.tracks.length} tracks',
                 style: const TextStyle(
-                  color: Color(0xFF555555),
-                  fontSize: 15,
+                  color: Color(0xFFB3B3B3),
+                  fontSize: 14,
                 ),
               ),
             ],
           ),
           const Spacer(),
-          _HoverIconButton(
-            iconPath: 'assets/shuffle_unselected.png',
-            hoverIconPath: 'assets/shuffle_selected.png',
-            size: 32,
-            onTap: widget.onShufflePressed,
+          Builder(
+            builder: (context) {
+              final isShuffled = context.watch<AudioPlayerService>().shuffle;
+              final themeColor = context.watch<ThemeService>().themeColor;
+              return Tooltip(
+                message: 'Shuffle',
+                child: _HoverIconButton(
+                  icon: Icons.shuffle_rounded,
+                  size: 28,
+                  color: isShuffled ? themeColor : const Color(0xFFB3B3B3),
+                  onTap: widget.onShufflePressed,
+                ),
+              );
+            },
           ),
         ],
       ),
@@ -283,7 +253,7 @@ class _MainPanelState extends State<MainPanel> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: Colors.black,
+      color: const Color(0xFF121212),
       child: Column(
         children: [
           _buildTopBar(),
@@ -318,16 +288,118 @@ class _MainPanelState extends State<MainPanel> {
   }
 }
 
+class _SpotifySearchBar extends StatefulWidget {
+  final TextEditingController controller;
+  final Function(String) onSearch;
+  final VoidCallback onClearSearch;
+
+  const _SpotifySearchBar({
+    required this.controller,
+    required this.onSearch,
+    required this.onClearSearch,
+  });
+
+  @override
+  _SpotifySearchBarState createState() => _SpotifySearchBarState();
+}
+
+class _SpotifySearchBarState extends State<_SpotifySearchBar> {
+  final FocusNode _focusNode = FocusNode();
+  bool _isFocused = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode.addListener(() {
+      setState(() => _isFocused = _focusNode.hasFocus);
+    });
+    widget.controller.addListener(_onTextChanged);
+  }
+
+  void _onTextChanged() {
+    setState(() {});
+  }
+
+  @override
+  void dispose() {
+    _focusNode.dispose();
+    widget.controller.removeListener(_onTextChanged);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final themeColor = Provider.of<ThemeService>(context).themeColor;
+
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 150),
+      width: 360,
+      height: 42,
+      decoration: BoxDecoration(
+        color: const Color(0xFF242424),
+        borderRadius: BorderRadius.circular(21),
+        border: Border.all(
+          color: _isFocused ? themeColor : const Color(0xFF282828),
+          width: _isFocused ? 1.5 : 1.0,
+        ),
+      ),
+      child: Row(
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(left: 14, right: 10),
+            child: Icon(
+              Icons.search_rounded,
+              size: 20,
+              color: _isFocused ? themeColor : const Color(0xFFB3B3B3),
+            ),
+          ),
+          Expanded(
+            child: TextField(
+              controller: widget.controller,
+              focusNode: _focusNode,
+              onChanged: widget.onSearch,
+              style: const TextStyle(color: Colors.white, fontSize: 14),
+              decoration: const InputDecoration(
+                hintText: 'Search songs, artists...',
+                hintStyle: TextStyle(color: Color(0xFF757575), fontSize: 14),
+                border: InputBorder.none,
+                isDense: true,
+                contentPadding: EdgeInsets.symmetric(vertical: 10),
+              ),
+            ),
+          ),
+          if (widget.controller.text.isNotEmpty)
+            MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: () {
+                  widget.controller.clear();
+                  widget.onClearSearch();
+                },
+                child: const Padding(
+                  padding: EdgeInsets.only(right: 12),
+                  child: Icon(
+                    Icons.close_rounded,
+                    color: Color(0xFFB3B3B3),
+                    size: 18,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
 class _HoverIconButton extends StatefulWidget {
-  final String iconPath;
-  final String? hoverIconPath;
+  final IconData icon;
   final double size;
   final VoidCallback onTap;
   final Color? color;
 
   const _HoverIconButton({
-    required this.iconPath,
-    this.hoverIconPath,
+    required this.icon,
     required this.size,
     required this.onTap,
     this.color,
@@ -342,23 +414,19 @@ class __HoverIconButtonState extends State<_HoverIconButton> {
 
   @override
   Widget build(BuildContext context) {
-    final currentPath = (_isHovered && widget.hoverIconPath != null)
-        ? widget.hoverIconPath!
-        : widget.iconPath;
-
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         onTap: widget.onTap,
-        child: Opacity(
-          opacity: (_isHovered && widget.hoverIconPath == null) ? 0.7 : 1.0,
-          child: Image.asset(
-            currentPath,
-            width: widget.size,
-            height: widget.size,
-            color: widget.color,
+        child: AnimatedScale(
+          scale: _isHovered ? 1.15 : 1.0,
+          duration: const Duration(milliseconds: 150),
+          child: Icon(
+            widget.icon,
+            size: widget.size,
+            color: widget.color ?? (_isHovered ? Colors.white : const Color(0xFFB3B3B3)),
           ),
         ),
       ),
@@ -396,10 +464,11 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
       cursor: SystemMouseCursors.click,
       child: PopupMenuButton<String>(
         offset: const Offset(0, 44),
-        color: const Color(0xFF1E1E1E),
+        color: const Color(0xFF282828),
+        elevation: 6,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
-          side: const BorderSide(color: Color(0xFF2A2A2A), width: 1),
+          side: const BorderSide(color: Color(0xFF3E3E3E), width: 1),
         ),
         onSelected: (value) {
           if (value == 'playback') {
@@ -424,15 +493,16 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
           _buildMenuItem('settings', Icons.settings_rounded, 'Settings'),
           _buildMenuItem('logout', Icons.logout_rounded, 'Log Out'),
         ],
-        child: Opacity(
-          opacity: _isHovered ? 0.7 : 1.0,
+        child: AnimatedScale(
+          scale: _isHovered ? 1.08 : 1.0,
+          duration: const Duration(milliseconds: 150),
           child: Container(
-            width: 34,
-            height: 34,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: const Color(0xFF2A2A2A),
-              border: Border.all(color: const Color(0xFF555555), width: 1),
+              color: _isHovered ? const Color(0xFF282828) : const Color(0xFF181818),
+              border: Border.all(color: const Color(0xFF3E3E3E), width: 1),
             ),
             child: Icon(Icons.person, color: Provider.of<ThemeService>(context).themeColor, size: 20),
           ),
@@ -447,9 +517,9 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
       height: 42,
       child: Row(
         children: [
-          Icon(icon, color: const Color(0xFF888888), size: 18),
+          Icon(icon, color: const Color(0xFFB3B3B3), size: 18),
           const SizedBox(width: 12),
-          Text(label, style: const TextStyle(color: Color(0xFFE8E8E8), fontSize: 14)),
+          Text(label, style: const TextStyle(color: Colors.white, fontSize: 14)),
         ],
       ),
     );

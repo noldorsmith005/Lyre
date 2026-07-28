@@ -98,6 +98,10 @@ class MediaHandler {
             )
           ''');
         },
+        onOpen: (db) async {
+          await db.execute('PRAGMA journal_mode=WAL;');
+          await db.execute('PRAGMA busy_timeout=5000;');
+        },
       ),
     );
     ListeningStatsService.instance.setDatabase(_db);

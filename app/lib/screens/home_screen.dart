@@ -38,6 +38,7 @@ class _HomeScreenState extends State<HomeScreen> {
   List<Track> _tracks = [];
   Playlist? _currentPlaylist;
   bool _serverConnection = false;
+  Map<int, List<int>> _playlistTracksMap = {};
 
   @override
   void initState() {
@@ -47,23 +48,9 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _autoConnectServer() async {
-    bool isConnected = false;
-    if (widget.serverClient.registered()) {
-      final isValid = await widget.serverClient.validateSession();
-      if (isValid && mounted) {
-        setState(() {
-          _serverConnection = true;
-        });
-        isConnected = true;
-        // Background history sync to server
-        ListeningStatsService.instance.syncLocalHistoryToServer(widget.serverClient);
-      }
-    }
-    if (!isConnected && mounted) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && !_serverConnection) {
-          _showLoginScreen();
-        }
+    if (mounted) {
+      setState(() {
+        _serverConnection = false;
       });
     }
   }
@@ -87,8 +74,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadPlaylists() async {
     final playlists = await widget.mediaHandler.loadPlaylists();
+    final Map<int, List<int>> map = {};
+    for (final pl in playlists) {
+      final tracks = await widget.mediaHandler.loadPlaylistTracks(pl.playlistID);
+      map[pl.playlistID] = tracks.map((t) => t.trackID).toList();
+    }
     setState(() {
       _playlists = playlists;
+      _playlistTracksMap = map;
     });
   }
 
@@ -284,7 +277,8 @@ class _HomeScreenState extends State<HomeScreen> {
       statusNotifier.value = _SyncStatus(1.0, 'Sync Complete!');
       await Future.delayed(const Duration(milliseconds: 400));
 
-      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
 
       if (success) {
         _showAlert('Playlist Sync', 'Playlists synced to server successfully!');
@@ -292,8 +286,11 @@ class _HomeScreenState extends State<HomeScreen> {
         _showAlert('Sync Error', 'Failed to push playlists to server.');
       }
     } catch (e) {
-      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      if (!mounted) return;
+      Navigator.of(context, rootNavigator: true).pop();
       _showAlert('Sync Error', e.toString());
+    } finally {
+      statusNotifier.dispose();
     }
   }
 
@@ -393,14 +390,20 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _onTogglePlaylist(Playlist playlist, Track track) async {
-    final isIn = await widget.mediaHandler.isInPlaylist(playlist.playlistID, track.trackID);
+    final list = _playlistTracksMap[playlist.playlistID] ?? [];
+    final isIn = list.contains(track.trackID);
     if (isIn) {
       await widget.mediaHandler.removeFromPlaylist(playlist.playlistID, track.trackID);
-      if (_currentPlaylist != null && _currentPlaylist!.playlistID == playlist.playlistID) {
-        await _loadPlaylistTracks(_currentPlaylist!);
-      }
+      list.remove(track.trackID);
     } else {
       await widget.mediaHandler.addToPlaylist(playlist.playlistID, track.trackID);
+      list.add(track.trackID);
+    }
+    _playlistTracksMap[playlist.playlistID] = list;
+    if (_currentPlaylist != null && _currentPlaylist!.playlistID == playlist.playlistID) {
+      await _loadPlaylistTracks(_currentPlaylist!);
+    } else {
+      setState(() {});
     }
   }
 
@@ -466,7 +469,7 @@ class _HomeScreenState extends State<HomeScreen> {
               onQueueTrack: _onQueueTrack,
               availablePlaylists: _playlists,
               onTogglePlaylist: _onTogglePlaylist,
-              isTrackInPlaylist: (playlist, track) => false,
+              isTrackInPlaylist: (playlist, track) => (_playlistTracksMap[playlist.playlistID] ?? []).contains(track.trackID),
               isServerConnected: _serverConnection,
             ),
           ),

@@ -312,7 +312,7 @@ class PlaylistListScreen extends StatelessWidget {
                   borderSide: BorderSide.none,
                 ),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                prefixIcon: const Icon(Icons.search, color: Color(0xFF555555)),
+                prefixIcon: const Icon(Icons.search, color: Colors.white),
               ),
             ),
           ),

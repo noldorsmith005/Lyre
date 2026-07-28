@@ -279,9 +279,11 @@ class ServerClient {
       } else {
         print('Download failed for $type/$id: HTTP ${response.statusCode}');
         if (await tmpFile.exists()) await tmpFile.delete();
+        throw Exception('Download failed for $type/$id: HTTP ${response.statusCode}');
       }
     } catch (e) {
       print('An error occurred during transmission: $e');
+      rethrow;
     }
   }
 

@@ -98,6 +98,10 @@ class AudioPlayerService extends ChangeNotifier {
     }
   }
 
+  void previous() {
+    _player.seek(Duration.zero);
+  }
+
   void next() {
     if (loop) {
       _player.seek(Duration.zero);
@@ -163,8 +167,18 @@ class AudioPlayerService extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setShuffle() {
-    shuffle = !shuffle;
+  void setShuffle([bool? value]) {
+    shuffle = value ?? !shuffle;
+    notifyListeners();
+  }
+
+  void toggleLoop([bool? value]) {
+    loop = value ?? !loop;
+    notifyListeners();
+  }
+
+  void setLoop([bool? value]) {
+    loop = value ?? !loop;
     notifyListeners();
   }
 

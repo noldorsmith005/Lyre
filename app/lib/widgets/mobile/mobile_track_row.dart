@@ -69,7 +69,8 @@ class MobileTrackRow extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
           decoration: const BoxDecoration(
-            border: Border(bottom: BorderSide(color: Color(0xFF1A1A1A), width: 1)),
+            color: Color(0xFF121212),
+            border: Border(bottom: BorderSide(color: Color(0xFF1E1E1E), width: 1)),
           ),
           child: Row(
             children: [
@@ -90,8 +91,8 @@ class MobileTrackRow extends StatelessWidget {
                         errorBuilder: (context, error, stackTrace) => Container(
                           width: 48,
                           height: 48,
-                          color: const Color(0xFF1E1E1E),
-                          child: const Icon(Icons.music_note, color: Color(0xFF555555)),
+                          color: const Color(0xFF181818),
+                          child: const Icon(Icons.music_note, color: Color(0xFF757575)),
                         ),
                       ),
               ),
@@ -106,9 +107,9 @@ class MobileTrackRow extends StatelessWidget {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 16,
-                        color: isPlaying ? context.watch<ThemeService>().themeColor : const Color(0xFFE8E8E8),
-                        fontWeight: isPlaying ? FontWeight.bold : FontWeight.normal,
+                        fontSize: 15,
+                        color: isPlaying ? context.watch<ThemeService>().themeColor : Colors.white,
+                        fontWeight: isPlaying ? FontWeight.bold : FontWeight.w500,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -118,7 +119,7 @@ class MobileTrackRow extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                         fontSize: 13,
-                        color: Color(0xFF555555),
+                        color: Color(0xFFB3B3B3),
                       ),
                     ),
                   ],
@@ -129,7 +130,7 @@ class MobileTrackRow extends StatelessWidget {
                 track.duration,
                 style: const TextStyle(
                   fontSize: 13,
-                  color: Color(0xFF555555),
+                  color: Color(0xFF757575),
                 ),
               ),
             ],

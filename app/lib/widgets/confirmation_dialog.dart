@@ -43,8 +43,11 @@ class ConfirmationDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Dialog(
-      backgroundColor: const Color(0xFF2B2B2B),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(5)),
+      backgroundColor: const Color(0xFF181818),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: const BorderSide(color: Color(0xFF282828), width: 1),
+      ),
       child: Container(
         width: 400,
         padding: const EdgeInsets.all(24),

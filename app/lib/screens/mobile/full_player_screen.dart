@@ -32,7 +32,7 @@ class FullPlayerScreen extends StatelessWidget {
 
     return Container(
       decoration: const BoxDecoration(
-        color: Color(0xFF0F0F0F),
+        color: Color(0xFF121212),
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: SafeArea(
@@ -42,11 +42,11 @@ class FullPlayerScreen extends StatelessWidget {
             // Drag handle
             Center(
               child: Container(
-                margin: const EdgeInsets.symmetric(vertical: 16),
-                width: 40,
+                margin: const EdgeInsets.symmetric(vertical: 14),
+                width: 36,
                 height: 4,
                 decoration: BoxDecoration(
-                  color: const Color(0xFF555555),
+                  color: const Color(0xFF3E3E3E),
                   borderRadius: BorderRadius.circular(2),
                 ),
               ),
@@ -150,7 +150,7 @@ class FullPlayerScreen extends StatelessWidget {
                 IconButton(
                   iconSize: 26,
                   icon: Icon(audioService.loop ? Icons.repeat_one : Icons.repeat),
-                  color: audioService.loop ? context.watch<ThemeService>().themeColor : Colors.white,
+                  color: Colors.white,
                   onPressed: () {
                     audioService.loop = !audioService.loop;
                     audioService.notifyListeners();
@@ -197,7 +197,7 @@ class FullPlayerScreen extends StatelessWidget {
                 IconButton(
                   iconSize: 26,
                   icon: Icon(audioService.shuffle ? Icons.shuffle_on_outlined : Icons.shuffle),
-                  color: audioService.shuffle ? context.watch<ThemeService>().themeColor : Colors.white,
+                  color: Colors.white,
                   onPressed: () {
                     audioService.setShuffle();
                   },

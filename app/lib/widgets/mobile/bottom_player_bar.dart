@@ -33,7 +33,10 @@ class BottomPlayerBar extends StatelessWidget {
       },
       child: Container(
         height: 66, // 64 + 2 for progress
-        color: const Color(0xFF161616),
+        decoration: const BoxDecoration(
+          color: Color(0xFF121212),
+          border: Border(top: BorderSide(color: Color(0xFF282828), width: 1.0)),
+        ),
         child: Column(
           children: [
             Expanded(

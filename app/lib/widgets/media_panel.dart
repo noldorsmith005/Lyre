@@ -33,8 +33,8 @@ class _MediaPanelState extends State<MediaPanel> {
     return Container(
       width: LayoutConstants.coverSize + 60, // approximate width
       decoration: const BoxDecoration(
-        color: Colors.black,
-        border: Border(left: BorderSide(color: Color(0xFF2A2A2A), width: 1)),
+        color: Color(0xFF121212),
+        border: Border(left: BorderSide(color: Color(0xFF282828), width: 1)),
       ),
       child: Column(
         children: [
@@ -228,8 +228,8 @@ class _MediaPanelState extends State<MediaPanel> {
                               Expanded(
                                 child: SliderTheme(
                                   data: SliderTheme.of(context).copyWith(
-                                    activeTrackColor: Colors.white,
-                                    inactiveTrackColor: const Color(0xFF444444),
+                                    activeTrackColor: context.watch<ThemeService>().themeColor,
+                                    inactiveTrackColor: const Color(0xFF282828),
                                     thumbColor: Colors.white,
                                     trackHeight: 4,
                                     thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
@@ -261,15 +261,15 @@ class _MediaPanelState extends State<MediaPanel> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       _HoverIconButton(
-                        iconPath: 'assets/prev.png',
+                        icon: Icons.skip_previous_rounded,
                         size: 25,
                         onTap: () {
-                          // audioService.previous()
+                          audioService.previous();
                         },
                       ),
                       const SizedBox(width: 24),
                       _HoverIconButton(
-                        iconPath: audioService.isPlaying ? 'assets/pause.png' : 'assets/play.png',
+                        icon: audioService.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
                         size: 25,
                         onTap: () {
                           if (audioService.isPlaying) {
@@ -281,7 +281,7 @@ class _MediaPanelState extends State<MediaPanel> {
                       ),
                       const SizedBox(width: 24),
                       _HoverIconButton(
-                        iconPath: 'assets/next.png',
+                        icon: Icons.skip_next_rounded,
                         size: 25,
                         onTap: () {
                           audioService.next();
@@ -289,9 +289,9 @@ class _MediaPanelState extends State<MediaPanel> {
                       ),
                       const SizedBox(width: 24),
                       _HoverIconButton(
-                        iconPath: 'assets/loop.png',
+                        icon: audioService.loop ? Icons.repeat_one_rounded : Icons.repeat_rounded,
                         size: 26,
-                        color: audioService.loop ? context.watch<ThemeService>().themeColor : Colors.white,
+                        color: Colors.white,
                         onTap: () {
                           audioService.loop = !audioService.loop;
                         },
@@ -479,15 +479,13 @@ class __QueueCardState extends State<_QueueCard> {
 }
 
 class _HoverIconButton extends StatefulWidget {
-  final String iconPath;
-  final String? hoverIconPath;
+  final IconData icon;
   final double size;
   final VoidCallback onTap;
   final Color? color;
 
   const _HoverIconButton({
-    required this.iconPath,
-    this.hoverIconPath,
+    required this.icon,
     required this.size,
     required this.onTap,
     this.color,
@@ -502,29 +500,23 @@ class __HoverIconButtonState extends State<_HoverIconButton> {
 
   @override
   Widget build(BuildContext context) {
-    final currentPath = (_isHovered && widget.hoverIconPath != null)
-        ? widget.hoverIconPath!
-        : widget.iconPath;
-
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         onTap: widget.onTap,
-        child: SizedBox(
-          width: widget.size,
-          height: widget.size,
-          child: Opacity(
-            opacity: (_isHovered && widget.hoverIconPath == null) ? 0.7 : 1.0,
-            child: Image.asset(
-              currentPath,
-              width: widget.size,
-              height: widget.size,
-              fit: BoxFit.contain,
-              color: widget.color ?? Colors.white,
-              errorBuilder: (context, error, stackTrace) =>
-                  SizedBox(width: widget.size, height: widget.size),
+        child: AnimatedScale(
+          scale: _isHovered ? 1.15 : 1.0,
+          duration: const Duration(milliseconds: 150),
+          curve: Curves.easeInOut,
+          child: SizedBox(
+            width: widget.size,
+            height: widget.size,
+            child: Icon(
+              widget.icon,
+              size: widget.size,
+              color: widget.color ?? (_isHovered ? Colors.white : const Color(0xFFB3B3B3)),
             ),
           ),
         ),

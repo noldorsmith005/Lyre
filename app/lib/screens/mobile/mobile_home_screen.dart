@@ -38,23 +38,9 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
   }
 
   Future<void> _autoConnectServer() async {
-    bool isConnected = false;
-    if (widget.serverClient.registered()) {
-      final isValid = await widget.serverClient.validateSession();
-      if (isValid && mounted) {
-        setState(() {
-          _serverConnection = true;
-        });
-        isConnected = true;
-        // Background history sync to server
-        ListeningStatsService.instance.syncLocalHistoryToServer(widget.serverClient);
-      }
-    }
-    if (!isConnected && mounted) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted && !_serverConnection) {
-          _openLoginScreen();
-        }
+    if (mounted) {
+      setState(() {
+        _serverConnection = false;
       });
     }
   }

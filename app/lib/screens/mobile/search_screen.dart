@@ -96,7 +96,7 @@ class _SearchScreenState extends State<SearchScreen> {
                     borderSide: BorderSide.none,
                   ),
                   contentPadding: const EdgeInsets.all(16),
-                  prefixIcon: const Icon(Icons.search, color: Color(0xFF555555)),
+                  prefixIcon: const Icon(Icons.search, color: Colors.white),
                   suffixIcon: _searchController.text.isNotEmpty
                       ? IconButton(
                           icon: const Icon(Icons.clear, color: Color(0xFF555555)),

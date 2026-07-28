@@ -115,8 +115,8 @@ class _UploadModalState extends State<UploadModal> {
         height: 300,
         padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
         decoration: BoxDecoration(
-          color: const Color(0xFF111111),
-          border: Border.all(color: const Color(0xFF2A2A2A), width: 1),
+          color: const Color(0xFF181818),
+          border: Border.all(color: const Color(0xFF282828), width: 1),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Column(
