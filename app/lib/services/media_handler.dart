@@ -109,14 +109,8 @@ class MediaHandler {
           ''');
         },
         onOpen: (db) async {
-          await db.execute('PRAGMA journal_mode=WAL;');
+          await db.rawQuery('PRAGMA journal_mode=WAL;');
           await db.execute('PRAGMA busy_timeout=5000;');
-          await db.execute('''
-            CREATE TABLE IF NOT EXISTS SyncQueue (
-                key   TEXT PRIMARY KEY,
-                value TEXT
-            )
-          ''');
         },
       ),
     );
