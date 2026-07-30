@@ -54,13 +54,43 @@ bool FlutterWindow::OnCreate() {
                 ULONG_PTR gdiplusToken;
                 Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
                 Gdiplus::Bitmap bitmap(wpath.c_str());
-                HICON hIcon = NULL;
-                if (bitmap.GetHICON(&hIcon) == Gdiplus::Ok && hIcon != NULL) {
-                  SendMessage(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
-                  SendMessage(hwnd, WM_SETICON, ICON_BIG, (LPARAM)hIcon);
-                  result->Success(flutter::EncodableValue(true));
-                  return;
+                UINT width = bitmap.GetWidth();
+                UINT height = bitmap.GetHeight();
+                if (width > 0 && height > 0) {
+                  Gdiplus::Color topCenterColor, leftCenterColor;
+                  bitmap.GetPixel(width / 2, 0, &topCenterColor);
+                  bitmap.GetPixel(0, height / 2, &leftCenterColor);
+
+                  HICON hIcon = NULL;
+                  if (topCenterColor.GetA() > 10 || leftCenterColor.GetA() > 10) {
+                    float scale = 824.0f / 1024.0f;
+                    float newW = width * scale;
+                    float newH = height * scale;
+                    float xOff = (width - newW) / 2.0f;
+                    float yOff = (height - newH) / 2.0f;
+
+                    Gdiplus::Bitmap paddedBitmap(width, height, PixelFormat32bppARGB);
+                    Gdiplus::Graphics graphics(&paddedBitmap);
+                    graphics.SetInterpolationMode(Gdiplus::InterpolationModeHighQualityBicubic);
+                    graphics.DrawImage(&bitmap, xOff, yOff, newW, newH);
+                    if (paddedBitmap.GetHICON(&hIcon) == Gdiplus::Ok && hIcon != NULL) {
+                      SendMessage(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
+                      SendMessage(hwnd, WM_SETICON, ICON_BIG, (LPARAM)hIcon);
+                      result->Success(flutter::EncodableValue(true));
+                      Gdiplus::GdiplusShutdown(gdiplusToken);
+                      return;
+                    }
+                  } else {
+                    if (bitmap.GetHICON(&hIcon) == Gdiplus::Ok && hIcon != NULL) {
+                      SendMessage(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
+                      SendMessage(hwnd, WM_SETICON, ICON_BIG, (LPARAM)hIcon);
+                      result->Success(flutter::EncodableValue(true));
+                      Gdiplus::GdiplusShutdown(gdiplusToken);
+                      return;
+                    }
+                  }
                 }
+                Gdiplus::GdiplusShutdown(gdiplusToken);
               }
             }
           }
