@@ -145,7 +145,7 @@ class ListeningStatsService {
     try {
       final cutoffDate = DateTime.now().subtract(Duration(days: months * 30)).toIso8601String();
       await _db!.delete(
-        'ListeningHistory',
+        'listening_history',
         where: 'timestamp < ?',
         whereArgs: [cutoffDate],
       );
@@ -157,7 +157,7 @@ class ListeningStatsService {
   Future<void> _loadLocalStatsFromDb() async {
     if (_db == null) return;
     try {
-      final rows = await _db!.query('LocalStats', limit: 1);
+      final rows = await _db!.query('local_stats', limit: 1);
       if (rows.isNotEmpty) {
         final row = rows.first;
         final rawTracks = jsonDecode(row['top_tracks_json'] as String? ?? '[]') as List<dynamic>;
@@ -189,7 +189,7 @@ class ListeningStatsService {
     if (_db == null) return;
     try {
       final now = DateTime.now().toIso8601String();
-      await _db!.insert('ListeningHistory', {
+      await _db!.insert('listening_history', {
         'track_id': track.trackID,
         'title': track.title,
         'artist': track.artist,
@@ -206,7 +206,7 @@ class ListeningStatsService {
     try {
       final result = await _db!.rawQuery('''
         SELECT track_id, COUNT(*) as play_count
-        FROM ListeningHistory
+        FROM listening_history
         GROUP BY track_id
       ''');
       if (result.isEmpty) return;
@@ -280,7 +280,7 @@ class ListeningStatsService {
             if (_db != null) {
               final uid = int.tryParse(serverClient.userID ?? '0') ?? 0;
               await _db!.insert(
-                'LocalStats',
+                'local_stats',
                 {
                   'user_id': uid,
                   'month_year': monthLabel,
@@ -332,7 +332,7 @@ class ListeningStatsService {
     if (_db != null) {
       try {
         rows = await _db!.query(
-          'ListeningHistory',
+          'listening_history',
           where: 'timestamp >= ?',
           whereArgs: [startOfMonth],
         );

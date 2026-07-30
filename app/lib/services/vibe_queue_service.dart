@@ -89,8 +89,8 @@ class VibeQueueService {
       final oneWeekAgo = DateTime.now().subtract(const Duration(days: 7)).toIso8601String();
       final rows = await db.rawQuery('''
         SELECT t.track_id, t.title, t.artist, t.duration, COUNT(lh.history_id) as play_count
-        FROM Tracks t
-        JOIN ListeningHistory lh ON t.track_id = lh.track_id
+        FROM tracks t
+        JOIN listening_history lh ON t.track_id = lh.track_id
         WHERE lh.timestamp >= ?
         GROUP BY t.track_id
         ORDER BY play_count DESC
@@ -117,8 +117,8 @@ class VibeQueueService {
     try {
       final rows = await db.rawQuery('''
         SELECT t.track_id, t.title, t.artist, t.duration, COUNT(lh.history_id) as play_count
-        FROM Tracks t
-        LEFT JOIN ListeningHistory lh ON t.track_id = lh.track_id
+        FROM tracks t
+        LEFT JOIN listening_history lh ON t.track_id = lh.track_id
         GROUP BY t.track_id
         ORDER BY play_count ASC
         LIMIT 50
@@ -143,7 +143,7 @@ class VibeQueueService {
   static Future<List<Track>> _getMixItUpTracks(dynamic db, MediaHandler mediaHandler) async {
     try {
       final playlistRows = await db.rawQuery('''
-        SELECT playlist_id FROM Playlists ORDER BY RANDOM() LIMIT 3
+        SELECT playlist_id FROM playlists ORDER BY RANDOM() LIMIT 3
       ''');
 
       if (playlistRows.isNotEmpty) {
@@ -152,8 +152,8 @@ class VibeQueueService {
 
         final trackRows = await db.rawQuery('''
           SELECT DISTINCT t.track_id, t.title, t.artist, t.duration
-          FROM Tracks t
-          JOIN PlaylistTracks pt ON t.track_id = pt.track_id
+          FROM tracks t
+          JOIN playlist_tracks pt ON t.track_id = pt.track_id
           WHERE pt.playlist_id IN ($placeholders)
         ''', ids);
 
