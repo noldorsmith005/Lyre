@@ -13,6 +13,7 @@ class MediaHandler {
   late String _appDataPath;
   VoidCallback? onPlaylistChanged;
 
+  Database get db => _db;
   String get appDataPath => _appDataPath;
 
   Future<String> _getAppDataPath() async {

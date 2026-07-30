@@ -9,6 +9,8 @@ import '../playback_screen.dart';
 import '../../services/listening_stats_service.dart';
 import '../../widgets/confirmation_dialog.dart';
 import '../../widgets/sync_progress_dialog.dart';
+import '../../widgets/vibe_queue_modal.dart';
+import '../../services/vibe_queue_service.dart';
 import '../../widgets/mobile/bottom_player_bar.dart';
 import '../login_screen.dart';
 
@@ -160,6 +162,27 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
     }
   }
 
+  void _onMobileVibeQueue() {
+    VibeQueueModal.show(
+      context,
+      mediaHandler: widget.mediaHandler,
+      onQueueVibe: (tracks, vibe) {
+        if (tracks.isEmpty) {
+          _showSnackBar('No tracks available for selected vibe.', isError: true);
+          return;
+        }
+        final audioService = Provider.of<AudioPlayerService>(context, listen: false);
+        for (final track in tracks) {
+          audioService.addToQueue(track);
+        }
+        if (audioService.currentTrack == null && tracks.isNotEmpty) {
+          audioService.play(tracks.first);
+        }
+        _showSnackBar('Queued ${tracks.length} songs for "${vibe.title}"');
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final audioService = Provider.of<AudioPlayerService>(context);
@@ -175,6 +198,7 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
         onOpenLogin: _openLoginScreen,
         onLogoutPressed: _onMobileLogout,
         onPlaybackPressed: _onMobilePlayback,
+        onVibeQueuePressed: _onMobileVibeQueue,
         onCreatePlaylist: _onCreatePlaylist,
         onDeletePlaylist: _onDeletePlaylist,
         onRenamePlaylist: _onRenamePlaylist,

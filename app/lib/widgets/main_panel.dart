@@ -18,6 +18,7 @@ class MainPanel extends StatefulWidget {
   final VoidCallback onUploadPressed;
   final VoidCallback onClearConfigPressed;
   final VoidCallback? onPlaybackPressed;
+  final VoidCallback? onVibeQueuePressed;
   final VoidCallback onShufflePressed;
   final Function(String) onEditPlaylistName;
   final VoidCallback onDeletePlaylist;
@@ -41,6 +42,7 @@ class MainPanel extends StatefulWidget {
     required this.onUploadPressed,
     required this.onClearConfigPressed,
     this.onPlaybackPressed,
+    this.onVibeQueuePressed,
     required this.onShufflePressed,
     required this.onEditPlaylistName,
     required this.onDeletePlaylist,
@@ -203,6 +205,7 @@ class _MainPanelState extends State<MainPanel> {
               onUploadPressed: widget.onUploadPressed,
               onClearConfigPressed: widget.onClearConfigPressed,
               onPlaybackPressed: widget.onPlaybackPressed,
+              onVibeQueuePressed: widget.onVibeQueuePressed,
               isServerConnected: widget.isServerConnected,
             ),
           ],
@@ -455,12 +458,14 @@ class _AccountMenuButton extends StatefulWidget {
   final VoidCallback onUploadPressed;
   final VoidCallback onClearConfigPressed;
   final VoidCallback? onPlaybackPressed;
+  final VoidCallback? onVibeQueuePressed;
   final bool isServerConnected;
 
   const _AccountMenuButton({
     required this.onUploadPressed,
     required this.onClearConfigPressed,
     this.onPlaybackPressed,
+    this.onVibeQueuePressed,
     this.isServerConnected = false,
   });
 
@@ -486,7 +491,9 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
           side: const BorderSide(color: Color(0xFF3E3E3E), width: 1),
         ),
         onSelected: (value) {
-          if (value == 'playback') {
+          if (value == 'vibe') {
+            if (widget.onVibeQueuePressed != null) widget.onVibeQueuePressed!();
+          } else if (value == 'playback') {
             if (widget.onPlaybackPressed != null) widget.onPlaybackPressed!();
           } else if (value == 'upload') {
             widget.onUploadPressed();
@@ -500,6 +507,7 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
           }
         },
         itemBuilder: (context) => [
+          _buildMenuItem('vibe', Icons.tune_rounded, 'Vibe Queue'),
           _buildMenuItem('playback', Icons.graphic_eq_rounded, 'Lyre Playback'),
           _buildMenuItem('upload', Icons.upload_rounded, 'Upload Track'),
           _buildMenuItem('settings', Icons.settings_rounded, 'Settings'),

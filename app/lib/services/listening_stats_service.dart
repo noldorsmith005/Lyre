@@ -137,6 +137,21 @@ class ListeningStatsService {
   void setDatabase(Database db) {
     _db = db;
     _loadLocalStatsFromDb();
+    pruneOldHistory();
+  }
+
+  Future<void> pruneOldHistory({int months = 2}) async {
+    if (_db == null) return;
+    try {
+      final cutoffDate = DateTime.now().subtract(Duration(days: months * 30)).toIso8601String();
+      await _db!.delete(
+        'ListeningHistory',
+        where: 'timestamp < ?',
+        whereArgs: [cutoffDate],
+      );
+    } catch (e) {
+      print('Error pruning old history: $e');
+    }
   }
 
   Future<void> _loadLocalStatsFromDb() async {

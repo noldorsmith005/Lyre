@@ -16,6 +16,8 @@ import 'settings_screen.dart';
 import '../widgets/upload_modal.dart';
 import '../widgets/confirmation_dialog.dart';
 import '../widgets/sync_progress_dialog.dart';
+import '../widgets/vibe_queue_modal.dart';
+import '../services/vibe_queue_service.dart';
 import 'register_screen.dart';
 
 import '../services/listening_stats_service.dart';
@@ -386,6 +388,27 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  void _onOpenVibeQueue() {
+    VibeQueueModal.show(
+      context,
+      mediaHandler: widget.mediaHandler,
+      onQueueVibe: (tracks, vibe) {
+        if (tracks.isEmpty) {
+          _showSnackBar('No tracks available for selected vibe.', isError: true);
+          return;
+        }
+        final audioService = Provider.of<AudioPlayerService>(context, listen: false);
+        for (final track in tracks) {
+          audioService.addToQueue(track);
+        }
+        if (audioService.currentTrack == null && tracks.isNotEmpty) {
+          audioService.play(tracks.first);
+        }
+        _showSnackBar('Queued ${tracks.length} songs for "${vibe.title}"');
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final audioService = context.watch<AudioPlayerService>();
@@ -423,6 +446,7 @@ class _HomeScreenState extends State<HomeScreen> {
               onUploadPressed: _onUploadPressed,
               onClearConfigPressed: _onClearConfigPressed,
               onPlaybackPressed: _onOpenPlayback,
+              onVibeQueuePressed: _onOpenVibeQueue,
               onShufflePressed: _onShufflePressed,
               onEditPlaylistName: _onEditPlaylistName,
               onDeletePlaylist: _onDeletePlaylist,

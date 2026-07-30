@@ -15,6 +15,7 @@ class PlaylistListScreen extends StatelessWidget {
   final VoidCallback onOpenLogin;
   final VoidCallback onLogoutPressed;
   final VoidCallback? onPlaybackPressed;
+  final VoidCallback? onVibeQueuePressed;
   final VoidCallback? onCreatePlaylist;
   final Function(Playlist)? onDeletePlaylist;
   final Function(Playlist, String)? onRenamePlaylist;
@@ -29,6 +30,7 @@ class PlaylistListScreen extends StatelessWidget {
     required this.onOpenLogin,
     required this.onLogoutPressed,
     this.onPlaybackPressed,
+    this.onVibeQueuePressed,
     this.onCreatePlaylist,
     this.onDeletePlaylist,
     this.onRenamePlaylist,
@@ -128,6 +130,17 @@ class PlaylistListScreen extends StatelessWidget {
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                 children: [
+                  _buildDrawerItem(
+                    context,
+                    icon: Icons.tune_rounded,
+                    title: 'Vibe Queue',
+                    subtitle: 'Generate a 20-track vibe playlist',
+                    onTap: () {
+                      Navigator.pop(context);
+                      if (onVibeQueuePressed != null) onVibeQueuePressed!();
+                    },
+                  ),
+                  const SizedBox(height: 6),
                   _buildDrawerItem(
                     context,
                     icon: Icons.graphic_eq_rounded,
