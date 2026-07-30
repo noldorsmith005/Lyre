@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/track.dart';
@@ -6,6 +5,8 @@ import '../models/playlist.dart';
 import '../services/theme_service.dart';
 import '../utils/layout_constants.dart';
 import 'play_bars.dart';
+import 'confirmation_dialog.dart';
+import 'track_cover_image.dart';
 
 class TrackCard extends StatefulWidget {
   final Track track;
@@ -57,53 +58,66 @@ class _TrackCardState extends State<TrackCard> {
         borderRadius: BorderRadius.circular(14),
         side: const BorderSide(color: Color(0xFF2E2E3A), width: 1),
       ),
-      items: widget.availablePlaylists.map((playlist) {
-        return PopupMenuItem<Playlist>(
-          value: playlist,
-          padding: EdgeInsets.zero,
-          child: StatefulBuilder(
-            builder: (context, setPopupState) {
-              final inPlaylist = widget.isTrackInPlaylist(playlist, widget.track);
-              return MouseRegion(
-                cursor: SystemMouseCursors.click,
-                child: GestureDetector(
-                  onTap: () {
-                    widget.onTogglePlaylist(playlist, widget.track);
-                    setPopupState(() {});
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    decoration: const BoxDecoration(
-                      border: Border(bottom: BorderSide(color: Color(0xFF3C3F41), width: 1)),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            playlist.title,
-                            style: const TextStyle(color: Colors.white),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Container(
-                          width: 13,
-                          height: 13,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: inPlaylist ? context.watch<ThemeService>().themeColor : const Color(0xFF7F8C8D),
-                          ),
-                        ),
-                      ],
-                    ),
+      items: widget.availablePlaylists.isEmpty
+          ? [
+              const PopupMenuItem<Playlist>(
+                enabled: false,
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  child: Text(
+                    'No playlists available',
+                    style: TextStyle(color: Colors.white70, fontSize: 13),
                   ),
                 ),
+              ),
+            ]
+          : widget.availablePlaylists.map((playlist) {
+              return PopupMenuItem<Playlist>(
+                value: playlist,
+                padding: EdgeInsets.zero,
+                child: StatefulBuilder(
+                  builder: (context, setPopupState) {
+                    final inPlaylist = widget.isTrackInPlaylist(playlist, widget.track);
+                    return MouseRegion(
+                      cursor: SystemMouseCursors.click,
+                      child: GestureDetector(
+                        onTap: () {
+                          widget.onTogglePlaylist(playlist, widget.track);
+                          setPopupState(() {});
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                          decoration: const BoxDecoration(
+                            border: Border(bottom: BorderSide(color: Color(0xFF3C3F41), width: 1)),
+                          ),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  playlist.title,
+                                  style: const TextStyle(color: Colors.white),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Container(
+                                width: 13,
+                                height: 13,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: inPlaylist ? context.watch<ThemeService>().themeColor : const Color(0xFF7F8C8D),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    );
+                  }
+                ),
               );
-            }
-          ),
-        );
-      }).toList(),
+            }).toList(),
     );
   }
 
@@ -137,11 +151,11 @@ class _TrackCardState extends State<TrackCard> {
           margin: EdgeInsets.only(bottom: LayoutConstants.cellSpacing),
           decoration: BoxDecoration(
             color: _isHovered
-                ? const Color(0xFF282828)
-                : (widget.isPlaying ? const Color(0xFF1E1E1E) : const Color(0xFF121212)),
+                ? const Color(0xFF1A1A1A)
+                : (widget.isPlaying ? const Color(0xFF141414) : const Color(0xFF080808)),
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: _isHovered ? const Color(0xFF3E3E3E) : const Color(0xFF1E1E1E),
+              color: _isHovered ? const Color(0xFF2A2A2A) : const Color(0xFF141414),
               width: 1.0,
             ),
           ),
@@ -186,12 +200,13 @@ class _TrackCardState extends State<TrackCard> {
               // Thumb
               ClipRRect(
                 borderRadius: BorderRadius.circular(6),
-                child: Image.file(
-                  File('${widget.appDataPath}/cover/${widget.track.trackID}.jpg'),
+                child: TrackCoverImage(
+                  trackID: widget.track.trackID,
+                  appDataPath: widget.appDataPath,
                   width: LayoutConstants.thumbSize,
                   height: LayoutConstants.thumbSize,
                   fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) => _buildFallbackThumb(),
+                  fallback: _buildFallbackThumb(),
                 ),
               ),
               const SizedBox(width: 16),
@@ -232,11 +247,11 @@ class _TrackCardState extends State<TrackCard> {
                 child: Center(
                   child: widget.isPlaying
                       ? PlayBars(
-                          barCount: 8,
-                          maxHeight: 16.0,
-                          minHeight: 3.0,
-                          barWidth: 3.0,
-                          barSpacing: 2.5,
+                          barCount: 12,
+                          maxHeight: 28.0,
+                          minHeight: 4.0,
+                          barWidth: 4.5,
+                          barSpacing: 3.5,
                           isPlaying: widget.isPlaying,
                         )
                       : const SizedBox.shrink(),
@@ -244,30 +259,30 @@ class _TrackCardState extends State<TrackCard> {
               ),
               
               if (widget.isDownloaded) ...[
-              _buildTooltip(
-                message: 'Add to Queue',
-                child: _HoverIconButton(
-                  icon: Icons.queue_music_rounded,
-                  size: 16,
-                  color: const Color(0xFFB3B3B3),
-                  onTap: widget.onQueue ?? () {},
-                ),
-              ),
-              const SizedBox(width: 16),
-              
               Builder(
                 builder: (ctx) => _buildTooltip(
                   message: 'Add to Playlist',
                   child: _HoverIconButton(
-                    icon: Icons.playlist_add_rounded,
-                    size: 16,
-                    color: const Color(0xFFB3B3B3),
+                    icon: Icons.add_circle_outline_rounded,
+                    size: 22,
+                    color: Colors.white,
                     onTap: () {
                       final renderBox = ctx.findRenderObject() as RenderBox;
                       final position = renderBox.localToGlobal(Offset.zero);
                       _showPlaylistPopup(context, position);
                     },
                   ),
+                ),
+              ),
+              const SizedBox(width: 16),
+              
+              _buildTooltip(
+                message: 'Add to Queue',
+                child: _HoverIconButton(
+                  icon: Icons.playlist_add_rounded,
+                  size: 22,
+                  color: Colors.white,
+                  onTap: widget.onQueue ?? () {},
                 ),
               ),
               if (widget.onRemoveDownload != null) ...[
@@ -277,11 +292,21 @@ class _TrackCardState extends State<TrackCard> {
                   child: MouseRegion(
                     cursor: SystemMouseCursors.click,
                     child: GestureDetector(
-                      onTap: widget.onRemoveDownload,
+                      onTap: () async {
+                        final confirmed = await ConfirmationDialog.show(
+                          context,
+                          title: 'Remove Download',
+                          message: 'Are you sure you want to remove "${widget.track.title}" from your local downloads?',
+                          confirmText: 'Remove',
+                        );
+                        if (confirmed == true && widget.onRemoveDownload != null) {
+                          widget.onRemoveDownload!();
+                        }
+                      },
                       child: const Icon(
                         Icons.delete_outline,
-                        size: 18,
-                        color: Color(0xFFB3B3B3),
+                        size: 22,
+                        color: Colors.white,
                       ),
                     ),
                   ),

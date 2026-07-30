@@ -15,6 +15,7 @@ import 'playback_screen.dart';
 import 'settings_screen.dart';
 import '../widgets/upload_modal.dart';
 import '../widgets/confirmation_dialog.dart';
+import '../widgets/sync_progress_dialog.dart';
 import 'register_screen.dart';
 
 import '../services/listening_stats_service.dart';
@@ -40,18 +41,36 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _serverConnection = false;
   Map<int, List<int>> _playlistTracksMap = {};
 
+  String _searchQuery = '';
+
   @override
   void initState() {
     super.initState();
     _loadPlaylists();
-    _autoConnectServer();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _autoConnectServer();
+      }
+    });
   }
 
   Future<void> _autoConnectServer() async {
-    if (mounted) {
-      setState(() {
-        _serverConnection = false;
-      });
+    if (widget.serverClient.registered()) {
+      final canPing = await widget.serverClient.ping();
+      if (canPing && mounted) {
+        setState(() {
+          _serverConnection = true;
+        });
+        await SyncProgressDialog.show(context, widget.serverClient);
+        if (mounted) {
+          await _loadPlaylists();
+          if (_searchQuery.trim().isNotEmpty) {
+            await _onSearch(_searchQuery);
+          } else if (_currentPlaylist != null) {
+            await _loadPlaylistTracks(_currentPlaylist!);
+          }
+        }
+      }
     }
   }
 
@@ -62,10 +81,16 @@ class _HomeScreenState extends State<HomeScreen> {
         builder: (context) => LoginScreen(
           mediaHandler: widget.mediaHandler,
           serverClient: widget.serverClient,
-          onLoginSuccess: () {
+          onLoginSuccess: () async {
             setState(() {
               _serverConnection = true;
             });
+            if (mounted) {
+              await _loadPlaylists();
+              if (_searchQuery.trim().isNotEmpty) {
+                await _onSearch(_searchQuery);
+              }
+            }
           },
         ),
       ),
@@ -94,17 +119,20 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _onSearch(String query) async {
-    if (query.trim().isEmpty) return;
-    List<Track> results;
-    if (_serverConnection) {
-      try {
-        results = await widget.serverClient.searchTracks(query);
-      } catch (e) {
-        results = await widget.mediaHandler.searchTracks(query);
+    _searchQuery = query;
+    if (query.trim().isEmpty) {
+      if (_currentPlaylist != null) {
+        await _loadPlaylistTracks(_currentPlaylist!);
+      } else {
+        setState(() {
+          _tracks = [];
+        });
       }
-    } else {
-      results = await widget.mediaHandler.searchTracks(query);
+      return;
     }
+    final results = _serverConnection
+        ? await widget.serverClient.searchTracks(query)
+        : await widget.mediaHandler.searchTracks(query);
     setState(() {
       _currentPlaylist = null;
       _tracks = results;
@@ -118,48 +146,49 @@ class _HomeScreenState extends State<HomeScreen> {
           builder: (_) => LoginScreen(
             mediaHandler: widget.mediaHandler,
             serverClient: widget.serverClient,
-            onLoginSuccess: () {
+            onLoginSuccess: () async {
               setState(() {
                 _serverConnection = true;
               });
+              if (mounted) {
+                await _loadPlaylists();
+                if (_searchQuery.trim().isNotEmpty) {
+                  await _onSearch(_searchQuery);
+                }
+              }
             },
           ),
         ),
       );
     } else {
-      final canPing = await widget.serverClient.ping();
-      if (canPing) {
-        setState(() {
-          _serverConnection = !_serverConnection;
-        });
-      } else {
-        _showAlert('Server Error', 'Server Offline');
+      final newConn = !_serverConnection;
+      setState(() {
+        _serverConnection = newConn;
+      });
+      if (mounted && _searchQuery.trim().isNotEmpty) {
+        await _onSearch(_searchQuery);
       }
     }
   }
 
   void _onUploadPressed() {
-    if (_serverConnection) {
-      UploadModal.show(
-        context,
-        onUpload: (title, artist, mediaPath, coverPath) async {
-          try {
-            final newTrack = Track(
-              trackID: 0,
-              title: title,
-              artist: artist,
-              duration: '',
-            );
-            await widget.serverClient.uploadTrack(newTrack, mediaPath, coverPath);
-            if (mounted) Navigator.of(context).pop();
-          } catch (e) {
-            _showAlert('Upload Error', e.toString());
-          }
-        },
-      );
-    } else {
-      _showAlert('Server Error', 'Connect to server');
-    }
+    UploadModal.show(
+      context,
+      onUpload: (title, artist, mediaPath, coverPath) async {
+        try {
+          final newTrack = Track(
+            trackID: 0,
+            title: title,
+            artist: artist,
+            duration: '',
+          );
+          await widget.serverClient.uploadTrack(newTrack, mediaPath, coverPath);
+          if (mounted) Navigator.of(context).pop();
+        } catch (e) {
+          _showAlert('Upload Error', e.toString());
+        }
+      },
+    );
   }
 
   void _onClearConfigPressed() async {
@@ -167,6 +196,7 @@ class _HomeScreenState extends State<HomeScreen> {
       context,
       title: 'Log Out',
       message: 'Are you sure you want to log out? This will clear all local playlists, downloaded tracks, server-tracked downloads, and session data.',
+      confirmText: 'Log Out',
     );
     if (confirmed == true) {
       final audioService = Provider.of<AudioPlayerService>(context, listen: false);
@@ -198,102 +228,6 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _onSyncPressed() async {
-    if (!_serverConnection) {
-      _showAlert('Sync Error', 'Please connect to the server first.');
-      return;
-    }
-
-    final statusNotifier = ValueNotifier<_SyncStatus>(_SyncStatus(0.1, 'Loading playlists...'));
-    final themeColor = Provider.of<ThemeService>(context, listen: false).themeColor;
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => ValueListenableBuilder<_SyncStatus>(
-        valueListenable: statusNotifier,
-        builder: (context, status, child) {
-          return AlertDialog(
-            backgroundColor: const Color(0xFF1E1E1E),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            title: Row(
-              children: [
-                Icon(Icons.sync, color: themeColor),
-                const SizedBox(width: 10),
-                const Text('Cloud Sync', style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
-              ],
-            ),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(status.message, style: const TextStyle(color: Color(0xFFCCCCCC), fontSize: 14)),
-                const SizedBox(height: 16),
-                ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: status.progress,
-                    color: themeColor,
-                    backgroundColor: const Color(0xFF333333),
-                    minHeight: 6,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: Text(
-                    '${(status.progress * 100).toInt()}%',
-                    style: const TextStyle(color: Color(0xFF888888), fontSize: 12),
-                  ),
-                ),
-              ],
-            ),
-          );
-        },
-      ),
-    );
-
-    try {
-      final playlists = await widget.mediaHandler.loadPlaylists();
-      statusNotifier.value = _SyncStatus(0.3, 'Preparing playlist payloads...');
-      List<Map<String, dynamic>> syncPayload = [];
-
-      for (int i = 0; i < playlists.length; i++) {
-        final pl = playlists[i];
-        final tracks = await widget.mediaHandler.loadPlaylistTracks(pl.playlistID);
-        final trackIds = tracks.map((t) => t.trackID).toList();
-        syncPayload.add({
-          'playlist_id': pl.playlistID,
-          'name': pl.title,
-          'tracks': trackIds,
-        });
-        double stepProgress = 0.3 + (0.4 * (i + 1) / (playlists.isEmpty ? 1 : playlists.length));
-        statusNotifier.value = _SyncStatus(stepProgress, 'Processing playlist "${pl.title}"...');
-      }
-
-      statusNotifier.value = _SyncStatus(0.8, 'Pushing to cloud server...');
-      final success = await widget.serverClient.pushSyncPlaylists(syncPayload);
-
-      statusNotifier.value = _SyncStatus(1.0, 'Sync Complete!');
-      await Future.delayed(const Duration(milliseconds: 400));
-
-      if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
-
-      if (success) {
-        _showAlert('Playlist Sync', 'Playlists synced to server successfully!');
-      } else {
-        _showAlert('Sync Error', 'Failed to push playlists to server.');
-      }
-    } catch (e) {
-      if (!mounted) return;
-      Navigator.of(context, rootNavigator: true).pop();
-      _showAlert('Sync Error', e.toString());
-    } finally {
-      statusNotifier.dispose();
-    }
-  }
-
   void _showAlert(String title, String message) {
     showDialog(
       context: context,
@@ -310,6 +244,17 @@ class _HomeScreenState extends State<HomeScreen> {
             child: const Text('OK', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showSnackBar(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(message),
+        backgroundColor: isError ? Colors.redAccent : Colors.green,
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -362,16 +307,23 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onDownloadTrack(Track track) async {
-    await widget.serverClient.downloadTrack(track);
-    track.downloaded = true;
-    if (_currentPlaylist != null) {
-      await _loadPlaylistTracks(_currentPlaylist!);
+    final success = await widget.serverClient.downloadTrack(track);
+    if (success) {
+      track.downloaded = true;
+      if (_currentPlaylist != null) {
+        await _loadPlaylistTracks(_currentPlaylist!);
+      }
+      setState(() {});
+    } else {
+      _showSnackBar('Track download failed or is unavailable on server.', isError: true);
     }
-    setState(() {});
   }
 
   void _onRemoveDownloadTrack(Track track) async {
-    await widget.serverClient.removeDownload(track);
+    final success = await widget.serverClient.removeDownload(track);
+    if (!success) {
+      _showSnackBar('Failed to remove download on server.', isError: true);
+    }
     track.downloaded = false;
     if (_currentPlaylist != null) {
       await _loadPlaylistTracks(_currentPlaylist!);
@@ -409,16 +361,28 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _onOpenPlayback() async {
     final allTracks = await widget.mediaHandler.getAllTracks();
-    if (mounted) {
+    if (!mounted) return;
+
+    final stats = await ListeningStatsService.instance.fetchOrGetStats(
+      widget.serverClient,
+      allTracks,
+    );
+
+    if (!mounted) return;
+
+    if (stats != null) {
       Navigator.push(
         context,
         MaterialPageRoute(
           builder: (context) => PlaybackScreen(
+            stats: stats,
             allTracks: allTracks,
             serverClient: widget.serverClient,
           ),
         ),
       );
+    } else {
+      PlaybackScreen.showNoStatsModal(context);
     }
   }
 
@@ -451,21 +415,21 @@ class _HomeScreenState extends State<HomeScreen> {
               tracks: _tracks,
               onSearch: _onSearch,
               onClearSearch: () => setState(() {
+                _searchQuery = '';
                 _currentPlaylist = null;
                 _tracks = [];
               }),
               onRlsPressed: _onRlsPressed,
               onUploadPressed: _onUploadPressed,
               onClearConfigPressed: _onClearConfigPressed,
-              onSyncPressed: _onSyncPressed,
               onPlaybackPressed: _onOpenPlayback,
               onShufflePressed: _onShufflePressed,
               onEditPlaylistName: _onEditPlaylistName,
               onDeletePlaylist: _onDeletePlaylist,
               playingTrack: audioService.currentTrack,
               onPlayTrack: _onPlayTrack,
-              onDownloadTrack: _serverConnection ? _onDownloadTrack : null,
-              onRemoveDownloadTrack: _serverConnection ? _onRemoveDownloadTrack : null,
+              onDownloadTrack: _onDownloadTrack,
+              onRemoveDownloadTrack: _onRemoveDownloadTrack,
               onQueueTrack: _onQueueTrack,
               availablePlaylists: _playlists,
               onTogglePlaylist: _onTogglePlaylist,
@@ -482,11 +446,5 @@ class _HomeScreenState extends State<HomeScreen> {
       ),
     );
   }
-}
-
-class _SyncStatus {
-  final double progress;
-  final String message;
-  _SyncStatus(this.progress, this.message);
 }
 

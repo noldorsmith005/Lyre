@@ -13,9 +13,11 @@ class PlaylistListScreen extends StatelessWidget {
   final dynamic serverClient;
   final bool isServerConnected;
   final VoidCallback onOpenLogin;
-  final VoidCallback onSyncPressed;
   final VoidCallback onLogoutPressed;
   final VoidCallback? onPlaybackPressed;
+  final VoidCallback? onCreatePlaylist;
+  final Function(Playlist)? onDeletePlaylist;
+  final Function(Playlist, String)? onRenamePlaylist;
 
   const PlaylistListScreen({
     Key? key,
@@ -25,9 +27,11 @@ class PlaylistListScreen extends StatelessWidget {
     required this.serverClient,
     required this.isServerConnected,
     required this.onOpenLogin,
-    required this.onSyncPressed,
     required this.onLogoutPressed,
     this.onPlaybackPressed,
+    this.onCreatePlaylist,
+    this.onDeletePlaylist,
+    this.onRenamePlaylist,
   }) : super(key: key);
 
   Widget _buildMobileDrawer(BuildContext context) {
@@ -77,14 +81,14 @@ class PlaylistListScreen extends StatelessWidget {
                   Row(
                     children: [
                       Container(
-                        width: 46,
-                        height: 46,
+                        width: 52,
+                        height: 52,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           color: const Color(0xFF2A2A2A),
                           border: Border.all(color: const Color(0xFF555555), width: 1.5),
                         ),
-                        child: Icon(Icons.person, color: context.watch<ThemeService>().themeColor, size: 26),
+                        child: Icon(Icons.person, color: context.watch<ThemeService>().themeColor, size: 32),
                       ),
                       const SizedBox(width: 14),
                       Expanded(
@@ -132,17 +136,6 @@ class PlaylistListScreen extends StatelessWidget {
                     onTap: () {
                       Navigator.pop(context);
                       if (onPlaybackPressed != null) onPlaybackPressed!();
-                    },
-                  ),
-                  const SizedBox(height: 6),
-                  _buildDrawerItem(
-                    context,
-                    icon: Icons.sync_rounded,
-                    title: 'Cloud Sync',
-                    subtitle: 'Sync playlists & tracks with server',
-                    onTap: () {
-                      Navigator.pop(context);
-                      onSyncPressed();
                     },
                   ),
                   const SizedBox(height: 6),
@@ -261,6 +254,12 @@ class PlaylistListScreen extends StatelessWidget {
           style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
         ),
         actions: [
+          if (onCreatePlaylist != null)
+            IconButton(
+              icon: Icon(Icons.playlist_add, color: context.watch<ThemeService>().themeColor),
+              tooltip: 'Create Playlist',
+              onPressed: onCreatePlaylist,
+            ),
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
             child: Builder(
@@ -269,20 +268,27 @@ class PlaylistListScreen extends StatelessWidget {
                   Scaffold.of(context).openEndDrawer();
                 },
                 child: Container(
-                  width: 34,
-                  height: 34,
+                  width: 40,
+                  height: 40,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: const Color(0xFF2A2A2A),
                     border: Border.all(color: const Color(0xFF555555), width: 1),
                   ),
-                  child: Icon(Icons.person, color: context.watch<ThemeService>().themeColor, size: 20),
+                  child: Icon(Icons.person, color: context.watch<ThemeService>().themeColor, size: 26),
                 ),
               ),
             ),
           ),
         ],
       ),
+      floatingActionButton: onCreatePlaylist != null
+          ? FloatingActionButton(
+              onPressed: onCreatePlaylist,
+              backgroundColor: context.watch<ThemeService>().themeColor,
+              child: const Icon(Icons.add, color: Colors.white),
+            )
+          : null,
       body: Column(
         children: [
           Padding(
@@ -295,6 +301,8 @@ class PlaylistListScreen extends StatelessWidget {
                   MaterialPageRoute(
                     builder: (context) => SearchScreen(
                       mediaHandler: mediaHandler,
+                      serverClient: serverClient,
+                      isServerConnected: isServerConnected,
                       appDataPath: appDataPath,
                       allPlaylists: playlists,
                     ),
@@ -322,7 +330,7 @@ class PlaylistListScreen extends StatelessWidget {
                     child: Padding(
                       padding: EdgeInsets.symmetric(horizontal: 32.0),
                       child: Text(
-                        'No playlists available. Sync with server or create playlists on Desktop.',
+                        'No playlists available. Tap + to create one or sync with server.',
                         textAlign: TextAlign.center,
                         style: TextStyle(color: Color(0xFF555555), fontSize: 14),
                       ),
@@ -348,7 +356,7 @@ class PlaylistListScreen extends StatelessWidget {
                         },
                         child: Container(
                           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                          padding: const EdgeInsets.all(16),
+                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           decoration: BoxDecoration(
                             color: const Color(0xFF0F0F0F),
                             borderRadius: BorderRadius.circular(10),
@@ -356,13 +364,76 @@ class PlaylistListScreen extends StatelessWidget {
                           ),
                           child: Row(
                             children: [
+                              const Icon(Icons.queue_music, color: Color(0xFF888888), size: 22),
+                              const SizedBox(width: 14),
                               Expanded(
                                 child: Text(
                                   playlist.title,
                                   style: const TextStyle(fontSize: 16, color: Color(0xFFE8E8E8)),
                                 ),
                               ),
-                              const Icon(Icons.chevron_right, color: Color(0xFF555555)),
+                              PopupMenuButton<String>(
+                                icon: const Icon(Icons.more_vert, color: Color(0xFF555555), size: 20),
+                                color: const Color(0xFF1E1E1E),
+                                onSelected: (value) async {
+                                  if (value == 'rename' && onRenamePlaylist != null) {
+                                    final controller = TextEditingController(text: playlist.title);
+                                    final newName = await showDialog<String>(
+                                      context: context,
+                                      builder: (context) => AlertDialog(
+                                        backgroundColor: const Color(0xFF1E1E1E),
+                                        title: const Text('Rename Playlist', style: TextStyle(color: Colors.white)),
+                                        content: TextField(
+                                          controller: controller,
+                                          autofocus: true,
+                                          style: const TextStyle(color: Colors.white),
+                                          decoration: const InputDecoration(
+                                            labelText: 'Playlist Name',
+                                            labelStyle: TextStyle(color: Colors.grey),
+                                          ),
+                                        ),
+                                        actions: [
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(context),
+                                            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                                          ),
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(context, controller.text.trim()),
+                                            child: const Text('Save', style: TextStyle(color: Colors.white)),
+                                          ),
+                                        ],
+                                      ),
+                                    );
+                                    if (newName != null && newName.isNotEmpty) {
+                                      onRenamePlaylist!(playlist, newName);
+                                    }
+                                  } else if (value == 'delete' && onDeletePlaylist != null) {
+                                    onDeletePlaylist!(playlist);
+                                  }
+                                },
+                                itemBuilder: (context) => [
+                                  const PopupMenuItem(
+                                    value: 'rename',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.edit, color: Colors.white, size: 18),
+                                        SizedBox(width: 10),
+                                        Text('Rename', style: TextStyle(color: Colors.white)),
+                                      ],
+                                    ),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'delete',
+                                    child: Row(
+                                      children: [
+                                        Icon(Icons.delete, color: Colors.redAccent, size: 18),
+                                        SizedBox(width: 10),
+                                        Text('Delete', style: TextStyle(color: Colors.redAccent)),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ],
                           ),
                         ),

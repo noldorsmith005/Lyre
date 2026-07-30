@@ -62,7 +62,7 @@ class _UploadModalState extends State<UploadModal> {
 
   Widget _buildTextField(String hint, TextEditingController controller) {
     return Container(
-      width: 260,
+      width: double.infinity,
       height: 42,
       margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(
@@ -87,7 +87,7 @@ class _UploadModalState extends State<UploadModal> {
   Widget _buildFileButton(String text, VoidCallback onPressed, bool hasFile) {
     final themeColor = context.watch<ThemeService>().themeColor;
     return Container(
-      width: 260,
+      width: double.infinity,
       height: 42,
       margin: const EdgeInsets.only(bottom: 14),
       child: ElevatedButton.icon(
@@ -105,6 +105,7 @@ class _UploadModalState extends State<UploadModal> {
         ),
         label: Text(
           hasFile ? 'File Selected' : text,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
             color: hasFile ? themeColor : Colors.white,
             fontSize: 13,
@@ -123,9 +124,10 @@ class _UploadModalState extends State<UploadModal> {
     return Dialog(
       backgroundColor: Colors.transparent,
       elevation: 12,
+      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
       child: Container(
-        width: 580,
-        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 28),
+        constraints: const BoxConstraints(maxWidth: 580),
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
         decoration: BoxDecoration(
           color: const Color(0xEE18181E),
           border: Border.all(color: const Color(0xFF2E2E3A), width: 1),
@@ -139,84 +141,106 @@ class _UploadModalState extends State<UploadModal> {
             ),
           ],
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.cloud_upload_rounded, color: themeColor, size: 24),
-                const SizedBox(width: 10),
-                const Text(
-                  'Upload Track to RLS',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.cloud_upload_rounded, color: themeColor, size: 24),
+                  const SizedBox(width: 10),
+                  const Text(
+                    'Upload Track',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Column(
-                  children: [
-                    _buildTextField('Title', _titleController),
-                    _buildTextField('Artist', _artistController),
-                  ],
-                ),
-                const SizedBox(width: 16),
-                Column(
-                  children: [
-                    _buildFileButton('Select a media file', _pickMedia, _mediaPath != null),
-                    _buildFileButton('Select a cover file', _pickCover, _coverPath != null),
-                  ],
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: 260,
-              height: 42,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: themeColor,
-                  elevation: 4,
-                  shadowColor: themeColor.withValues(alpha: 0.4),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                onPressed: () {
-                  if (_mediaPath != null && _coverPath != null) {
-                    widget.onUpload(
-                      _titleController.text,
-                      _artistController.text,
-                      _mediaPath!,
-                      _coverPath!,
+                ],
+              ),
+              const SizedBox(height: 24),
+              LayoutBuilder(
+                builder: (context, constraints) {
+                  final isWide = constraints.maxWidth > 440;
+                  if (isWide) {
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            children: [
+                              _buildTextField('Title', _titleController),
+                              _buildTextField('Artist', _artistController),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            children: [
+                              _buildFileButton('Select a media file', _pickMedia, _mediaPath != null),
+                              _buildFileButton('Select a cover file', _pickCover, _coverPath != null),
+                            ],
+                          ),
+                        ),
+                      ],
+                    );
+                  } else {
+                    return Column(
+                      children: [
+                        _buildTextField('Title', _titleController),
+                        _buildTextField('Artist', _artistController),
+                        _buildFileButton('Select a media file', _pickMedia, _mediaPath != null),
+                        _buildFileButton('Select a cover file', _pickCover, _coverPath != null),
+                      ],
                     );
                   }
                 },
-                child: const Text(
-                  'Upload',
-                  style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+              SizedBox(
+                width: 260,
+                height: 42,
+                child: ElevatedButton(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: themeColor,
+                    elevation: 4,
+                    shadowColor: themeColor.withValues(alpha: 0.4),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                  ),
+                  onPressed: () {
+                    if (_mediaPath != null && _coverPath != null) {
+                      widget.onUpload(
+                        _titleController.text,
+                        _artistController.text,
+                        _mediaPath!,
+                        _coverPath!,
+                      );
+                    }
+                  },
+                  child: const Text(
+                    'Upload',
+                    style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
-            ),
-            if (widget.errorMessage != null) ...[
-              const SizedBox(height: 16),
-              Text(
-                widget.errorMessage!,
-                style: const TextStyle(
-                  color: Color(0xFFFF5252),
-                  fontSize: 13,
+              if (widget.errorMessage != null) ...[
+                const SizedBox(height: 16),
+                Text(
+                  widget.errorMessage!,
+                  style: const TextStyle(
+                    color: Color(0xFFFF5252),
+                    fontSize: 13,
+                  ),
                 ),
-              ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );

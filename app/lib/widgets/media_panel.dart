@@ -1,11 +1,10 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/audio_player_service.dart';
 import '../services/theme_service.dart';
 import '../utils/layout_constants.dart';
 import '../models/track.dart';
-import 'play_bars.dart';
+import 'track_cover_image.dart';
 
 class MediaPanel extends StatefulWidget {
   const MediaPanel({Key? key}) : super(key: key);
@@ -24,6 +23,54 @@ class _MediaPanelState extends State<MediaPanel> {
     return '$minutes:$seconds';
   }
 
+  void _showCoverArtLightbox(BuildContext context, Track? track, String? appDataPath) {
+    if (track == null || appDataPath == null) return;
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      barrierColor: Colors.black.withValues(alpha: 0.85),
+      builder: (context) {
+        return GestureDetector(
+          onTap: () => Navigator.of(context).pop(),
+          child: Dialog(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            insetPadding: const EdgeInsets.all(32),
+            child: Center(
+              child: Container(
+                constraints: const BoxConstraints(maxWidth: 550, maxHeight: 550),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.8),
+                      blurRadius: 36,
+                      spreadRadius: 8,
+                    ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: TrackCoverImage(
+                    trackID: track.trackID,
+                    appDataPath: appDataPath,
+                    fit: BoxFit.contain,
+                    fallback: Container(
+                      width: 320,
+                      height: 320,
+                      color: const Color(0xFF1A1A1A),
+                      child: const Icon(Icons.music_note, color: Colors.white54, size: 80),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final audioService = context.watch<AudioPlayerService>();
@@ -34,7 +81,7 @@ class _MediaPanelState extends State<MediaPanel> {
     return Container(
       width: LayoutConstants.coverSize + 60, // approximate width
       decoration: const BoxDecoration(
-        color: Color(0xFF121212),
+        color: Color(0xFF000000),
         border: Border(left: BorderSide(color: Color(0xFF282828), width: 1)),
       ),
       child: Column(
@@ -84,14 +131,12 @@ class _MediaPanelState extends State<MediaPanel> {
                                 ),
                                 child: ClipRRect(
                                   borderRadius: BorderRadius.circular(5),
-                                  child: currentTrack != null && appDataPath != null
-                                      ? Image.file(
-                                          File('$appDataPath/cover/${currentTrack.trackID}.jpg'),
-                                          fit: BoxFit.cover,
-                                          errorBuilder: (context, error, stackTrace) =>
-                                              const Icon(Icons.music_note, color: Colors.white54, size: 24),
-                                        )
-                                      : const Icon(Icons.music_note, color: Colors.white54, size: 24),
+                                  child: TrackCoverImage(
+                                    trackID: currentTrack?.trackID,
+                                    appDataPath: appDataPath,
+                                    fit: BoxFit.cover,
+                                    fallback: const Icon(Icons.music_note, color: Colors.white54, size: 24),
+                                  ),
                                 ),
                               ),
                               const SizedBox(width: 12),
@@ -148,35 +193,40 @@ class _MediaPanelState extends State<MediaPanel> {
                                 child: Icon(
                                   Icons.keyboard_arrow_down,
                                   color: Colors.white,
-                                  size: 26,
+                                  size: 32,
                                 ),
                               ),
                             ),
                           ),
-                          Container(
-                            width: LayoutConstants.coverSize,
-                            height: LayoutConstants.coverSize,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF1A1A1A),
-                              borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: const Color(0xFF555555), width: 1),
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(7),
-                              child: currentTrack != null && appDataPath != null
-                                  ? Image.file(
-                                      File('$appDataPath/cover/${currentTrack.trackID}.jpg'),
+                          MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            child: GestureDetector(
+                              onTap: () => _showCoverArtLightbox(context, currentTrack, appDataPath),
+                              child: AspectRatio(
+                                aspectRatio: 1.0,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF1A1A1A),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: const Color(0xFF555555), width: 1),
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(7),
+                                    child: TrackCoverImage(
+                                      trackID: currentTrack?.trackID,
+                                      appDataPath: appDataPath,
                                       fit: BoxFit.cover,
-                                      errorBuilder: (context, error, stackTrace) =>
-                                          const Icon(Icons.music_note, color: Colors.white54, size: 64),
-                                    )
-                                  : const Icon(Icons.music_note, color: Colors.white54, size: 64),
+                                      fallback: const Icon(Icons.music_note, color: Colors.white54, size: 64),
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 10),
                     
                     // Title and Artist
                     Text(
@@ -190,7 +240,7 @@ class _MediaPanelState extends State<MediaPanel> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 2),
                     Text(
                       currentTrack?.artist ?? '',
                       style: const TextStyle(
@@ -201,23 +251,9 @@ class _MediaPanelState extends State<MediaPanel> {
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 16),
-
-                    // Audio Visualizer Banner
-                    if (currentTrack != null)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 4.0),
-                        child: PlayBars(
-                          barCount: 16,
-                          maxHeight: 24.0,
-                          minHeight: 4.0,
-                          barWidth: 4.0,
-                          barSpacing: 3.5,
-                          isPlaying: audioService.isPlaying,
-                        ),
-                      ),
+                    const SizedBox(height: 12),
                   ],
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 4),
 
                   // Seek Bar
                   StreamBuilder<Duration>(
@@ -287,23 +323,31 @@ class _MediaPanelState extends State<MediaPanel> {
                       );
                     }
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 8),
                   
-                  // Controls
+                  // Controls: Play button aligned strictly in the horizontal center
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      _HoverIconButton(
-                        icon: Icons.skip_previous_rounded,
-                        size: 25,
-                        onTap: () {
-                          audioService.previous();
-                        },
+                      Expanded(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            _HoverIconButton(
+                              icon: Icons.skip_previous_rounded,
+                              size: 46,
+                              color: Colors.white,
+                              onTap: () {
+                                audioService.previous();
+                              },
+                            ),
+                            const SizedBox(width: 24),
+                          ],
+                        ),
                       ),
-                      const SizedBox(width: 24),
                       _HoverIconButton(
                         icon: audioService.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                        size: 25,
+                        size: 56,
+                        color: Colors.white,
                         onTap: () {
                           if (audioService.isPlaying) {
                             audioService.pause();
@@ -312,77 +356,85 @@ class _MediaPanelState extends State<MediaPanel> {
                           }
                         },
                       ),
-                      const SizedBox(width: 24),
-                      _HoverIconButton(
-                        icon: Icons.skip_next_rounded,
-                        size: 25,
-                        onTap: () {
-                          audioService.next();
-                        },
-                      ),
-                      const SizedBox(width: 24),
-                      _HoverIconButton(
-                        icon: audioService.loop ? Icons.repeat_one_rounded : Icons.repeat_rounded,
-                        size: 26,
-                        color: Colors.white,
-                        onTap: () {
-                          audioService.loop = !audioService.loop;
-                        },
+                      Expanded(
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.start,
+                          children: [
+                            const SizedBox(width: 24),
+                            _HoverIconButton(
+                              icon: Icons.skip_next_rounded,
+                              size: 46,
+                              color: Colors.white,
+                              onTap: () {
+                                audioService.next();
+                              },
+                            ),
+                            const SizedBox(width: 24),
+                            _HoverIconButton(
+                              icon: audioService.loop ? Icons.repeat_one_rounded : Icons.repeat_rounded,
+                              size: 32,
+                              color: audioService.loop ? context.watch<ThemeService>().themeColor : Colors.white,
+                              onTap: () {
+                                audioService.toggleLoop();
+                              },
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
+                  const SizedBox(height: 36),
+                  
+                  // Queue section
+                  if (audioService.queue.isNotEmpty) ...[
+                    Container(
+                      padding: const EdgeInsets.only(top: 20),
+                      decoration: const BoxDecoration(
+                        border: Border(top: BorderSide(color: Color(0xFF2A2A2A), width: 1)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'Next in Queue:',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 17,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              _HoverTextButton(
+                                text: 'Clear Queue',
+                                onTap: () {
+                                  audioService.clearQueue();
+                                },
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
+                          ListView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: audioService.queue.length,
+                            itemBuilder: (context, index) {
+                              final track = audioService.queue[index];
+                              return _QueueCard(
+                                track: track,
+                                onRemove: () => audioService.removeFromQueue(track),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
           ),
-          
-          // Queue section
-          if (audioService.queue.isNotEmpty) ...[
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              decoration: const BoxDecoration(
-                border: Border(top: BorderSide(color: Color(0xFF2A2A2A), width: 1)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Next in Queue:',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 17,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      _HoverTextButton(
-                        text: 'Clear Queue',
-                        onTap: () {
-                          audioService.clearQueue();
-                        },
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 300, // Fixed height or could be flexible
-                    child: ListView.builder(
-                      itemCount: audioService.queue.length,
-                      itemBuilder: (context, index) {
-                        final track = audioService.queue[index];
-                        return _QueueCard(
-                          track: track,
-                          onRemove: () => audioService.removeFromQueue(track),
-                        );
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
         ],
       ),
     );
@@ -549,7 +601,7 @@ class __HoverIconButtonState extends State<_HoverIconButton> {
             child: Icon(
               widget.icon,
               size: widget.size,
-              color: widget.color ?? (_isHovered ? Colors.white : const Color(0xFFB3B3B3)),
+              color: widget.color ?? Colors.white,
             ),
           ),
         ),

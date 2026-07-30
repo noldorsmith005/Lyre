@@ -55,9 +55,9 @@ class _SidebarState extends State<Sidebar> {
                 ),
                 _HoverButton(
                   text: '+',
-                  defaultColor: const Color(0xFFB3B3B3),
+                  defaultColor: Colors.white,
                   hoverColor: Colors.white,
-                  fontSize: 30,
+                  fontSize: 34,
                   fontWeight: FontWeight.w300,
                   onTap: widget.onCreatePlaylist,
                 ),
@@ -161,8 +161,8 @@ class __PlaylistListItemState extends State<_PlaylistListItem> {
     final themeColor = context.watch<ThemeService>().themeColor;
 
     final bgColor = widget.isSelected
-        ? const Color(0xFF282828)
-        : (_isHovered ? const Color(0xFF1E1E1E) : Colors.transparent);
+        ? const Color(0xFF141414)
+        : (_isHovered ? const Color(0xFF0F0F0F) : Colors.transparent);
         
     final textColor = widget.isSelected
         ? Colors.white

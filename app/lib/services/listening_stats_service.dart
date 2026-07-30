@@ -132,9 +132,42 @@ class ListeningStatsService {
   ListeningStatsService._internal();
 
   Database? _db;
+  MonthlyPlaybackStats? _memoryStats;
 
   void setDatabase(Database db) {
     _db = db;
+    _loadLocalStatsFromDb();
+  }
+
+  Future<void> _loadLocalStatsFromDb() async {
+    if (_db == null) return;
+    try {
+      final rows = await _db!.query('LocalStats', limit: 1);
+      if (rows.isNotEmpty) {
+        final row = rows.first;
+        final rawTracks = jsonDecode(row['top_tracks_json'] as String? ?? '[]') as List<dynamic>;
+        final rawArtists = jsonDecode(row['top_artists_json'] as String? ?? '[]') as List<dynamic>;
+        final rawPct = jsonDecode(row['top_percentages_json'] as String? ?? '{}') as Map<String, dynamic>;
+
+        final loadedStats = MonthlyPlaybackStats(
+          monthYearLabel: (row['month_year'] as String?) ?? '',
+          totalMinutes: (row['total_minutes'] as int?) ?? 0,
+          totalPlays: (row['total_plays'] as int?) ?? 0,
+          percentileText: (row['percentile_text'] as String?) ?? 'Top Music Listener',
+          dailyAverageMinutes: (row['daily_avg_minutes'] as int?) ?? 0,
+          topTracks: rawTracks.map((t) => TrackStat.fromJson(t as Map<String, dynamic>)).toList(),
+          topArtists: rawArtists.map((a) => ArtistStat.fromJson(a as Map<String, dynamic>)).toList(),
+          topPercentages: TopPercentages.fromJson(rawPct),
+          themeColor: (row['theme_color'] as String?) ?? 'Neon Cyber Violet',
+        );
+
+        if (loadedStats.totalMinutes > 0 || loadedStats.totalPlays > 0 || loadedStats.topTracks.isNotEmpty) {
+          _memoryStats = loadedStats;
+        }
+      }
+    } catch (e) {
+      print('Error loading cached stats from DB: $e');
+    }
   }
 
   Future<void> logPlay(Track track) async {
@@ -193,72 +226,87 @@ class ListeningStatsService {
     return '${monthNames[now.month - 1]} ${now.year}';
   }
 
-  Future<MonthlyPlaybackStats> fetchAndSyncStats(ServerClient serverClient, List<Track> allLocalTracks) async {
+  Future<MonthlyPlaybackStats?> fetchOrGetStats(ServerClient? serverClient, [List<Track>? allLocalTracks]) async {
     // 1. Try querying server stats if server is online
-    if (serverClient.registered()) {
-      final serverRes = await serverClient.fetchServerStats();
-      if (serverRes != null) {
-        final isNewRelease = (serverRes['new_release'] as int? ?? 0) == 1;
-        final monthLabel = (serverRes['month_year'] as String?) ?? _getMonthYearLabel(DateTime.now());
-        final totMin = (serverRes['total_minutes'] as int?) ?? 0;
-        final totPlays = (serverRes['total_plays'] as int?) ?? 0;
-        final dAvg = (serverRes['daily_avg_minutes'] as int?) ?? 0;
-        final pctText = (serverRes['percentile_text'] as String?) ?? 'Top Music Listener';
+    if (serverClient != null && serverClient.registered()) {
+      try {
+        final serverRes = await serverClient.fetchServerStats();
+        if (serverRes != null) {
+          final totMin = (serverRes['total_minutes'] as int?) ?? 0;
+          final totPlays = (serverRes['total_plays'] as int?) ?? 0;
+          final rawTracks = serverRes['top_tracks'] as List<dynamic>? ?? [];
+          final topTracks = rawTracks.map((t) => TrackStat.fromJson(t as Map<String, dynamic>)).toList();
 
-        final rawTracks = serverRes['top_tracks'] as List<dynamic>? ?? [];
-        final topTracks = rawTracks.map((t) => TrackStat.fromJson(t as Map<String, dynamic>)).toList();
+          if (totMin > 0 || totPlays > 0 || topTracks.isNotEmpty) {
+            final isNewRelease = (serverRes['new_release'] as int? ?? 0) == 1;
+            final monthLabel = (serverRes['month_year'] as String?) ?? _getMonthYearLabel(DateTime.now());
+            final dAvg = (serverRes['daily_avg_minutes'] as int?) ?? 0;
+            final pctText = (serverRes['percentile_text'] as String?) ?? 'Top Music Listener';
+            final rawArtists = serverRes['top_artists'] as List<dynamic>? ?? [];
+            final topArtists = rawArtists.map((a) => ArtistStat.fromJson(a as Map<String, dynamic>)).toList();
+            final rawPct = serverRes['top_percentages'] as Map<String, dynamic>? ?? {};
+            final topPct = TopPercentages.fromJson(rawPct);
+            final themeCol = (serverRes['theme_color'] as String?) ?? 'Neon Cyber Violet';
 
-        final rawArtists = serverRes['top_artists'] as List<dynamic>? ?? [];
-        final topArtists = rawArtists.map((a) => ArtistStat.fromJson(a as Map<String, dynamic>)).toList();
+            final serverStats = MonthlyPlaybackStats(
+              monthYearLabel: monthLabel,
+              totalMinutes: totMin,
+              totalPlays: totPlays,
+              percentileText: pctText,
+              dailyAverageMinutes: dAvg,
+              topTracks: topTracks,
+              topArtists: topArtists,
+              topPercentages: topPct,
+              themeColor: themeCol,
+            );
 
-        final rawPct = serverRes['top_percentages'] as Map<String, dynamic>? ?? {};
-        final topPct = TopPercentages.fromJson(rawPct);
-        final themeCol = (serverRes['theme_color'] as String?) ?? 'Neon Cyber Violet';
+            _memoryStats = serverStats;
 
-        final stats = MonthlyPlaybackStats(
-          monthYearLabel: monthLabel,
-          totalMinutes: totMin,
-          totalPlays: totPlays,
-          percentileText: pctText,
-          dailyAverageMinutes: dAvg,
-          topTracks: topTracks,
-          topArtists: topArtists,
-          topPercentages: topPct,
-          themeColor: themeCol,
-        );
+            if (_db != null) {
+              final uid = int.tryParse(serverClient.userID ?? '0') ?? 0;
+              await _db!.insert(
+                'LocalStats',
+                {
+                  'user_id': uid,
+                  'month_year': monthLabel,
+                  'total_minutes': totMin,
+                  'total_plays': totPlays,
+                  'daily_avg_minutes': dAvg,
+                  'percentile_text': pctText,
+                  'top_tracks_json': jsonEncode(rawTracks),
+                  'top_artists_json': jsonEncode(rawArtists),
+                  'top_percentages_json': jsonEncode(rawPct),
+                  'theme_color': themeCol,
+                  'new_release': 0,
+                },
+                conflictAlgorithm: ConflictAlgorithm.replace,
+              );
+            }
 
-        // Store to local SQLite if new release
-        if (isNewRelease && _db != null) {
-          final uid = int.tryParse(serverClient.userID ?? '0') ?? 0;
-          await _db!.insert(
-            'LocalStats',
-            {
-              'user_id': uid,
-              'month_year': monthLabel,
-              'total_minutes': totMin,
-              'total_plays': totPlays,
-              'daily_avg_minutes': dAvg,
-              'percentile_text': pctText,
-              'top_tracks_json': jsonEncode(rawTracks),
-              'top_artists_json': jsonEncode(rawArtists),
-              'top_percentages_json': jsonEncode(rawPct),
-              'theme_color': themeCol,
-              'new_release': 0,
-            },
-            conflictAlgorithm: ConflictAlgorithm.replace,
-          );
-          await serverClient.ackServerStats();
+            if (isNewRelease) {
+              await serverClient.ackServerStats();
+            }
+
+            return _memoryStats;
+          }
         }
-
-        if (topTracks.isNotEmpty || totMin > 0) {
-          return stats;
-        }
+      } catch (e) {
+        print('Error checking server stats update: $e');
       }
     }
 
-    // 2. Local database fallback
-    return getMonthlyStats(allLocalTracks);
+    // 2. Return in-memory or cached SQLite stats
+    if (_memoryStats == null) {
+      await _loadLocalStatsFromDb();
+    }
+
+    return _memoryStats;
   }
+
+  Future<MonthlyPlaybackStats?> fetchAndSyncStats(ServerClient serverClient, List<Track> allLocalTracks) async {
+    return fetchOrGetStats(serverClient, allLocalTracks);
+  }
+
 
   Future<MonthlyPlaybackStats> getMonthlyStats(List<Track> allLocalTracks) async {
     final now = DateTime.now();

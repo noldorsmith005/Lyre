@@ -12,10 +12,21 @@ import tempfile
 from flask import Flask, send_file, request, jsonify, after_this_request
 
 from utils import Utils
+import resource
 import time
 import secrets
 import uuid
 
+def _raise_file_descriptor_limit():
+    try:
+        soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+        target = min(hard, 10240) if hard != resource.RLIM_INFINITY else 10240
+        if soft < target:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (target, hard))
+    except Exception as e:
+        print(f"Note: Could not adjust file descriptor limit: {e}")
+
+_raise_file_descriptor_limit()
 
 app = Flask(__name__)
 
@@ -48,7 +59,7 @@ def genID():
         cursor = conn.cursor()
         while True:
             uid = random.randint(10000, 99999)
-            cursor.execute("SELECT 1 FROM Users WHERE id = ?", (uid,))
+            cursor.execute("SELECT 1 FROM users WHERE id = ?", (uid,))
             if not cursor.fetchone():
                 return uid
 
@@ -57,14 +68,14 @@ def genTrackID():
         cursor = conn.cursor()
         while True:
             new_id = random.randint(10000, 99999)
-            cursor.execute("SELECT 1 FROM Tracks WHERE track_id = ?", (new_id,))
+            cursor.execute("SELECT 1 FROM tracks WHERE track_id = ?", (new_id,))
             if not cursor.fetchone():
                 return new_id
 
 def getUser(id):
     with sqlite3.connect(DATABASE_URL) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, username, salt, password_hash FROM Users WHERE id = ?", (int(id),))
+        cursor.execute("SELECT id, username, salt, password_hash FROM users WHERE id = ?", (int(id),))
         row = cursor.fetchone()
         if row:
             return {
@@ -78,7 +89,7 @@ def getUser(id):
 def userExists(username):
     with sqlite3.connect(DATABASE_URL) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT 1 FROM Users WHERE username = ?", (username,))
+        cursor.execute("SELECT 1 FROM users WHERE username = ?", (username,))
         return cursor.fetchone() is not None
 
 def userDownloaded(ids, id):
@@ -151,7 +162,7 @@ def authUser(req):
         try:
             with sqlite3.connect(DATABASE_URL) as conn:
                 cursor = conn.cursor()
-                cursor.execute("SELECT user_id FROM ActiveSessions WHERE token = ?", (token,))
+                cursor.execute("SELECT user_id FROM active_sessions WHERE token = ?", (token,))
                 row = cursor.fetchone()
                 if row:
                     return str(row[0])
@@ -184,11 +195,11 @@ def createUser():
     with sqlite3.connect(DATABASE_URL) as conn:
         cursor = conn.cursor()
         cursor.execute(
-            "INSERT INTO Users (id, username, password_hash, salt) VALUES (?, ?, ?, ?)",
+            "INSERT INTO users (id, username, password_hash, salt) VALUES (?, ?, ?, ?)",
             (uid, username, hashed_pw, salt)
         )
         cursor.execute(
-            "INSERT OR REPLACE INTO ActiveSessions (user_id, username, token, last_seen, client_ip) VALUES (?, ?, ?, ?, ?)",
+            "INSERT OR REPLACE INTO active_sessions (user_id, username, token, last_seen, client_ip) VALUES (?, ?, ?, ?, ?)",
             (uid, username, session_token, int(time.time()), request.remote_addr)
         )
         conn.commit()
@@ -210,7 +221,7 @@ def loginUser():
 
     with sqlite3.connect(DATABASE_URL) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, username, password_hash, salt FROM Users WHERE username = ?", (username,))
+        cursor.execute("SELECT id, username, password_hash, salt FROM users WHERE username = ?", (username,))
         row = cursor.fetchone()
         if not row:
             return "User not found", 404
@@ -222,7 +233,7 @@ def loginUser():
             return "Invalid credentials", 401
         session_token = secrets.token_hex(32)
         cursor.execute(
-            "INSERT OR REPLACE INTO ActiveSessions (user_id, username, token, last_seen, client_ip) VALUES (?, ?, ?, ?, ?)",
+            "INSERT OR REPLACE INTO active_sessions (user_id, username, token, last_seen, client_ip) VALUES (?, ?, ?, ?, ?)",
             (uid, uname, session_token, int(time.time()), request.remote_addr)
         )
         conn.commit()
@@ -243,7 +254,7 @@ def validateSession():
         uid = int(authorized)
         with sqlite3.connect(DATABASE_URL) as conn:
             conn.execute(
-                "UPDATE ActiveSessions SET last_seen = ?, client_ip = ? WHERE user_id = ?",
+                "UPDATE active_sessions SET last_seen = ?, client_ip = ? WHERE user_id = ?",
                 (int(time.time()), request.remote_addr, uid)
             )
             conn.commit()
@@ -257,8 +268,29 @@ def init_db():
         with sqlite3.connect(DATABASE_URL) as conn:
             conn.execute("PRAGMA journal_mode=WAL;")
             conn.execute("PRAGMA busy_timeout=5000;")
+            
+            # Auto-migrate legacy table names to snake_case
+            cursor = conn.cursor()
+            existing_tables = [r[0] for r in cursor.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
+            legacy_renames = [
+                ('Users', 'users'),
+                ('ActiveSessions', 'active_sessions'),
+                ('Tracks', 'tracks'),
+                ('History', 'history'),
+                ('Stats', 'stats')
+            ]
+            for old_t, new_t in legacy_renames:
+                if old_t in existing_tables and old_t != new_t:
+                    temp_t = f'{new_t}_temp'
+                    if temp_t in existing_tables:
+                        cursor.execute(f'DROP TABLE "{temp_t}"')
+                    if new_t in existing_tables:
+                        cursor.execute(f'DROP TABLE "{new_t}"')
+                    cursor.execute(f'ALTER TABLE "{old_t}" RENAME TO "{temp_t}"')
+                    cursor.execute(f'ALTER TABLE "{temp_t}" RENAME TO "{new_t}"')
+
             conn.execute("""
-                CREATE TABLE IF NOT EXISTS Users (
+                CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY,
                     username TEXT UNIQUE,
                     password_hash TEXT,
@@ -266,7 +298,7 @@ def init_db():
                 )
             """)
             conn.execute("""
-                CREATE TABLE IF NOT EXISTS ActiveSessions (
+                CREATE TABLE IF NOT EXISTS active_sessions (
                     user_id INTEGER PRIMARY KEY,
                     username TEXT,
                     token TEXT,
@@ -275,7 +307,7 @@ def init_db():
                 )
             """)
             conn.execute("""
-                CREATE TABLE IF NOT EXISTS Tracks (
+                CREATE TABLE IF NOT EXISTS tracks (
                     track_id INTEGER PRIMARY KEY,
                     title TEXT,
                     artist TEXT,
@@ -302,7 +334,7 @@ def init_db():
                 )
             """)
             conn.execute("""
-                CREATE TABLE IF NOT EXISTS History (
+                CREATE TABLE IF NOT EXISTS history (
                     user_id     INTEGER,
                     track_id    INTEGER,
                     play_count  INTEGER DEFAULT 1,
@@ -310,7 +342,7 @@ def init_db():
                 )
             """)
             conn.execute("""
-                CREATE TABLE IF NOT EXISTS Stats (
+                CREATE TABLE IF NOT EXISTS stats (
                     user_id              INTEGER PRIMARY KEY,
                     month_year           TEXT,
                     total_minutes        INTEGER,
@@ -326,21 +358,21 @@ def init_db():
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_user_playlists_uid ON user_playlists(user_id);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_user_downloads_uid ON user_downloads(user_id);")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_history_uid ON History(user_id);")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_tracks_search ON Tracks(title_lower, artist_lower);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_history_uid ON history(user_id);")
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_tracks_search ON tracks(title_lower, artist_lower);")
             if os.path.exists('./sessions.json'):
                 try:
                     with open('./sessions.json', 'r') as f:
                         data = json.load(f)
                         for u in data.get('Users', []):
                             conn.execute(
-                                "INSERT OR IGNORE INTO Users (id, username, password_hash, salt) VALUES (?, ?, ?, ?)",
+                                "INSERT OR IGNORE INTO users (id, username, password_hash, salt) VALUES (?, ?, ?, ?)",
                                 (u.get('id'), u.get('username'), u.get('password_hash', ''), u.get('salt', ''))
                             )
                         for uid, sess in data.get('ActiveSessions', {}).items():
                             if isinstance(sess, dict):
                                 conn.execute(
-                                    "INSERT OR IGNORE INTO ActiveSessions (user_id, username, token, last_seen, client_ip) VALUES (?, ?, ?, ?, ?)",
+                                    "INSERT OR IGNORE INTO active_sessions (user_id, username, token, last_seen, client_ip) VALUES (?, ?, ?, ?, ?)",
                                     (int(uid), sess.get('username'), sess.get('token'), sess.get('last_seen', int(time.time())), sess.get('client_ip', ''))
                                 )
                 except Exception as e:
@@ -369,13 +401,17 @@ def pushSyncPlaylists():
 
     with sqlite3.connect(DATABASE_URL) as conn:
         cursor = conn.cursor()
+        cursor.execute("SELECT track_id FROM tracks")
+        valid_track_ids = {row[0] for row in cursor.fetchall()}
         try:
             conn.execute("BEGIN TRANSACTION")
             cursor.execute("DELETE FROM user_playlists WHERE user_id = ?", (user_id,))
             for pl in playlists:
                 playlist_id = pl.get("playlist_id")
                 name = pl.get("name")
-                tracks_json = json.dumps(pl.get("tracks", []))
+                raw_tracks = pl.get("tracks", [])
+                sanitized_tracks = [tid for tid in raw_tracks if isinstance(tid, int)]
+                tracks_json = json.dumps(sanitized_tracks)
                 cursor.execute(
                     "INSERT INTO user_playlists (user_id, playlist_id, name, tracks) VALUES (?, ?, ?, ?)",
                     (user_id, playlist_id, name, tracks_json)
@@ -433,7 +469,7 @@ def getUserDownloads():
         cursor = conn.cursor()
         cursor.execute("""
             SELECT t.track_id, t.title, t.artist, t.duration, t.contributor
-            FROM Tracks t
+            FROM tracks t
             JOIN user_downloads ud ON t.track_id = ud.track_id
             WHERE ud.user_id = ?
         """, (user_id,))
@@ -468,7 +504,7 @@ def searchTracks(filter_text=""):
         normalized_filter = re.sub(r'[^a-zA-Z0-9 ]', '', filter_text).lower().strip()
         sql = """
             SELECT t.track_id, t.title, t.artist, t.duration, t.contributor, ud.user_id
-            FROM Tracks t
+            FROM tracks t
             LEFT JOIN user_downloads ud ON t.track_id = ud.track_id AND ud.user_id = ?
             WHERE lower(t.title) LIKE ? OR lower(t.artist) LIKE ? OR t.title_lower LIKE ? OR t.artist_lower LIKE ?
             ORDER BY t.title ASC
@@ -599,6 +635,10 @@ def addDownloaded(id):
 
     try:
         with sqlite3.connect(DATABASE_URL) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT 1 FROM tracks WHERE track_id = ?", (id,))
+            if not cursor.fetchone():
+                return jsonify({"error": "Track does not exist on server"}), 404
             conn.execute("INSERT OR IGNORE INTO user_downloads (user_id, track_id) VALUES (?, ?)", (userID, id))
             conn.commit()
     except sqlite3.Error as e:
@@ -624,7 +664,7 @@ def addUpload():
     title_lower = re.sub(r'[^a-zA-Z0-9 ]', '', title_val).lower().strip()
     artist_lower = re.sub(r'[^a-zA-Z0-9 ]', '', artist_val).lower().strip()
 
-    sql = "INSERT OR IGNORE INTO Tracks (track_id, title, artist, duration, contributor, title_lower, artist_lower) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    sql = "INSERT OR IGNORE INTO tracks (track_id, title, artist, duration, contributor, title_lower, artist_lower) VALUES (?, ?, ?, ?, ?, ?, ?)"
     try:
         with sqlite3.connect(DATABASE_URL) as conn:
             conn.execute(sql, (new_id, title_val, artist_val, duration_val, str(userID), title_lower, artist_lower))
@@ -696,7 +736,7 @@ def syncHistory():
             if track_id <= 0:
                 continue
             cursor.execute("""
-                INSERT INTO History (user_id, track_id, play_count)
+                INSERT INTO history (user_id, track_id, play_count)
                 VALUES (?, ?, ?)
                 ON CONFLICT(user_id, track_id) DO UPDATE SET
                     play_count = play_count + excluded.play_count
@@ -718,7 +758,7 @@ def getUserStats(user_id):
 
     with sqlite3.connect(DATABASE_URL) as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT user_id, month_year, total_minutes, total_plays, daily_avg_minutes, percentile_text, top_tracks_json, top_artists_json, top_percentages_json, theme_color, new_release FROM Stats WHERE user_id = ?", (user_id,))
+        cursor.execute("SELECT user_id, month_year, total_minutes, total_plays, daily_avg_minutes, percentile_text, top_tracks_json, top_artists_json, top_percentages_json, theme_color, new_release FROM stats WHERE user_id = ?", (user_id,))
         row = cursor.fetchone()
         if not row:
             return jsonify({
@@ -762,7 +802,7 @@ def ackUserStats(user_id):
 
     with sqlite3.connect(DATABASE_URL) as conn:
         cursor = conn.cursor()
-        cursor.execute("UPDATE Stats SET new_release = 0 WHERE user_id = ?", (user_id,))
+        cursor.execute("UPDATE stats SET new_release = 0 WHERE user_id = ?", (user_id,))
         conn.commit()
 
     return jsonify({"status": "acknowledged"}), 200
@@ -794,13 +834,13 @@ def calculate_all_user_monthly_stats():
     with sqlite3.connect(DATABASE_URL) as conn:
         cursor = conn.cursor()
         
-        cursor.execute("SELECT DISTINCT user_id FROM History")
+        cursor.execute("SELECT DISTINCT user_id FROM history")
         users = [row[0] for row in cursor.fetchall()]
 
-        cursor.execute("SELECT track_id, title, artist, duration FROM Tracks")
+        cursor.execute("SELECT track_id, title, artist, duration FROM tracks")
         tracks_db = {row[0]: {"title": row[1], "artist": row[2], "duration": row[3]} for row in cursor.fetchall()}
 
-        cursor.execute("SELECT user_id, track_id, play_count FROM History")
+        cursor.execute("SELECT user_id, track_id, play_count FROM history")
         history_rows = cursor.fetchall()
         
         track_user_plays = {}
@@ -880,7 +920,7 @@ def calculate_all_user_monthly_stats():
             }
 
             cursor.execute("""
-                INSERT INTO Stats (user_id, month_year, total_minutes, total_plays, daily_avg_minutes, percentile_text, top_tracks_json, top_artists_json, top_percentages_json, theme_color, new_release)
+                INSERT INTO stats (user_id, month_year, total_minutes, total_plays, daily_avg_minutes, percentile_text, top_tracks_json, top_artists_json, top_percentages_json, theme_color, new_release)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
                 ON CONFLICT(user_id) DO UPDATE SET
                     month_year = excluded.month_year,
@@ -899,26 +939,61 @@ def calculate_all_user_monthly_stats():
                 json.dumps(top_percentages), month_theme
             ))
 
-            cursor.execute("DELETE FROM History WHERE user_id = ?", (uid,))
+            cursor.execute("DELETE FROM history WHERE user_id = ?", (uid,))
 
         conn.commit()
+import threading
+import calendar
+import datetime
 
-@app.post("/admin/calculate_monthly_stats")
-def triggerMonthlyStats():
-    auth_token = request.headers.get("AppToken")
-    if auth_token != APP_TOKEN:
-        return "Invalid App Token", 401
-    authorized = authUser(request)
-    if authorized == False:
-        return "Unauthorized", 401
+def monthly_stats_scheduler():
+    while True:
+        try:
+            now = datetime.datetime.now()
+            # Find the last day of the current month
+            last_day_current_month = calendar.monthrange(now.year, now.month)[1]
+            target_time = datetime.datetime(now.year, now.month, last_day_current_month, 0, 0, 0)
 
-    calculate_all_user_monthly_stats()
-    return jsonify({"status": "monthly stats calculated and history cleared"}), 200
+            if now >= target_time:
+                # If we've already passed midnight on the last day of this month,
+                # schedule for midnight on the last day of next month
+                if now.month == 12:
+                    next_year = now.year + 1
+                    next_month = 1
+                else:
+                    next_year = now.year
+                    next_month = now.month + 1
+                last_day_next_month = calendar.monthrange(next_year, next_month)[1]
+                target_time = datetime.datetime(next_year, next_month, last_day_next_month, 0, 0, 0)
+
+            sleep_seconds = (target_time - now).total_seconds()
+            time.sleep(min(sleep_seconds, 3600))
+
+            now_check = datetime.datetime.now()
+            # If target_time is reached (within 1 hour window), calculate monthly stats
+            if now_check >= target_time and (now_check - target_time).total_seconds() < 3600:
+                print(f"[{now_check}] Running scheduled monthly stats calculation for midnight on last day of month...")
+                calculate_all_user_monthly_stats()
+                time.sleep(65)
+        except Exception as e:
+            print(f"Error in monthly stats scheduler thread: {e}")
+            time.sleep(60)
+
+threading.Thread(target=monthly_stats_scheduler, daemon=True).start()
 
 
 if __name__ == "__main__":
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    cert_path = os.path.join(base_dir, "cert.pem")
+    key_path = os.path.join(base_dir, "key.pem")
+    if os.path.exists(cert_path) and os.path.exists(key_path):
+        ssl_ctx = (cert_path, key_path)
+    else:
+        ssl_ctx = "adhoc"
     app.run(
         host="0.0.0.0",
         port=57967,
+        ssl_context=ssl_ctx,
         debug=True
     )
+

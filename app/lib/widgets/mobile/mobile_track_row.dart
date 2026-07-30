@@ -1,8 +1,8 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/track.dart';
 import '../../services/theme_service.dart';
+import '../track_cover_image.dart';
 
 class MobileTrackRow extends StatelessWidget {
   final Track track;
@@ -24,9 +24,6 @@ class MobileTrackRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final coverFile = File('$appDataPath/cover/${track.trackID}.jpg');
-    final hasCover = coverFile.existsSync();
-
     return Dismissible(
       key: ValueKey('dismiss_${track.trackID}'),
       direction: DismissDirection.startToEnd,
@@ -76,25 +73,25 @@ class MobileTrackRow extends StatelessWidget {
             children: [
               ClipRRect(
                 borderRadius: BorderRadius.circular(6.0),
-                child: hasCover
-                    ? Image.file(
-                        coverFile,
-                        width: 48,
-                        height: 48,
-                        fit: BoxFit.cover,
-                      )
-                    : Image.asset(
-                        'assets/default.jpg', // fallback asset
-                        width: 48,
-                        height: 48,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) => Container(
-                          width: 48,
-                          height: 48,
-                          color: const Color(0xFF181818),
-                          child: const Icon(Icons.music_note, color: Color(0xFF757575)),
-                        ),
-                      ),
+                child: TrackCoverImage(
+                  trackID: track.trackID,
+                  appDataPath: appDataPath,
+                  width: 48,
+                  height: 48,
+                  fit: BoxFit.cover,
+                  fallback: Image.asset(
+                    'assets/default.jpg', // fallback asset
+                    width: 48,
+                    height: 48,
+                    fit: BoxFit.cover,
+                    errorBuilder: (context, error, stackTrace) => Container(
+                      width: 48,
+                      height: 48,
+                      color: const Color(0xFF181818),
+                      child: const Icon(Icons.music_note, color: Color(0xFF757575)),
+                    ),
+                  ),
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(

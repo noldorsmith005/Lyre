@@ -47,13 +47,5 @@ class MainActivity : FlutterActivity() {
                 PackageManager.DONT_KILL_APP
             )
         }
-
-        // Disable main activity launcher filter so duplicate icons don't show
-        val mainComponent = ComponentName(packageName, "$packageName.MainActivity")
-        pm.setComponentEnabledSetting(
-            mainComponent,
-            PackageManager.COMPONENT_ENABLED_STATE_DISABLED,
-            PackageManager.DONT_KILL_APP
-        )
     }
 }

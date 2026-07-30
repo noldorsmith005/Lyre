@@ -12,8 +12,20 @@ class AudioPlayerService extends ChangeNotifier {
   StreamSubscription? _stateSubscription;
   Track? currentTrack;
   bool isPlaying = false;
-  bool shuffle = false;
-  bool loop = false;
+  bool _shuffle = false;
+  bool get shuffle => _shuffle;
+  set shuffle(bool value) {
+    _shuffle = value;
+    notifyListeners();
+  }
+
+  bool _loop = false;
+  bool get loop => _loop;
+  set loop(bool value) {
+    _loop = value;
+    notifyListeners();
+  }
+
   List<Track> queue = [];
   List<Track> playlist = [];
   int _playlistIndex = 0;

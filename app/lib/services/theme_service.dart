@@ -1,11 +1,11 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'safe_storage.dart';
 import 'package:path_provider/path_provider.dart';
 
 class ThemeService extends ChangeNotifier {
-  static const _storage = FlutterSecureStorage();
+  static final _storage = SafeStorage();
   static const String _storageKey = 'lyre_theme_color_key';
   static const MethodChannel _platformChannel = MethodChannel('com.lyre.app/icon');
 
@@ -98,7 +98,7 @@ class ThemeService extends ChangeNotifier {
     try {
       if (Platform.isAndroid || Platform.isIOS) {
         await _platformChannel.invokeMethod('setAppIcon', {'icon': key});
-      } else if (Platform.isMacOS) {
+      } else if (Platform.isMacOS || Platform.isWindows) {
         final iconPath = await _getTempAssetFilePath(key);
         await _platformChannel.invokeMethod('setAppIcon', {'path': iconPath, 'icon': key});
       }

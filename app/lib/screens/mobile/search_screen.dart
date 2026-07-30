@@ -6,15 +6,20 @@ import '../../services/audio_player_service.dart';
 import '../../services/theme_service.dart';
 import '../../widgets/mobile/mobile_track_row.dart';
 import '../../widgets/mobile/bottom_player_bar.dart';
+import '../../widgets/mobile/mobile_playlist_actions_sheet.dart';
 
 class SearchScreen extends StatefulWidget {
   final dynamic mediaHandler;
+  final dynamic serverClient;
+  final bool isServerConnected;
   final String appDataPath;
   final List<Playlist> allPlaylists;
 
   const SearchScreen({
     Key? key,
     required this.mediaHandler,
+    this.serverClient,
+    this.isServerConnected = false,
     required this.appDataPath,
     required this.allPlaylists,
   }) : super(key: key);
@@ -47,7 +52,9 @@ class _SearchScreenState extends State<SearchScreen> {
     });
 
     try {
-      final results = await widget.mediaHandler.searchTracks(query); 
+      final results = (widget.isServerConnected && widget.serverClient != null)
+          ? await widget.serverClient.searchTracks(query)
+          : await widget.mediaHandler.searchTracks(query); 
       setState(() {
         _searchResults = results.cast<Track>();
       });
@@ -127,7 +134,24 @@ class _SearchScreenState extends State<SearchScreen> {
                       onTap: () {
                         audioService.play(track);
                       },
-                      onLongPress: () {},
+                      onLongPress: () {
+                        showModalBottomSheet(
+                          context: context,
+                          backgroundColor: Colors.transparent,
+                          builder: (context) => MobilePlaylistActionsSheet(
+                            track: track,
+                            allPlaylists: widget.allPlaylists,
+                            onAddToPlaylist: (playlist) async {
+                              await widget.mediaHandler.addToPlaylist(playlist.playlistID, track.trackID);
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Added ${track.title} to ${playlist.title}')),
+                                );
+                              }
+                            },
+                          ),
+                        );
+                      },
                       onQueue: () {
                         audioService.addToQueue(track);
                       },

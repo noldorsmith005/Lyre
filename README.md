@@ -52,7 +52,7 @@ Start the Flask application server:
 ```bash
 python3 server/server.py
 ```
-The server will initialize default sessions, verify database connectivity, and listen for incoming HTTP request traffic.
+The server will initialize default sessions, verify database connectivity, and listen for incoming HTTPS request traffic.
 
 ---
 

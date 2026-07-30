@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:sqflite/sqflite.dart';
+import 'package:flutter/foundation.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -11,6 +11,7 @@ import 'dart:math';
 class MediaHandler {
   late Database _db;
   late String _appDataPath;
+  VoidCallback? onPlaylistChanged;
 
   String get appDataPath => _appDataPath;
 
@@ -34,13 +35,16 @@ class MediaHandler {
     if (!await audioDir.exists()) await audioDir.create(recursive: true);
     if (!await coverDir.exists()) await coverDir.create(recursive: true);
 
+    final DatabaseFactory factory;
     if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
       sqfliteFfiInit();
-      databaseFactory = databaseFactoryFfi;
+      factory = databaseFactoryFfi;
+    } else {
+      factory = databaseFactory;
     }
 
     final dbPath = p.join(_appDataPath, 'data.db');
-    _db = await databaseFactory.openDatabase(
+    _db = await factory.openDatabase(
       dbPath,
       options: OpenDatabaseOptions(
         version: 1,
@@ -97,10 +101,22 @@ class MediaHandler {
                 new_release          INTEGER DEFAULT 0
             )
           ''');
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS SyncQueue (
+                key   TEXT PRIMARY KEY,
+                value TEXT
+            )
+          ''');
         },
         onOpen: (db) async {
           await db.execute('PRAGMA journal_mode=WAL;');
           await db.execute('PRAGMA busy_timeout=5000;');
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS SyncQueue (
+                key   TEXT PRIMARY KEY,
+                value TEXT
+            )
+          ''');
         },
       ),
     );
@@ -174,6 +190,8 @@ class MediaHandler {
         'INSERT OR IGNORE INTO PlaylistTracks (playlist_id, order_index, track_id) VALUES (?, (SELECT COALESCE(MAX(order_index), 0) + 1 FROM PlaylistTracks WHERE playlist_id = ?), ?)',
         [playlistId, playlistId, trackId]
       );
+      await setPendingPlaylistPush(true);
+      onPlaylistChanged?.call();
     } catch (e) {
       print('Could not add track to playlist: $e');
     }
@@ -182,6 +200,8 @@ class MediaHandler {
   Future<void> removeFromPlaylist(int playlistId, int trackId) async {
     try {
       await _db.delete('PlaylistTracks', where: 'playlist_id = ? AND track_id = ?', whereArgs: [playlistId, trackId]);
+      await setPendingPlaylistPush(true);
+      onPlaylistChanged?.call();
     } catch (e) {
       print('Could not remove track from playlist: $e');
     }
@@ -190,6 +210,8 @@ class MediaHandler {
   Future<void> changeTrackOrder(int playlistId, int trackId, int newOrder) async {
     try {
       await _db.update('PlaylistTracks', {'order_index': newOrder}, where: 'playlist_id = ? AND track_id = ?', whereArgs: [playlistId, trackId]);
+      await setPendingPlaylistPush(true);
+      onPlaylistChanged?.call();
     } catch (e) {
       print('Could not change track order: $e');
     }
@@ -225,6 +247,8 @@ class MediaHandler {
       await _db.insert('PlaylistIDs', {
         'playlist_id': newPlaylistId
       });
+      await setPendingPlaylistPush(true);
+      onPlaylistChanged?.call();
     } catch (e) {
       print('Could not create playlist: $e');
     }
@@ -235,6 +259,8 @@ class MediaHandler {
       await _db.delete('PlaylistTracks', where: 'playlist_id = ?', whereArgs: [playlistId]);
       await _db.delete('Playlists', where: 'playlist_id = ?', whereArgs: [playlistId]);
       await _db.delete('PlaylistIDs', where: 'playlist_id = ?', whereArgs: [playlistId]);
+      await setPendingPlaylistPush(true);
+      onPlaylistChanged?.call();
     } catch (e) {
       print('Could not delete playlist: $e');
     }
@@ -243,6 +269,8 @@ class MediaHandler {
   Future<void> editPlaylistTitle(int playlistId, String newTitle) async {
     try {
       await _db.update('Playlists', {'title': newTitle}, where: 'playlist_id = ?', whereArgs: [playlistId]);
+      await setPendingPlaylistPush(true);
+      onPlaylistChanged?.call();
     } catch (e) {
       print('Could not edit playlist title: $e');
     }
@@ -290,7 +318,7 @@ class MediaHandler {
     }
   }
 
-  Future<void> syncLocalPlaylists(List<dynamic> serverPlaylists) async {
+  Future<bool> syncLocalPlaylists(List<dynamic> serverPlaylists) async {
     try {
       final localPlaylists = await loadPlaylists();
       final localMap = {for (var p in localPlaylists) p.playlistID: p};
@@ -320,14 +348,19 @@ class MediaHandler {
         }
       }
 
-      // Delete any local playlist not on server
+      // Check if there are any local playlists not yet on the server
+      bool hasUnsyncedLocal = false;
       for (var local in localPlaylists) {
         if (!serverMap.containsKey(local.playlistID)) {
-          await deletePlaylist(local.playlistID);
+          hasUnsyncedLocal = true;
+          break;
         }
       }
+
+      return hasUnsyncedLocal;
     } catch (e) {
       print('Error syncing local playlists: $e');
+      return false;
     }
   }
 
@@ -365,6 +398,72 @@ class MediaHandler {
     } catch (e) {
       print('Error clearing all local data: $e');
     }
+  }
+
+  Future<void> setPendingPlaylistPush(bool pending) async {
+    try {
+      await _db.insert(
+        'SyncQueue',
+        {'key': 'pending_playlist_push', 'value': pending ? '1' : '0'},
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    } catch (e) {
+      print('Error setting pending playlist push: $e');
+    }
+  }
+
+  Future<bool> hasPendingPlaylistPush() async {
+    try {
+      final rows = await _db.query('SyncQueue', where: 'key = ?', whereArgs: ['pending_playlist_push']);
+      if (rows.isNotEmpty) {
+        return rows.first['value'] == '1';
+      }
+    } catch (e) {
+      print('Error checking pending playlist push: $e');
+    }
+    return false;
+  }
+
+  Future<void> addPendingDownload(int trackId) async {
+    try {
+      await _db.insert('SyncQueue', {'key': 'dl_$trackId', 'value': '$trackId'}, conflictAlgorithm: ConflictAlgorithm.replace);
+    } catch (_) {}
+  }
+
+  Future<void> addPendingRemoveDownload(int trackId) async {
+    try {
+      await _db.insert('SyncQueue', {'key': 'rm_dl_$trackId', 'value': '$trackId'}, conflictAlgorithm: ConflictAlgorithm.replace);
+    } catch (_) {}
+  }
+
+  Future<List<int>> getPendingDownloads() async {
+    try {
+      final rows = await _db.query('SyncQueue', where: "key LIKE 'dl_%'");
+      return rows.map((r) => int.parse(r['value'] as String)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<List<int>> getPendingRemoveDownloads() async {
+    try {
+      final rows = await _db.query('SyncQueue', where: "key LIKE 'rm_dl_%'");
+      return rows.map((r) => int.parse(r['value'] as String)).toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<void> clearPendingDownload(int trackId) async {
+    try {
+      await _db.delete('SyncQueue', where: 'key = ?', whereArgs: ['dl_$trackId']);
+    } catch (_) {}
+  }
+
+  Future<void> clearPendingRemoveDownload(int trackId) async {
+    try {
+      await _db.delete('SyncQueue', where: 'key = ?', whereArgs: ['rm_dl_$trackId']);
+    } catch (_) {}
   }
 }
 

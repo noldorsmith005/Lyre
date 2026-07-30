@@ -1,4 +1,4 @@
-# lyre
+# Lyre
 
 A new Flutter project.
 

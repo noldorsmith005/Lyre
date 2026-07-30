@@ -1,5 +1,5 @@
 {
-  "primary_url": "http://127.0.0.1:57967",
-  "fallback_url": "http://localhost:57967",
+  "primary_url": "https://127.0.0.1:57967",
+  "fallback_url": "https://192.168.1.214:57967",
   "app_key": "n8cQiw4z6oSHFixnEFK7"
 }

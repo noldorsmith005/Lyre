@@ -4,6 +4,11 @@
 
 #include "flutter/generated_plugin_registrant.h"
 
+#include <flutter/method_channel.h>
+#include <flutter/standard_method_codec.h>
+#include <windows.h>
+#include <gdiplus.h>
+
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
 
@@ -26,6 +31,44 @@ bool FlutterWindow::OnCreate() {
   }
   RegisterPlugins(flutter_controller_->engine());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
+
+  auto channel = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+      flutter_controller_->engine()->messenger(), "com.lyre.app/icon",
+      &flutter::StandardMethodCodec::GetInstance());
+
+  HWND hwnd = GetHandle();
+  channel->SetMethodCallHandler(
+      [hwnd](const flutter::MethodCall<flutter::EncodableValue>& call,
+             std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
+        if (call.method_name().compare("setAppIcon") == 0) {
+          const auto* arguments = std::get_if<flutter::EncodableMap>(call.arguments());
+          if (arguments) {
+            auto path_it = arguments->find(flutter::EncodableValue("path"));
+            if (path_it != arguments->end()) {
+              if (const auto* icon_path = std::get_if<std::string>(&path_it->second)) {
+                int wchars_num = MultiByteToWideChar(CP_UTF8, 0, icon_path->c_str(), -1, NULL, 0);
+                std::wstring wpath(wchars_num, 0);
+                MultiByteToWideChar(CP_UTF8, 0, icon_path->c_str(), -1, &wpath[0], wchars_num);
+
+                Gdiplus::GdiplusStartupInput gdiplusStartupInput;
+                ULONG_PTR gdiplusToken;
+                Gdiplus::GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
+                Gdiplus::Bitmap bitmap(wpath.c_str());
+                HICON hIcon = NULL;
+                if (bitmap.GetHICON(&hIcon) == Gdiplus::Ok && hIcon != NULL) {
+                  SendMessage(hwnd, WM_SETICON, ICON_SMALL, (LPARAM)hIcon);
+                  SendMessage(hwnd, WM_SETICON, ICON_BIG, (LPARAM)hIcon);
+                  result->Success(flutter::EncodableValue(true));
+                  return;
+                }
+              }
+            }
+          }
+          result->Success(flutter::EncodableValue(false));
+        } else {
+          result->NotImplemented();
+        }
+      });
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
     this->Show();

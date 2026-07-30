@@ -1,18 +1,32 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/widgets.dart';
 import 'package:flutter/services.dart' show rootBundle;
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'safe_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:just_audio/just_audio.dart';
 import '../models/track.dart';
 import 'media_handler.dart';
+import 'listening_stats_service.dart';
+
+class SyncProgress {
+  final String status;
+  final double progress;
+  final String? detail;
+
+  const SyncProgress({
+    required this.status,
+    required this.progress,
+    this.detail,
+  });
+}
 
 class ServerClient {
   late String _appDataPath;
   final MediaHandler mediaHandler;
-  final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  final SafeStorage _storage = SafeStorage();
   
   String? appUrl;
   String? primaryUrl;
@@ -26,16 +40,14 @@ class ServerClient {
 
   Future<void> init() async {
     if (Platform.isMacOS) {
-      final home = Platform.environment['HOME'];
-      _appDataPath = '$home/Library/Application Support/Lyre';
-    } else if (Platform.isWindows) {
-      final appData = Platform.environment['APPDATA'];
-      _appDataPath = '$appData/Lyre';
+      final appSupportDir = await getApplicationSupportDirectory();
+      _appDataPath = p.join(appSupportDir.path, 'Lyre');
     } else {
       final dir = await getApplicationDocumentsDirectory();
       _appDataPath = p.join(dir.path, 'Lyre');
     }
     
+    mediaHandler.onPlaylistChanged = () => pushLocalPlaylists();
     await _loadBundledConfig();
     await _loadSecureCredentials();
     await autoDetectServer();
@@ -49,27 +61,35 @@ class ServerClient {
       fallbackUrl = config['fallback_url'] as String?;
       appKey = config['app_key'] as String?;
     } catch (e) {
-      primaryUrl = 'http://127.0.0.1:57967';
-      fallbackUrl = 'http://localhost:57967';
+      primaryUrl = 'https://127.0.0.1:57967';
+      fallbackUrl = 'https://localhost:57967';
       appKey = 'n8cQiw4z6oSHFixnEFK7';
     }
   }
 
   Future<void> _loadSecureCredentials() async {
-    userID = await _storage.read(key: 'user_id');
-    sessionToken = await _storage.read(key: 'session_token');
-    username = await _storage.read(key: 'username');
-    final savedAppKey = await _storage.read(key: 'app_key');
-    if (savedAppKey != null && savedAppKey.isNotEmpty) {
-      appKey = savedAppKey;
+    try {
+      userID = await _storage.read(key: 'user_id');
+      sessionToken = await _storage.read(key: 'session_token');
+      username = await _storage.read(key: 'username');
+      final savedAppKey = await _storage.read(key: 'app_key');
+      if (savedAppKey != null && savedAppKey.isNotEmpty) {
+        appKey = savedAppKey;
+      }
+    } catch (e) {
+      print('Error loading secure credentials: $e');
     }
   }
 
   Future<void> _saveSecureCredentials() async {
-    if (userID != null) await _storage.write(key: 'user_id', value: userID);
-    if (sessionToken != null) await _storage.write(key: 'session_token', value: sessionToken);
-    if (username != null) await _storage.write(key: 'username', value: username);
-    if (appKey != null) await _storage.write(key: 'app_key', value: appKey);
+    try {
+      if (userID != null) await _storage.write(key: 'user_id', value: userID!);
+      if (sessionToken != null) await _storage.write(key: 'session_token', value: sessionToken!);
+      if (username != null) await _storage.write(key: 'username', value: username!);
+      if (appKey != null) await _storage.write(key: 'app_key', value: appKey!);
+    } catch (e) {
+      print('Error saving secure credentials: $e');
+    }
   }
 
   Future<void> logout() async {
@@ -80,9 +100,13 @@ class ServerClient {
     userID = null;
     sessionToken = null;
     username = null;
-    await _storage.delete(key: 'user_id');
-    await _storage.delete(key: 'session_token');
-    await _storage.delete(key: 'username');
+    try {
+      await _storage.delete(key: 'user_id');
+      await _storage.delete(key: 'session_token');
+      await _storage.delete(key: 'username');
+    } catch (e) {
+      print('Error clearing secure storage: $e');
+    }
     await mediaHandler.clearAllLocalData();
   }
 
@@ -233,6 +257,145 @@ class ServerClient {
       return null;
     } catch (e) {
       return null;
+    }
+  }
+
+  Future<bool> pushLocalPlaylists() async {
+    if (!registered() || appUrl == null) {
+      await mediaHandler.setPendingPlaylistPush(true);
+      return false;
+    }
+    try {
+      final isOnline = await ping();
+      if (!isOnline) {
+        await mediaHandler.setPendingPlaylistPush(true);
+        return false;
+      }
+      final playlists = await mediaHandler.loadPlaylists();
+      List<Map<String, dynamic>> syncPayload = [];
+
+      for (var pl in playlists) {
+        final tracks = await mediaHandler.loadPlaylistTracks(pl.playlistID);
+        final trackIds = tracks.map((t) => t.trackID).toList();
+        syncPayload.add({
+          'playlist_id': pl.playlistID,
+          'name': pl.title,
+          'tracks': trackIds,
+        });
+      }
+      final success = await pushSyncPlaylists(syncPayload);
+      if (success) {
+        await mediaHandler.setPendingPlaylistPush(false);
+      } else {
+        await mediaHandler.setPendingPlaylistPush(true);
+      }
+      return success;
+    } catch (e) {
+      print('Error pushing local playlists: $e');
+      await mediaHandler.setPendingPlaylistPush(true);
+      return false;
+    }
+  }
+
+  Future<bool> performPullSync({void Function(SyncProgress progress)? onProgress}) async {
+    if (!registered() || appUrl == null) {
+      onProgress?.call(const SyncProgress(status: 'Not registered or server URL missing', progress: 1.0));
+      return false;
+    }
+
+    onProgress?.call(const SyncProgress(status: 'Connecting to server...', progress: 0.05));
+
+    final isOnline = await ping();
+    if (!isOnline) {
+      print('Offline or server unreachable: Skipping startup pull sync.');
+      onProgress?.call(const SyncProgress(status: 'Server unreachable', progress: 1.0));
+      return false;
+    }
+
+    try {
+      // Process pending offline download tracking
+      final pendingDownloads = await mediaHandler.getPendingDownloads();
+      for (final trackId in pendingDownloads) {
+        try {
+          await _updateDownloads(trackId);
+          await mediaHandler.clearPendingDownload(trackId);
+        } catch (_) {}
+      }
+
+      final pendingRemoves = await mediaHandler.getPendingRemoveDownloads();
+      for (final trackId in pendingRemoves) {
+        try {
+          await _updateRemoveDownloads(trackId);
+          await mediaHandler.clearPendingRemoveDownload(trackId);
+        } catch (_) {}
+      }
+
+      // Process pending offline playlist changes
+      final hasPendingPush = await mediaHandler.hasPendingPlaylistPush();
+      if (hasPendingPush) {
+        onProgress?.call(const SyncProgress(status: 'Pushing pending playlist updates...', progress: 0.10));
+        await pushLocalPlaylists();
+      }
+
+      onProgress?.call(const SyncProgress(status: 'Checking remote downloads...', progress: 0.15));
+      final serverTracks = await getUserDownloadedTracks();
+      if (serverTracks != null) {
+        final serverTrackIds = serverTracks.map((t) => t.trackID).toSet();
+        final localTracks = await mediaHandler.getAllTracks();
+        final localTrackIds = localTracks.map((t) => t.trackID).toSet();
+
+        final tracksToDownload = serverTracks.where((st) => !localTrackIds.contains(st.trackID)).toList();
+        final tracksToRemove = localTracks.where((lt) => !serverTrackIds.contains(lt.trackID)).toList();
+
+        final totalTrackOps = tracksToDownload.length + tracksToRemove.length;
+        int completedOps = 0;
+
+        for (int i = 0; i < tracksToDownload.length; i++) {
+          final st = tracksToDownload[i];
+          final progressVal = 0.20 + (0.50 * (completedOps / (totalTrackOps > 0 ? totalTrackOps : 1)));
+          onProgress?.call(SyncProgress(
+            status: 'Downloading track (${i + 1}/${tracksToDownload.length})',
+            detail: '${st.title} - ${st.artist}',
+            progress: progressVal,
+          ));
+          await downloadTrack(st, updateServerTracking: false);
+          completedOps++;
+        }
+
+        for (int i = 0; i < tracksToRemove.length; i++) {
+          final lt = tracksToRemove[i];
+          final progressVal = 0.20 + (0.50 * (completedOps / (totalTrackOps > 0 ? totalTrackOps : 1)));
+          onProgress?.call(SyncProgress(
+            status: 'Removing track (${i + 1}/${tracksToRemove.length})',
+            detail: '${lt.title} - ${lt.artist}',
+            progress: progressVal,
+          ));
+          await removeDownload(lt, updateServerTracking: false);
+          completedOps++;
+        }
+      }
+
+      onProgress?.call(const SyncProgress(status: 'Syncing playlists...', progress: 0.75));
+      final serverPlaylists = await pullSyncPlaylists();
+      if (serverPlaylists != null) {
+        final hasUnsyncedLocal = await mediaHandler.syncLocalPlaylists(serverPlaylists);
+        if (hasUnsyncedLocal) {
+          await pushLocalPlaylists();
+        }
+      }
+
+      onProgress?.call(const SyncProgress(status: 'Syncing listening history...', progress: 0.90));
+      await ListeningStatsService.instance.syncLocalHistoryToServer(this);
+
+      onProgress?.call(const SyncProgress(status: 'Sync complete!', progress: 1.0));
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      return true;
+    } catch (e) {
+      print('Error performing pull sync: $e');
+      onProgress?.call(SyncProgress(status: 'Sync failed: $e', progress: 1.0));
+      await Future.delayed(const Duration(milliseconds: 500));
+      return false;
     }
   }
 
@@ -407,16 +570,30 @@ class ServerClient {
     )).toList();
   }
 
-  Future<void> downloadTrack(Track track, {bool updateServerTracking = true}) async {
+  Future<bool> downloadTrack(Track track, {bool updateServerTracking = true}) async {
     try {
       await _download('audio', track.trackID);
       await _download('cover', track.trackID);
       if (updateServerTracking) {
-        await _updateDownloads(track.trackID);
+        try {
+          await _updateDownloads(track.trackID);
+        } catch (_) {
+          await mediaHandler.addPendingDownload(track.trackID);
+        }
       }
       await mediaHandler.newTrack(track);
+      PaintingBinding.instance.imageCache.evict(FileImage(File('$_appDataPath/cover/${track.trackID}.jpg')));
+      return true;
     } catch (e) {
-      print('Track download failed.');
+      print('Track download failed: $e');
+      // Cleanup any partial files if download failed midway
+      try {
+        final flacFile = File('$_appDataPath/audio/${track.trackID}.flac');
+        final coverFile = File('$_appDataPath/cover/${track.trackID}.jpg');
+        if (await flacFile.exists()) await flacFile.delete();
+        if (await coverFile.exists()) await coverFile.delete();
+      } catch (_) {}
+      return false;
     }
   }
 
@@ -445,17 +622,20 @@ class ServerClient {
     }
   }
 
-  Future<void> removeDownload(Track track, {bool updateServerTracking = true}) async {
+  Future<bool> removeDownload(Track track, {bool updateServerTracking = true}) async {
     final wavFile = File('$_appDataPath/audio/${track.trackID}.wav');
     final flacFile = File('$_appDataPath/audio/${track.trackID}.flac');
     final coverFile = File('$_appDataPath/cover/${track.trackID}.jpg');
 
+    bool filesDeleted = true;
     try {
+      PaintingBinding.instance.imageCache.evict(FileImage(coverFile));
       if (await wavFile.exists()) await wavFile.delete();
       if (await flacFile.exists()) await flacFile.delete();
       if (await coverFile.exists()) await coverFile.delete();
     } catch (e) {
-      print('Error deleting track asset files.');
+      print('Error deleting track asset files: $e');
+      filesDeleted = false;
     }
     
     await mediaHandler.deleteTrack(track);
@@ -464,9 +644,12 @@ class ServerClient {
       try {
         await _updateRemoveDownloads(track.trackID);
       } catch (e) {
-        print('Remove track from downloads failed.');
+        print('Remove track from downloads failed: $e');
+        await mediaHandler.addPendingRemoveDownload(track.trackID);
       }
     }
+
+    return filesDeleted;
   }
 
   Future<bool> syncHistoryToServer(List<Map<String, dynamic>> historyItems) async {

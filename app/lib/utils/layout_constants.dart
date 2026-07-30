@@ -2,11 +2,11 @@ import 'dart:io' show Platform;
 
 class LayoutConstants {
   // Desktop panel ratios
-  static double get sidebarRatio => Platform.isWindows ? 0.16875 : 0.25;
+  static double get sidebarRatio => Platform.isWindows ? 0.14 : 0.18;
   static double get mediaPanelRatio => Platform.isWindows ? 0.26875 : 0.25;
 
   // Track list cells
-  static double get cellSize => Platform.isWindows ? 78 : 80;
+  static double get cellSize => Platform.isWindows ? 64 : 68;
   static double get cellSpacing => Platform.isWindows ? 4.5 : 4.0;
   static double get trackCardTextSize => Platform.isWindows ? 200.0 : 275.0;
 
@@ -15,10 +15,10 @@ class LayoutConstants {
   static double get subFontSize => Platform.isWindows ? 12 : 15;
 
   // Thumbnails
-  static double get thumbSize => Platform.isWindows ? 32 : 40;
+  static double get thumbSize => Platform.isWindows ? 48 : 56;
 
   // Padding
-  static double get paddingV => Platform.isWindows ? 10 : 14;
+  static double get paddingV => Platform.isWindows ? 4 : 6;
   static double get paddingH => Platform.isWindows ? 14 : 18;
 
   // Cover art

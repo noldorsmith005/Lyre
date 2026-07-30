@@ -17,7 +17,6 @@ class MainPanel extends StatefulWidget {
   final VoidCallback onRlsPressed;
   final VoidCallback onUploadPressed;
   final VoidCallback onClearConfigPressed;
-  final VoidCallback onSyncPressed;
   final VoidCallback? onPlaybackPressed;
   final VoidCallback onShufflePressed;
   final Function(String) onEditPlaylistName;
@@ -41,7 +40,6 @@ class MainPanel extends StatefulWidget {
     required this.onRlsPressed,
     required this.onUploadPressed,
     required this.onClearConfigPressed,
-    required this.onSyncPressed,
     this.onPlaybackPressed,
     required this.onShufflePressed,
     required this.onEditPlaylistName,
@@ -173,7 +171,7 @@ class _MainPanelState extends State<MainPanel> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       decoration: const BoxDecoration(
-        color: Color(0xFF121212),
+        color: Color(0xFF000000),
         border: Border(bottom: BorderSide(color: Color(0xFF282828), width: 1)),
       ),
       child: Row(
@@ -189,11 +187,11 @@ class _MainPanelState extends State<MainPanel> {
             Tooltip(
               message: 'Connect to RLS',
               child: _HoverIconButton(
-                icon: widget.isServerConnected ? Icons.cloud : Icons.cloud_outlined,
-                size: 26,
+                icon: Icons.cloud_outlined,
+                size: 34,
                 color: widget.isServerConnected
                     ? Provider.of<ThemeService>(context).themeColor
-                    : const Color(0xFFB3B3B3),
+                    : Colors.white,
                 onTap: widget.onRlsPressed,
               ),
             ),
@@ -204,7 +202,6 @@ class _MainPanelState extends State<MainPanel> {
             _AccountMenuButton(
               onUploadPressed: widget.onUploadPressed,
               onClearConfigPressed: widget.onClearConfigPressed,
-              onSyncPressed: widget.onSyncPressed,
               onPlaybackPressed: widget.onPlaybackPressed,
               isServerConnected: widget.isServerConnected,
             ),
@@ -218,7 +215,7 @@ class _MainPanelState extends State<MainPanel> {
     return Container(
       padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
       decoration: const BoxDecoration(
-        color: Color(0xFF121212),
+        color: Color(0xFF000000),
         border: Border(bottom: BorderSide(color: Color(0xFF282828), width: 1)),
       ),
       child: Row(
@@ -268,8 +265,8 @@ class _MainPanelState extends State<MainPanel> {
                 message: 'Shuffle',
                 child: _HoverIconButton(
                   icon: Icons.shuffle_rounded,
-                  size: 28,
-                  color: isShuffled ? themeColor : const Color(0xFFB3B3B3),
+                  size: 34,
+                  color: isShuffled ? themeColor : Colors.white,
                   onTap: widget.onShufflePressed,
                 ),
               );
@@ -283,7 +280,7 @@ class _MainPanelState extends State<MainPanel> {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: const Color(0xFF121212),
+      color: const Color(0xFF000000),
       child: Column(
         children: [
           _buildTopBar(),
@@ -334,15 +331,9 @@ class _SpotifySearchBar extends StatefulWidget {
 }
 
 class _SpotifySearchBarState extends State<_SpotifySearchBar> {
-  final FocusNode _focusNode = FocusNode();
-  bool _isFocused = false;
-
   @override
   void initState() {
     super.initState();
-    _focusNode.addListener(() {
-      setState(() => _isFocused = _focusNode.hasFocus);
-    });
     widget.controller.addListener(_onTextChanged);
   }
 
@@ -352,46 +343,42 @@ class _SpotifySearchBarState extends State<_SpotifySearchBar> {
 
   @override
   void dispose() {
-    _focusNode.dispose();
     widget.controller.removeListener(_onTextChanged);
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final themeColor = Provider.of<ThemeService>(context).themeColor;
-
     return AnimatedContainer(
       duration: const Duration(milliseconds: 150),
       width: 360,
       height: 42,
       decoration: BoxDecoration(
-        color: const Color(0xFF242424),
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(21),
         border: Border.all(
-          color: _isFocused ? themeColor : const Color(0xFF282828),
-          width: _isFocused ? 1.5 : 1.0,
+          color: Colors.white,
+          width: 1.0,
         ),
       ),
       child: Row(
         children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 14, right: 10),
+          const Padding(
+            padding: EdgeInsets.only(left: 14, right: 10),
             child: Icon(
               Icons.search_rounded,
               size: 20,
-              color: _isFocused ? themeColor : const Color(0xFFB3B3B3),
+              color: Colors.white,
             ),
           ),
           Expanded(
             child: TextField(
               controller: widget.controller,
-              focusNode: _focusNode,
               onChanged: widget.onSearch,
               style: const TextStyle(color: Colors.white, fontSize: 14),
               decoration: const InputDecoration(
-                hintText: 'Search songs, artists...',
-                hintStyle: TextStyle(color: Color(0xFF757575), fontSize: 14),
+                hintText: 'Search...',
+                hintStyle: TextStyle(color: Color(0xFFB3B3B3), fontSize: 14),
                 border: InputBorder.none,
                 isDense: true,
                 contentPadding: EdgeInsets.symmetric(vertical: 10),
@@ -456,7 +443,7 @@ class __HoverIconButtonState extends State<_HoverIconButton> {
           child: Icon(
             widget.icon,
             size: widget.size,
-            color: widget.color ?? (_isHovered ? Colors.white : const Color(0xFFB3B3B3)),
+            color: widget.color ?? Colors.white,
           ),
         ),
       ),
@@ -467,14 +454,12 @@ class __HoverIconButtonState extends State<_HoverIconButton> {
 class _AccountMenuButton extends StatefulWidget {
   final VoidCallback onUploadPressed;
   final VoidCallback onClearConfigPressed;
-  final VoidCallback onSyncPressed;
   final VoidCallback? onPlaybackPressed;
   final bool isServerConnected;
 
   const _AccountMenuButton({
     required this.onUploadPressed,
     required this.onClearConfigPressed,
-    required this.onSyncPressed,
     this.onPlaybackPressed,
     this.isServerConnected = false,
   });
@@ -493,7 +478,7 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
       onExit: (_) => setState(() => _isHovered = false),
       cursor: SystemMouseCursors.click,
       child: PopupMenuButton<String>(
-        offset: const Offset(0, 44),
+        offset: const Offset(0, 56),
         color: const Color(0xFF282828),
         elevation: 6,
         shape: RoundedRectangleBorder(
@@ -503,8 +488,6 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
         onSelected: (value) {
           if (value == 'playback') {
             if (widget.onPlaybackPressed != null) widget.onPlaybackPressed!();
-          } else if (value == 'sync') {
-            widget.onSyncPressed();
           } else if (value == 'upload') {
             widget.onUploadPressed();
           } else if (value == 'settings') {
@@ -518,7 +501,6 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
         },
         itemBuilder: (context) => [
           _buildMenuItem('playback', Icons.graphic_eq_rounded, 'Lyre Playback'),
-          _buildMenuItem('sync', Icons.sync_rounded, 'Cloud Sync'),
           _buildMenuItem('upload', Icons.upload_rounded, 'Upload Track'),
           _buildMenuItem('settings', Icons.settings_rounded, 'Settings'),
           _buildMenuItem('logout', Icons.logout_rounded, 'Log Out'),
@@ -527,14 +509,14 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
           scale: _isHovered ? 1.08 : 1.0,
           duration: const Duration(milliseconds: 150),
           child: Container(
-            width: 36,
-            height: 36,
+            width: 54,
+            height: 54,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: _isHovered ? const Color(0xFF282828) : const Color(0xFF181818),
               border: Border.all(color: const Color(0xFF3E3E3E), width: 1),
             ),
-            child: Icon(Icons.person, color: Provider.of<ThemeService>(context).themeColor, size: 20),
+            child: Icon(Icons.person, color: Provider.of<ThemeService>(context).themeColor, size: 34),
           ),
         ),
       ),

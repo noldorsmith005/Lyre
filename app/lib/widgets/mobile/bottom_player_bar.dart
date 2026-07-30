@@ -1,10 +1,10 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/audio_player_service.dart';
 import '../../services/theme_service.dart';
 import '../../screens/mobile/full_player_screen.dart';
 import '../play_bars.dart';
+import '../track_cover_image.dart';
 
 class BottomPlayerBar extends StatelessWidget {
   final String appDataPath;
@@ -20,8 +20,6 @@ class BottomPlayerBar extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final coverFile = File('$appDataPath/cover/${currentTrack.trackID}.jpg');
-    final hasCover = coverFile.existsSync();
     final themeColor = context.watch<ThemeService>().themeColor;
 
     return Padding(
@@ -63,19 +61,19 @@ class BottomPlayerBar extends StatelessWidget {
                           tag: 'mobile_player_cover_${currentTrack.trackID}',
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(8.0),
-                            child: hasCover
-                                ? Image.file(
-                                    coverFile,
-                                    width: 44,
-                                    height: 44,
-                                    fit: BoxFit.cover,
-                                  )
-                                : Container(
-                                    width: 44,
-                                    height: 44,
-                                    color: const Color(0xFF22222E),
-                                    child: const Icon(Icons.music_note, color: Color(0xFF666677), size: 22),
-                                  ),
+                            child: TrackCoverImage(
+                              trackID: currentTrack.trackID,
+                              appDataPath: appDataPath,
+                              width: 44,
+                              height: 44,
+                              fit: BoxFit.cover,
+                              fallback: Container(
+                                width: 44,
+                                height: 44,
+                                color: const Color(0xFF22222E),
+                                child: const Icon(Icons.music_note, color: Color(0xFF666677), size: 22),
+                              ),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 14),

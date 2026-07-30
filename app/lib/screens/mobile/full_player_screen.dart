@@ -5,6 +5,7 @@ import '../../services/audio_player_service.dart';
 import '../../services/theme_service.dart';
 import '../../models/track.dart';
 import '../../widgets/play_bars.dart';
+import '../../widgets/track_cover_image.dart';
 
 class FullPlayerScreen extends StatelessWidget {
   final String appDataPath;
@@ -26,8 +27,6 @@ class FullPlayerScreen extends StatelessWidget {
       return Container(color: const Color(0xFF0F0F0F));
     }
 
-    final coverFile = File('$appDataPath/cover/${currentTrack.trackID}.jpg');
-    final hasCover = coverFile.existsSync();
     final screenWidth = MediaQuery.of(context).size.width;
     final coverSize = screenWidth - 64;
 
@@ -69,19 +68,19 @@ class FullPlayerScreen extends StatelessWidget {
                         ),
                       ],
                     ),
-                    child: hasCover
-                        ? Image.file(
-                            coverFile,
-                            width: coverSize,
-                            height: coverSize,
-                            fit: BoxFit.cover,
-                          )
-                        : Image.asset(
-                            'assets/default.jpg',
-                            width: coverSize,
-                            height: coverSize,
-                            fit: BoxFit.cover,
-                          ),
+                    child: TrackCoverImage(
+                      trackID: currentTrack.trackID,
+                      appDataPath: appDataPath,
+                      width: coverSize,
+                      height: coverSize,
+                      fit: BoxFit.cover,
+                      fallback: Image.asset(
+                        'assets/default.jpg',
+                        width: coverSize,
+                        height: coverSize,
+                        fit: BoxFit.cover,
+                      ),
+                    ),
                   ),
                 ),
               ),

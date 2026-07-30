@@ -13,8 +13,18 @@ import 'screens/login_screen.dart';
 import 'screens/splash_screen.dart';
 import 'utils/platform_utils.dart';
 
+class MyHttpOverrides extends HttpOverrides {
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..badCertificateCallback =
+          (X509Certificate cert, String host, int port) => true;
+  }
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  HttpOverrides.global = MyHttpOverrides();
 
   // Initialize services
   final mediaHandler = MediaHandler();
@@ -120,39 +130,65 @@ class _DesktopWrapper extends StatefulWidget {
 }
 
 class _DesktopWrapperState extends State<_DesktopWrapper> {
-  late final FocusNode _focusNode;
-
   @override
   void initState() {
     super.initState();
-    _focusNode = FocusNode()..requestFocus();
+    HardwareKeyboard.instance.addHandler(_handleKeyEvent);
   }
 
   @override
   void dispose() {
-    _focusNode.dispose();
+    HardwareKeyboard.instance.removeHandler(_handleKeyEvent);
     super.dispose();
+  }
+
+  bool _isEditingText() {
+    final focus = FocusManager.instance.primaryFocus;
+    if (focus == null || focus.context == null) return false;
+    final element = focus.context as Element?;
+    if (element == null) return false;
+
+    if (element.widget is EditableText ||
+        element.widget is TextField ||
+        element.widget is TextFormField) {
+      return true;
+    }
+
+    bool isEditing = false;
+    element.visitAncestorElements((ancestor) {
+      final widget = ancestor.widget;
+      if (widget is EditableText ||
+          widget is TextField ||
+          widget is TextFormField) {
+        isEditing = true;
+        return false;
+      }
+      return true;
+    });
+    return isEditing;
+  }
+
+  bool _handleKeyEvent(KeyEvent event) {
+    if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.space) {
+      if (_isEditingText()) {
+        return false;
+      }
+      final audioService = Provider.of<AudioPlayerService>(context, listen: false);
+      if (audioService.isPlaying) {
+        audioService.pause();
+      } else {
+        audioService.resume();
+      }
+      return true;
+    }
+    return false;
   }
 
   @override
   Widget build(BuildContext context) {
-    return KeyboardListener(
-      focusNode: _focusNode,
-      autofocus: true,
-      onKeyEvent: (event) {
-        if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.space) {
-          final audioService = Provider.of<AudioPlayerService>(context, listen: false);
-          if (audioService.isPlaying) {
-            audioService.pause();
-          } else {
-            audioService.resume();
-          }
-        }
-      },
-      child: HomeScreen(
-        mediaHandler: widget.mediaHandler,
-        serverClient: widget.serverClient,
-      ),
+    return HomeScreen(
+      mediaHandler: widget.mediaHandler,
+      serverClient: widget.serverClient,
     );
   }
 }

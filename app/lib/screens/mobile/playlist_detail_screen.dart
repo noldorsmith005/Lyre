@@ -6,6 +6,7 @@ import '../../services/audio_player_service.dart';
 import '../../services/theme_service.dart';
 import '../../widgets/mobile/mobile_track_row.dart';
 import '../../widgets/mobile/bottom_player_bar.dart';
+import '../../widgets/mobile/mobile_playlist_actions_sheet.dart';
 
 class PlaylistDetailScreen extends StatefulWidget {
   final Playlist playlist;
@@ -109,7 +110,24 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                       }
                     }
                   },
-                  onLongPress: () {},
+                  onLongPress: () {
+                    showModalBottomSheet(
+                      context: context,
+                      backgroundColor: Colors.transparent,
+                      builder: (context) => MobilePlaylistActionsSheet(
+                        track: track,
+                        allPlaylists: widget.allPlaylists,
+                        onAddToPlaylist: (targetPlaylist) async {
+                          await widget.mediaHandler.addToPlaylist(targetPlaylist.playlistID, track.trackID);
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Added ${track.title} to ${targetPlaylist.title}')),
+                            );
+                          }
+                        },
+                      ),
+                    );
+                  },
                   onQueue: () {
                     audioService.addToQueue(track);
                   },

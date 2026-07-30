@@ -6,7 +6,7 @@ This document details the SQLite database schema (`data.db`) managed by the Lyre
 
 ## Tables Overview
 
-### 1. `Users`
+### 1. `users`
 Stores registered user accounts and credentials.
 
 | Column | Type | Constraints | Description |
@@ -18,7 +18,7 @@ Stores registered user accounts and credentials.
 
 ---
 
-### 2. `ActiveSessions`
+### 2. `active_sessions`
 Tracks active user session tokens and connection metadata.
 
 | Column | Type | Constraints | Description |
@@ -31,7 +31,7 @@ Tracks active user session tokens and connection metadata.
 
 ---
 
-### 3. `Tracks`
+### 3. `tracks`
 Stores metadata for uploaded audio tracks.
 
 | Column | Type | Constraints | Description |
@@ -69,7 +69,7 @@ Stores user-created cloud playlists.
 
 ---
 
-### 6. `History`
+### 6. `history`
 Records user play counts for calculating monthly stats.
 
 | Column | Type | Constraints | Description |
@@ -80,7 +80,7 @@ Records user play counts for calculating monthly stats.
 
 ---
 
-### 7. `Stats`
+### 7. `stats`
 Stores monthly listening analytics and theme settings per user.
 
 | Column | Type | Constraints | Description |

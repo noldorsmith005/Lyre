@@ -7,6 +7,7 @@ import '../utils/platform_utils.dart';
 import 'home_screen.dart';
 import 'mobile/mobile_home_screen.dart';
 import 'register_screen.dart';
+import '../widgets/sync_progress_dialog.dart';
 
 class LoginScreen extends StatefulWidget {
   final MediaHandler? mediaHandler;
@@ -64,6 +65,8 @@ class _LoginScreenState extends State<LoginScreen> {
           _isLoading = false;
         });
       } else {
+        await SyncProgressDialog.show(context, widget.serverClient);
+        if (!mounted) return;
         if (widget.onLoginSuccess != null) {
           widget.onLoginSuccess!();
         }

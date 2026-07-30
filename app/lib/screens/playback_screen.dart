@@ -21,14 +21,57 @@ class PlaybackThemePalette {
 }
 
 class PlaybackScreen extends StatefulWidget {
+  final MonthlyPlaybackStats? stats;
   final List<Track> allTracks;
   final ServerClient? serverClient;
 
   const PlaybackScreen({
     Key? key,
+    this.stats,
     required this.allTracks,
     this.serverClient,
   }) : super(key: key);
+
+  static void showNoStatsModal(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E2E),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFF3A3A52), width: 1),
+        ),
+        title: Row(
+          children: const [
+            Icon(Icons.analytics_outlined, color: Colors.purpleAccent, size: 26),
+            SizedBox(width: 10),
+            Text(
+              'No Stats Yet',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+              ),
+            ),
+          ],
+        ),
+        content: const Text(
+          'Monthly playback statistics have not been generated yet. Check back at midnight on the last day of the month!',
+          style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.purpleAccent,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            ),
+            child: const Text('Dismiss', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   State<PlaybackScreen> createState() => _PlaybackScreenState();
@@ -132,26 +175,31 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
     super.initState();
     _pageController = PageController();
     _theme = _palettes.first;
-    _loadStats();
+    if (widget.stats != null) {
+      _stats = widget.stats;
+      _theme = _palettes.firstWhere(
+        (p) => p.name.toLowerCase() == widget.stats!.themeColor.toLowerCase(),
+        orElse: () => _palettes.first,
+      );
+    } else {
+      _loadStats();
+    }
   }
 
   Future<void> _loadStats() async {
-    MonthlyPlaybackStats stats;
-    if (widget.serverClient != null) {
-      stats = await ListeningStatsService.instance.fetchAndSyncStats(widget.serverClient!, widget.allTracks);
-    } else {
-      stats = await ListeningStatsService.instance.getMonthlyStats(widget.allTracks);
-    }
+    final stats = await ListeningStatsService.instance.fetchOrGetStats(widget.serverClient, widget.allTracks);
 
     if (mounted) {
-      final selectedTheme = _palettes.firstWhere(
-        (p) => p.name.toLowerCase() == stats.themeColor.toLowerCase(),
-        orElse: () => _palettes.first,
-      );
-      setState(() {
-        _stats = stats;
-        _theme = selectedTheme;
-      });
+      if (stats != null) {
+        final selectedTheme = _palettes.firstWhere(
+          (p) => p.name.toLowerCase() == stats.themeColor.toLowerCase(),
+          orElse: () => _palettes.first,
+        );
+        setState(() {
+          _stats = stats;
+          _theme = selectedTheme;
+        });
+      }
     }
   }
 
@@ -876,7 +924,7 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.person_rounded, color: _theme.accent, size: 22),
+                        Icon(Icons.person_rounded, color: _theme.accent, size: 26),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(

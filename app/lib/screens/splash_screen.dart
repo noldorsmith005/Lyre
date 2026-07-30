@@ -96,8 +96,8 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        themeColor.withOpacity(0.35 * _glowAnimation.value),
-                        themeAccent.withOpacity(0.12 * _glowAnimation.value),
+                        themeColor.withValues(alpha: 0.35 * _glowAnimation.value),
+                        themeAccent.withValues(alpha: 0.12 * _glowAnimation.value),
                         Colors.transparent,
                       ],
                       stops: const [0.0, 0.5, 1.0],
@@ -117,34 +117,33 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // Dynamic Theme App Icon
+                    // Dynamic Theme App Icon (Transparent Foreground Logo)
                     Container(
+                      width: 140,
+                      height: 140,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: themeAccent.withOpacity(0.4),
+                            color: themeAccent.withValues(alpha: 0.4),
                             blurRadius: 36,
                             spreadRadius: 2,
                           ),
                         ],
                       ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(32),
-                        child: Image.asset(
-                          iconAsset,
-                          width: 140,
-                          height: 140,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Container(
-                              width: 140,
-                              height: 140,
-                              color: themeColor,
-                              child: const Icon(Icons.music_note, size: 64, color: Colors.white),
-                            );
-                          },
-                        ),
+                      child: Image.asset(
+                        iconAsset,
+                        width: 140,
+                        height: 140,
+                        fit: BoxFit.contain,
+                        errorBuilder: (context, error, stackTrace) {
+                          return Container(
+                            width: 140,
+                            height: 140,
+                            color: themeColor,
+                            child: const Icon(Icons.music_note, size: 64, color: Colors.white),
+                          );
+                        },
                       ),
                     ),
                     const SizedBox(height: 28),
@@ -158,30 +157,10 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                         color: Colors.white,
                         shadows: [
                           Shadow(
-                            color: themeAccent.withOpacity(0.6),
+                            color: themeAccent.withValues(alpha: 0.6),
                             blurRadius: 16,
                           ),
                         ],
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'HIGH FIDELITY MUSIC',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 4.0,
-                        color: themeAccent.withOpacity(0.85),
-                      ),
-                    ),
-                    const SizedBox(height: 48),
-                    // Theme-accented loader
-                    SizedBox(
-                      width: 28,
-                      height: 28,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2.5,
-                        valueColor: AlwaysStoppedAnimation<Color>(themeAccent),
                       ),
                     ),
                   ],
