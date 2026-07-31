@@ -1,2 +1,2 @@
 Features: 
-    -Drag to rearrange
+    

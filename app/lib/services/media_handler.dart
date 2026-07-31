@@ -235,6 +235,24 @@ class MediaHandler {
     }
   }
 
+  Future<void> reorderPlaylistTracks(int playlistId, List<int> orderedTrackIds) async {
+    try {
+      await _db.delete('playlist_tracks', where: 'playlist_id = ?', whereArgs: [playlistId]);
+      for (int i = 0; i < orderedTrackIds.length; i++) {
+        await _db.insert('playlist_tracks', {
+          'playlist_id': playlistId,
+          'order_index': i + 1,
+          'track_id': orderedTrackIds[i],
+        });
+      }
+      await loadAllIntoMemory();
+      await setPendingPlaylistPush(true);
+      onPlaylistChanged?.call();
+    } catch (e) {
+      print('Could not reorder playlist tracks: $e');
+    }
+  }
+
   Future<bool> isInPlaylist(int playlistId, int trackId) async {
     if (!_isCacheLoaded) {
       await loadAllIntoMemory();

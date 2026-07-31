@@ -401,6 +401,27 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _onReorderTrack(int oldIndex, int newIndex) async {
+    if (oldIndex < 0 || oldIndex >= _tracks.length) return;
+    if (newIndex > oldIndex) {
+      newIndex -= 1;
+    }
+    if (oldIndex == newIndex) return;
+
+    setState(() {
+      final item = _tracks.removeAt(oldIndex);
+      _tracks.insert(newIndex, item);
+    });
+
+    if (_currentPlaylist != null) {
+      final trackIds = _tracks.map((t) => t.trackID).toList();
+      await widget.mediaHandler.reorderPlaylistTracks(_currentPlaylist!.playlistID, trackIds);
+      if (_serverConnection) {
+        await widget.serverClient.pushLocalPlaylists();
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final audioService = context.watch<AudioPlayerService>();
@@ -452,6 +473,7 @@ class _HomeScreenState extends State<HomeScreen> {
               isTrackInPlaylist: (playlist, track) => (_playlistTracksMap[playlist.playlistID] ?? []).contains(track.trackID),
               isServerConnected: _serverConnection,
               serverClient: widget.serverClient,
+              onReorderTrack: _onReorderTrack,
             ),
           ),
           // Media Panel

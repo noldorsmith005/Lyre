@@ -9,6 +9,7 @@ import '../services/audio_player_service.dart';
 import '../services/server_client.dart';
 import '../utils/platform_utils.dart';
 import 'track_card.dart';
+import 'track_cover_image.dart';
 
 class MainPanel extends StatefulWidget {
   final Playlist? currentPlaylist;
@@ -33,6 +34,7 @@ class MainPanel extends StatefulWidget {
   final bool Function(Playlist, Track) isTrackInPlaylist;
   final bool isServerConnected;
   final ServerClient? serverClient;
+  final Function(int oldIndex, int newIndex)? onReorderTrack;
 
   const MainPanel({
     Key? key,
@@ -58,6 +60,7 @@ class MainPanel extends StatefulWidget {
     required this.isTrackInPlaylist,
     required this.isServerConnected,
     this.serverClient,
+    this.onReorderTrack,
   }) : super(key: key);
 
   @override
@@ -303,7 +306,8 @@ class _MainPanelState extends State<MainPanel> {
                     final track = widget.tracks[index];
                     final isPlaying = widget.playingTrack?.trackID == track.trackID;
                     final isDownloading = downloadingIds.contains(track.trackID);
-                    return TrackCard(
+                    final appDataPath = Provider.of<AudioPlayerService>(context, listen: false).appDataPath ?? '';
+                    final card = TrackCard(
                       track: track,
                       isDownloaded: track.downloaded,
                       isDownloading: isDownloading,
@@ -315,9 +319,20 @@ class _MainPanelState extends State<MainPanel> {
                       availablePlaylists: widget.availablePlaylists,
                       onTogglePlaylist: widget.onTogglePlaylist,
                       isTrackInPlaylist: widget.isTrackInPlaylist,
-                      appDataPath: Provider.of<AudioPlayerService>(context, listen: false).appDataPath ?? '',
+                      appDataPath: appDataPath,
                       isServerConnected: widget.isServerConnected,
                     );
+
+                    if (isDesktop && widget.onReorderTrack != null) {
+                      return _DraggableTrackItem(
+                        index: index,
+                        track: track,
+                        onReorder: widget.onReorderTrack!,
+                        appDataPath: appDataPath,
+                        child: card,
+                      );
+                    }
+                    return card;
                   },
                 );
               },
@@ -553,6 +568,156 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
           Text(label, style: const TextStyle(color: Colors.white, fontSize: 14)),
         ],
       ),
+    );
+  }
+}
+
+class _DraggableTrackItem extends StatefulWidget {
+  final int index;
+  final Track track;
+  final Widget child;
+  final Function(int oldIndex, int newIndex) onReorder;
+  final String appDataPath;
+
+  const _DraggableTrackItem({
+    Key? key,
+    required this.index,
+    required this.track,
+    required this.child,
+    required this.onReorder,
+    required this.appDataPath,
+  }) : super(key: key);
+
+  @override
+  State<_DraggableTrackItem> createState() => _DraggableTrackItemState();
+}
+
+class _DraggableTrackItemState extends State<_DraggableTrackItem> {
+  bool _hoverAbove = true;
+
+  Widget _buildPositionBar(Color themeColor) {
+    return Container(
+      height: 3,
+      margin: const EdgeInsets.symmetric(vertical: 3),
+      decoration: BoxDecoration(
+        color: themeColor,
+        borderRadius: BorderRadius.circular(1.5),
+        boxShadow: [
+          BoxShadow(
+            color: themeColor.withValues(alpha: 0.8),
+            blurRadius: 6,
+            spreadRadius: 1,
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final themeColor = Provider.of<ThemeService>(context).themeColor;
+
+    return DragTarget<int>(
+      onWillAcceptWithDetails: (details) => details.data != widget.index,
+      onAcceptWithDetails: (details) {
+        final oldIndex = details.data;
+        final targetIndex = _hoverAbove ? widget.index : widget.index + 1;
+        widget.onReorder(oldIndex, targetIndex);
+      },
+      builder: (context, candidateData, rejectedData) {
+        final isTargeted = candidateData.isNotEmpty;
+
+        return MouseRegion(
+          onHover: (event) {
+            final RenderBox? box = context.findRenderObject() as RenderBox?;
+            if (box != null) {
+              final localOffset = box.globalToLocal(event.position);
+              final isTopHalf = localOffset.dy < (box.size.height / 2);
+              if (isTopHalf != _hoverAbove) {
+                setState(() {
+                  _hoverAbove = isTopHalf;
+                });
+              }
+            }
+          },
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (isTargeted && _hoverAbove) _buildPositionBar(themeColor),
+              Draggable<int>(
+                data: widget.index,
+                feedback: Material(
+                  color: Colors.transparent,
+                  child: Container(
+                    width: 340,
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xEE1E1E26),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: themeColor, width: 1.5),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.6),
+                          blurRadius: 16,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TrackCoverImage(
+                          trackID: widget.track.trackID,
+                          appDataPath: widget.appDataPath,
+                          width: 40,
+                          height: 40,
+                          fallback: Container(
+                            width: 40,
+                            height: 40,
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF282828),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Icon(Icons.music_note, color: Colors.white54, size: 20),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                widget.track.title,
+                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                widget.track.artist,
+                                style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                childWhenDragging: Opacity(
+                  opacity: 0.35,
+                  child: widget.child,
+                ),
+                child: widget.child,
+              ),
+              if (isTargeted && !_hoverAbove) _buildPositionBar(themeColor),
+            ],
+          ),
+        );
+      },
     );
   }
 }
