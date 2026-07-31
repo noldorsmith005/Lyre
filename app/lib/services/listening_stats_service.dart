@@ -209,6 +209,7 @@ class ListeningStatsService {
       final result = await _db!.rawQuery('''
         SELECT track_id, COUNT(*) as play_count
         FROM listening_history
+        WHERE COALESCE(synced, 0) = 0
         GROUP BY track_id
       ''');
       if (result.isEmpty) return;
@@ -220,7 +221,11 @@ class ListeningStatsService {
 
       final success = await serverClient.syncHistoryToServer(historyItems);
       if (success) {
-        await _db!.delete('listening_history');
+        await _db!.rawUpdate('''
+          UPDATE listening_history
+          SET synced = 1
+          WHERE COALESCE(synced, 0) = 0
+        ''');
       }
     } catch (e) {
       print('Error syncing history to server: $e');

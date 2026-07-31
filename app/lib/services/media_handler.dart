@@ -91,7 +91,8 @@ class MediaHandler {
                 title      TEXT,
                 artist     TEXT,
                 duration   TEXT,
-                timestamp  TEXT
+                timestamp  TEXT,
+                synced     INTEGER DEFAULT 0
             )
           ''');
           await db.execute('''
