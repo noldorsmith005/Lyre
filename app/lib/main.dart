@@ -99,7 +99,7 @@ class LyreApp extends StatelessWidget {
       home: SplashScreen(
         nextScreen: serverClient.registered()
             ? (isDesktop
-                ? _DesktopWrapper(
+                ? DesktopWrapper(
                     mediaHandler: mediaHandler,
                     serverClient: serverClient,
                   )
@@ -118,20 +118,21 @@ class LyreApp extends StatelessWidget {
 }
 
 /// Desktop wrapper adds global keyboard shortcuts (Spacebar = play/pause)
-class _DesktopWrapper extends StatefulWidget {
+class DesktopWrapper extends StatefulWidget {
   final MediaHandler mediaHandler;
   final ServerClient serverClient;
 
-  const _DesktopWrapper({
+  const DesktopWrapper({
+    Key? key,
     required this.mediaHandler,
     required this.serverClient,
-  });
+  }) : super(key: key);
 
   @override
-  State<_DesktopWrapper> createState() => _DesktopWrapperState();
+  State<DesktopWrapper> createState() => _DesktopWrapperState();
 }
 
-class _DesktopWrapperState extends State<_DesktopWrapper> {
+class _DesktopWrapperState extends State<DesktopWrapper> {
   @override
   void initState() {
     super.initState();
@@ -147,26 +148,35 @@ class _DesktopWrapperState extends State<_DesktopWrapper> {
   bool _isEditingText() {
     final focus = FocusManager.instance.primaryFocus;
     if (focus == null || focus.context == null) return false;
-    final element = focus.context as Element?;
-    if (element == null) return false;
+    final context = focus.context!;
 
-    if (element.widget is EditableText ||
-        element.widget is TextField ||
-        element.widget is TextFormField) {
+    final widget = context.widget;
+    if (widget is EditableText ||
+        widget is TextField ||
+        widget is TextFormField) {
+      return true;
+    }
+
+    if (context.findAncestorStateOfType<EditableTextState>() != null ||
+        context.findAncestorWidgetOfExactType<EditableText>() != null ||
+        context.findAncestorWidgetOfExactType<TextField>() != null ||
+        context.findAncestorWidgetOfExactType<TextFormField>() != null) {
       return true;
     }
 
     bool isEditing = false;
-    element.visitAncestorElements((ancestor) {
-      final widget = ancestor.widget;
-      if (widget is EditableText ||
-          widget is TextField ||
-          widget is TextFormField) {
-        isEditing = true;
-        return false;
-      }
-      return true;
-    });
+    if (context is Element) {
+      context.visitAncestorElements((ancestor) {
+        final w = ancestor.widget;
+        if (w is EditableText ||
+            w is TextField ||
+            w is TextFormField) {
+          isEditing = true;
+          return false;
+        }
+        return true;
+      });
+    }
     return isEditing;
   }
 

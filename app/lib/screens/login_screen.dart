@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../main.dart';
 import '../services/media_handler.dart';
 import '../services/server_client.dart';
 import '../services/theme_service.dart';
@@ -89,7 +90,7 @@ class _LoginScreenState extends State<LoginScreen> {
   void _navigateToHome() {
     if (widget.mediaHandler == null) return;
     final Widget homeScreen = isDesktop
-        ? HomeScreen(
+        ? DesktopWrapper(
             mediaHandler: widget.mediaHandler!,
             serverClient: widget.serverClient,
           )
@@ -105,27 +106,16 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _navigateToRegister() {
-    if (widget.onLoginSuccess != null) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => RegisterScreen(
-            mediaHandler: widget.mediaHandler,
-            serverClient: widget.serverClient,
-            onRegisterSuccess: widget.onLoginSuccess,
-          ),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => RegisterScreen(
+          mediaHandler: widget.mediaHandler,
+          serverClient: widget.serverClient,
+          onRegisterSuccess: widget.onLoginSuccess,
         ),
-      );
-    } else {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => RegisterScreen(
-            mediaHandler: widget.mediaHandler,
-            serverClient: widget.serverClient,
-          ),
-        ),
-      );
-    }
+      ),
+    );
   }
 
   @override
@@ -153,16 +143,6 @@ class _LoginScreenState extends State<LoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Icon / Logo
-                Center(
-                  child: Icon(
-                    Icons.music_note_rounded,
-                    size: 64,
-                    color: themeColor,
-                  ),
-                ),
-                const SizedBox(height: 16),
-
                 // Heading
                 const Text(
                   'Log In to Lyre',
@@ -188,7 +168,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 _buildInput(
                   hint: 'Username',
                   controller: _usernameController,
-                  icon: Icons.person_outline,
                 ),
                 const SizedBox(height: 16),
 
@@ -196,7 +175,6 @@ class _LoginScreenState extends State<LoginScreen> {
                 _buildInput(
                   hint: 'Password',
                   controller: _passwordController,
-                  icon: Icons.lock_outline,
                   obscure: _obscurePassword,
                   suffixIcon: IconButton(
                     icon: Icon(
@@ -289,7 +267,6 @@ class _LoginScreenState extends State<LoginScreen> {
   Widget _buildInput({
     required String hint,
     required TextEditingController controller,
-    required IconData icon,
     bool obscure = false,
     Widget? suffixIcon,
   }) {
@@ -304,7 +281,6 @@ class _LoginScreenState extends State<LoginScreen> {
         obscureText: obscure,
         style: const TextStyle(color: Colors.white),
         decoration: InputDecoration(
-          prefixIcon: Icon(icon, color: const Color(0xFFB3B3B3), size: 20),
           suffixIcon: suffixIcon,
           hintText: hint,
           hintStyle: const TextStyle(color: Color(0xFF757575)),

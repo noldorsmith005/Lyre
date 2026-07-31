@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../main.dart';
 import '../services/media_handler.dart';
 import '../services/server_client.dart';
 import '../services/theme_service.dart';
@@ -104,7 +105,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void _navigateToHome() {
     if (widget.mediaHandler == null) return;
     final Widget homeScreen = isDesktop
-        ? HomeScreen(
+        ? DesktopWrapper(
             mediaHandler: widget.mediaHandler!,
             serverClient: widget.serverClient,
           )
@@ -157,16 +158,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Icon / Logo
-                Center(
-                  child: Icon(
-                    Icons.person_add_rounded,
-                    size: 64,
-                    color: themeColor,
-                  ),
-                ),
-                const SizedBox(height: 16),
-
                 // Heading
                 const Text(
                   'Create Account',
@@ -192,7 +183,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 _buildInput(
                   hint: 'Username',
                   controller: _usernameController,
-                  icon: Icons.person_outline,
                 ),
                 const SizedBox(height: 16),
 
@@ -200,7 +190,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 _buildInput(
                   hint: 'Password',
                   controller: _passwordController,
-                  icon: Icons.lock_outline,
                   obscure: _obscurePassword,
                   suffixIcon: IconButton(
                     icon: Icon(
@@ -217,7 +206,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 _buildInput(
                   hint: 'Confirm Password',
                   controller: _confirmPasswordController,
-                  icon: Icons.lock_reset_outlined,
                   obscure: _obscureConfirmPassword,
                   suffixIcon: IconButton(
                     icon: Icon(
@@ -310,7 +298,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Widget _buildInput({
     required String hint,
     required TextEditingController controller,
-    required IconData icon,
     bool obscure = false,
     Widget? suffixIcon,
   }) {
@@ -325,7 +312,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
         obscureText: obscure,
         style: const TextStyle(color: Colors.white),
         decoration: InputDecoration(
-          prefixIcon: Icon(icon, color: const Color(0xFF666666), size: 20),
           suffixIcon: suffixIcon,
           hintText: hint,
           hintStyle: const TextStyle(color: Color(0xFF666666)),
