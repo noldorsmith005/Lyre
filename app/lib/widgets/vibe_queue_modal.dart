@@ -164,14 +164,6 @@ class _VibeQueueModalState extends State<VibeQueueModal> {
                                     fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
                                   ),
                                 ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  vibe.subtitle,
-                                  style: const TextStyle(
-                                    color: Color(0xFF999999),
-                                    fontSize: 12,
-                                  ),
-                                ),
                               ],
                             ),
                           ),

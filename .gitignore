@@ -3,9 +3,13 @@ server/audio/
 server/cover/
 server/tmp/
 server/__pycache__/
-server/*.db
 server/sqlite.py
 server/reader.py
+
+*.db
+*.db-shm
+*.db-wal
+
 
 # Build & packaging artifacts
 bin/

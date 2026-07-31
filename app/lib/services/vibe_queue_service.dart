@@ -12,33 +12,22 @@ extension VibeTypeExtension on VibeType {
   String get title {
     switch (this) {
       case VibeType.myCurrentFavs:
-        return 'my current favs';
+        return 'My Current Favs';
       case VibeType.beenAwhile:
-        return 'been awhile';
+        return 'Been Awhile';
       case VibeType.mixItUp:
-        return 'mix it up';
-    }
-  }
-
-  String get subtitle {
-    switch (this) {
-      case VibeType.myCurrentFavs:
-        return 'Most played songs';
-      case VibeType.beenAwhile:
-        return 'Least played songs';
-      case VibeType.mixItUp:
-        return 'Mix of songs from up to 3 random playlists';
+        return 'Mix It Up';
     }
   }
 
   String get description {
     switch (this) {
       case VibeType.myCurrentFavs:
-        return 'Pulls 20 random songs from your most played tracks in the last week.';
+        return 'Songs from your recent most played tracks';
       case VibeType.beenAwhile:
-        return 'Pulls 20 random songs from your least played or forgotten tracks.';
+        return 'Songs you haven\'t listened to in a while';
       case VibeType.mixItUp:
-        return 'Pulls 20 random songs sampled from up to 3 random playlists.';
+        return 'A mix of songs from a few of your playlists';
     }
   }
 }
