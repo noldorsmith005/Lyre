@@ -1,3 +1,5 @@
 Features: 
     -Drag to rearrange
     -Bind space bar to play button on desktop
+    -Remove icons from login/register pages
+    -Fix register back to login page break
