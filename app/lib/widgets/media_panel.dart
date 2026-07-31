@@ -6,6 +6,8 @@ import '../utils/layout_constants.dart';
 import '../models/track.dart';
 import 'track_cover_image.dart';
 
+
+
 class MediaPanel extends StatefulWidget {
   const MediaPanel({Key? key}) : super(key: key);
 

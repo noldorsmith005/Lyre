@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import '../services/server_client.dart';
 import '../services/theme_service.dart';
 
+
+
 class SyncProgressDialog extends StatefulWidget {
   final ServerClient serverClient;
 

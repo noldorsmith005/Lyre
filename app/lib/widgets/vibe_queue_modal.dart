@@ -6,6 +6,8 @@ import '../services/media_handler.dart';
 import '../services/theme_service.dart';
 import '../services/vibe_queue_service.dart';
 
+
+
 class VibeQueueModal extends StatefulWidget {
   final MediaHandler mediaHandler;
   final Function(List<Track> tracks, VibeType vibe) onQueueVibe;

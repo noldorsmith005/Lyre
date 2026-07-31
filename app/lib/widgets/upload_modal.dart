@@ -4,6 +4,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import '../services/theme_service.dart';
 
+
+
 class UploadModal extends StatefulWidget {
   final Function(String title, String artist, String mediaPath, String coverPath) onUpload;
   final String? errorMessage;

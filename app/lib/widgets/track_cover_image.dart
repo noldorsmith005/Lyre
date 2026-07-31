@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 
+
+
 class TrackCoverImage extends StatelessWidget {
   final int? trackID;
   final String? appDataPath;
@@ -34,7 +36,7 @@ class TrackCoverImage extends StatelessWidget {
     try {
       modTime = coverFile.lastModifiedSync().millisecondsSinceEpoch;
     } catch (_) {
-      // Fallback if modified time cannot be read
+      // Fallback
     }
 
     return Image.file(

@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/theme_service.dart';
 
+
+
 class RegisterModal extends StatefulWidget {
   final Function(bool isLogin, String username, String password) onSubmit;
   final String? errorMessage;

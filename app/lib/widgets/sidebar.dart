@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../models/playlist.dart';
 import '../services/theme_service.dart';
 
+
+
 class Sidebar extends StatefulWidget {
   final List<Playlist> playlists;
   final Function(Playlist) onPlaylistSelected;

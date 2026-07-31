@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/theme_service.dart';
 
+
+
 class PlayBars extends StatefulWidget {
   final int barCount;
   final double maxHeight;

@@ -5,6 +5,8 @@ import '../../services/theme_service.dart';
 import '../play_bars.dart';
 import '../track_cover_image.dart';
 
+
+
 class MobileTrackRow extends StatefulWidget {
   final Track track;
   final bool isPlaying;

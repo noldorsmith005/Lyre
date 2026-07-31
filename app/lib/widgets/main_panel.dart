@@ -11,6 +11,8 @@ import '../utils/platform_utils.dart';
 import 'track_card.dart';
 import 'track_cover_image.dart';
 
+
+
 class MainPanel extends StatefulWidget {
   final Playlist? currentPlaylist;
   final List<Track> tracks;
@@ -188,8 +190,8 @@ class _MainPanelState extends State<MainPanel> {
       ),
       child: Row(
         children: [
-          // Spotify-style Pill Search Bar
-          _SpotifySearchBar(
+          // Pill Search Bar
+          _SearchBar(
             controller: _searchController,
             onSearch: widget.onSearch,
             onClearSearch: widget.onClearSearch,
@@ -348,22 +350,22 @@ class _MainPanelState extends State<MainPanel> {
   }
 }
 
-class _SpotifySearchBar extends StatefulWidget {
+class _SearchBar extends StatefulWidget {
   final TextEditingController controller;
   final Function(String) onSearch;
   final VoidCallback onClearSearch;
 
-  const _SpotifySearchBar({
+  const _SearchBar({
     required this.controller,
     required this.onSearch,
     required this.onClearSearch,
   });
 
   @override
-  _SpotifySearchBarState createState() => _SpotifySearchBarState();
+  _SearchBarState createState() => _SearchBarState();
 }
 
-class _SpotifySearchBarState extends State<_SpotifySearchBar> {
+class _SearchBarState extends State<_SearchBar> {
   @override
   void initState() {
     super.initState();

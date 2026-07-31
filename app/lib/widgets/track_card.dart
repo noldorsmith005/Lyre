@@ -8,6 +8,8 @@ import 'play_bars.dart';
 import 'confirmation_dialog.dart';
 import 'track_cover_image.dart';
 
+
+
 class TrackCard extends StatefulWidget {
   final Track track;
   final bool isDownloaded;
