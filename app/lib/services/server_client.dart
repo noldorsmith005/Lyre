@@ -4,8 +4,6 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'safe_storage.dart';
 import 'package:http/http.dart' as http;
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:just_audio/just_audio.dart';
 import '../models/track.dart';
 import 'media_handler.dart';
@@ -24,6 +22,7 @@ class SyncProgress {
 }
 
 class ServerClient {
+  final http.Client _httpClient = http.Client();
   late String _appDataPath;
   final MediaHandler mediaHandler;
   final SafeStorage _storage = SafeStorage();
@@ -36,16 +35,14 @@ class ServerClient {
   String? sessionToken;
   String? username;
 
+  final ValueNotifier<Set<int>> downloadingTrackIdsNotifier = ValueNotifier<Set<int>>({});
+
+  bool isTrackDownloading(int trackID) => downloadingTrackIdsNotifier.value.contains(trackID);
+
   ServerClient({required this.mediaHandler});
 
   Future<void> init() async {
-    if (Platform.isMacOS) {
-      final appSupportDir = await getApplicationSupportDirectory();
-      _appDataPath = p.join(appSupportDir.path, 'Lyre');
-    } else {
-      final dir = await getApplicationDocumentsDirectory();
-      _appDataPath = p.join(dir.path, 'Lyre');
-    }
+    _appDataPath = mediaHandler.appDataPath;
     
     mediaHandler.onPlaylistChanged = () => pushLocalPlaylists();
     await _loadBundledConfig();
@@ -124,6 +121,15 @@ class ServerClient {
   }
 
   Future<bool> autoDetectServer() async {
+    final isMobilePlatform = Platform.isIOS || Platform.isAndroid;
+    final primaryIsLoopback = primaryUrl != null && (primaryUrl!.contains('127.0.0.1') || primaryUrl!.contains('localhost'));
+
+    // On mobile devices, check LAN fallback first if primary is configured as loopback
+    if (isMobilePlatform && primaryIsLoopback && fallbackUrl != null && await _pingUrl(fallbackUrl!)) {
+      appUrl = fallbackUrl;
+      return true;
+    }
+
     if (primaryUrl != null && await _pingUrl(primaryUrl!)) {
       appUrl = primaryUrl;
       return true;
@@ -132,7 +138,12 @@ class ServerClient {
       appUrl = fallbackUrl;
       return true;
     }
-    appUrl = primaryUrl ?? fallbackUrl;
+
+    if (isMobilePlatform && primaryIsLoopback && fallbackUrl != null) {
+      appUrl = fallbackUrl;
+    } else {
+      appUrl = primaryUrl ?? fallbackUrl;
+    }
     return false;
   }
 
@@ -140,9 +151,12 @@ class ServerClient {
     return sessionToken != null && sessionToken!.isNotEmpty && userID != null && userID!.isNotEmpty;
   }
 
+  String get defaultDeviceName => '${Platform.operatingSystem} (${Platform.localHostname})';
+
   Map<String, String> _headers({bool json = false}) {
     final map = <String, String>{
       'AppToken': appKey ?? '',
+      'X-Device': defaultDeviceName,
     };
     if (sessionToken != null && sessionToken!.isNotEmpty) {
       map['Authorization'] = 'Bearer $sessionToken';
@@ -153,9 +167,10 @@ class ServerClient {
     return map;
   }
 
-  Future<String?> createAndRegister(String targetUsername, String password) async {
+  Future<String?> createAndRegister(String targetUsername, String password, {String? device}) async {
     if (appUrl == null) await autoDetectServer();
     final targetUrl = '$appUrl/auth/register';
+    final deviceName = device ?? defaultDeviceName;
 
     try {
       final response = await http.post(
@@ -164,6 +179,7 @@ class ServerClient {
         body: jsonEncode({
           'username': targetUsername,
           'password': password,
+          'device': deviceName,
         }),
       );
 
@@ -183,9 +199,10 @@ class ServerClient {
     }
   }
 
-  Future<String?> login(String targetUsername, String password) async {
+  Future<String?> login(String targetUsername, String password, {String? device}) async {
     if (appUrl == null) await autoDetectServer();
     final targetUrl = '$appUrl/auth/login';
+    final deviceName = device ?? defaultDeviceName;
 
     try {
       final response = await http.post(
@@ -194,6 +211,7 @@ class ServerClient {
         body: jsonEncode({
           'username': targetUsername,
           'password': password,
+          'device': deviceName,
         }),
       );
 
@@ -350,16 +368,20 @@ class ServerClient {
         final totalTrackOps = tracksToDownload.length + tracksToRemove.length;
         int completedOps = 0;
 
-        for (int i = 0; i < tracksToDownload.length; i++) {
-          final st = tracksToDownload[i];
+        const int concurrency = 3;
+        for (int i = 0; i < tracksToDownload.length; i += concurrency) {
+          final chunk = tracksToDownload.sublist(
+            i,
+            (i + concurrency > tracksToDownload.length) ? tracksToDownload.length : i + concurrency,
+          );
           final progressVal = 0.20 + (0.50 * (completedOps / (totalTrackOps > 0 ? totalTrackOps : 1)));
           onProgress?.call(SyncProgress(
-            status: 'Downloading track (${i + 1}/${tracksToDownload.length})',
-            detail: '${st.title} - ${st.artist}',
+            status: 'Downloading tracks (${i + 1}-${i + chunk.length}/${tracksToDownload.length})',
+            detail: chunk.map((t) => t.title).join(', '),
             progress: progressVal,
           ));
-          await downloadTrack(st, updateServerTracking: false);
-          completedOps++;
+          await Future.wait(chunk.map((st) => downloadTrack(st, updateServerTracking: false)));
+          completedOps += chunk.length;
         }
 
         for (int i = 0; i < tracksToRemove.length; i++) {
@@ -433,10 +455,12 @@ class ServerClient {
     final request = http.Request('GET', Uri.parse(targetUrl))
       ..headers.addAll(_headers());
 
-    final client = http.Client();
     try {
-      final response = await client.send(request);
+      final response = await _httpClient.send(request);
       if (response.statusCode == 200) {
+        if (!await tmpFile.parent.exists()) {
+          await tmpFile.parent.create(recursive: true);
+        }
         final sink = tmpFile.openWrite();
         await response.stream.pipe(sink);
         await tmpFile.rename(targetLocalFile.path);
@@ -448,8 +472,6 @@ class ServerClient {
     } catch (e) {
       print('An error occurred during transmission: $e');
       rethrow;
-    } finally {
-      client.close();
     }
   }
 
@@ -571,9 +593,14 @@ class ServerClient {
   }
 
   Future<bool> downloadTrack(Track track, {bool updateServerTracking = true}) async {
+    final current = Set<int>.from(downloadingTrackIdsNotifier.value);
+    current.add(track.trackID);
+    downloadingTrackIdsNotifier.value = current;
     try {
-      await _download('audio', track.trackID);
-      await _download('cover', track.trackID);
+      await Future.wait([
+        _download('audio', track.trackID),
+        _download('cover', track.trackID),
+      ]);
       if (updateServerTracking) {
         try {
           await _updateDownloads(track.trackID);
@@ -594,6 +621,10 @@ class ServerClient {
         if (await coverFile.exists()) await coverFile.delete();
       } catch (_) {}
       return false;
+    } finally {
+      final updated = Set<int>.from(downloadingTrackIdsNotifier.value);
+      updated.remove(track.trackID);
+      downloadingTrackIdsNotifier.value = updated;
     }
   }
 

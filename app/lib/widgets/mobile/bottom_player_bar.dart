@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../../services/audio_player_service.dart';
 import '../../services/theme_service.dart';
 import '../../screens/mobile/full_player_screen.dart';
-import '../play_bars.dart';
 import '../track_cover_image.dart';
 
 class BottomPlayerBar extends StatelessWidget {
@@ -22,13 +21,17 @@ class BottomPlayerBar extends StatelessWidget {
 
     final themeColor = context.watch<ThemeService>().themeColor;
 
-    return Padding(
-      padding: const EdgeInsets.only(left: 12, right: 12, bottom: 10),
+    return SafeArea(
+      bottom: true,
+      child: Padding(
+        padding: const EdgeInsets.only(left: 12, right: 12, bottom: 10),
       child: GestureDetector(
         onTap: () {
           showModalBottomSheet(
             context: context,
             isScrollControlled: true,
+            useSafeArea: true,
+            showDragHandle: false,
             backgroundColor: Colors.transparent,
             builder: (context) => FullPlayerScreen(appDataPath: appDataPath),
           );
@@ -36,12 +39,12 @@ class BottomPlayerBar extends StatelessWidget {
         child: Container(
           height: 68,
           decoration: BoxDecoration(
-            color: const Color(0xEE1A1A22),
+            color: const Color(0xFF0C0C12),
             borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: const Color(0xFF2E2E3A), width: 1),
+            border: Border.all(color: const Color(0xFF14141E), width: 1),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withValues(alpha: 0.45),
+                color: Colors.black.withValues(alpha: 0.6),
                 blurRadius: 16,
                 spreadRadius: 2,
                 offset: const Offset(0, 4),
@@ -105,17 +108,6 @@ class BottomPlayerBar extends StatelessWidget {
                             ],
                           ),
                         ),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 8.0),
-                          child: PlayBars(
-                            barCount: 5,
-                            maxHeight: 14.0,
-                            minHeight: 3.0,
-                            barWidth: 2.5,
-                            barSpacing: 2.0,
-                            isPlaying: audioService.isPlaying,
-                          ),
-                        ),
                         IconButton(
                           icon: Icon(
                             audioService.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
@@ -128,12 +120,6 @@ class BottomPlayerBar extends StatelessWidget {
                             } else {
                               audioService.resume();
                             }
-                          },
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.skip_next_rounded, color: Colors.white, size: 26),
-                          onPressed: () {
-                            audioService.next();
                           },
                         ),
                       ],
@@ -171,6 +157,7 @@ class BottomPlayerBar extends StatelessWidget {
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 }

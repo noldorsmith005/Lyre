@@ -1,4 +1,7 @@
 PODS:
+  - audio_service (0.0.1):
+    - Flutter
+    - FlutterMacOS
   - audio_session (0.0.1):
     - FlutterMacOS
   - file_picker (0.0.1):
@@ -21,6 +24,7 @@ PODS:
     - FlutterMacOS
 
 DEPENDENCIES:
+  - audio_service (from `Flutter/ephemeral/.symlinks/plugins/audio_service/darwin`)
   - audio_session (from `Flutter/ephemeral/.symlinks/plugins/audio_session/macos`)
   - file_picker (from `Flutter/ephemeral/.symlinks/plugins/file_picker/macos`)
   - flutter_secure_storage_macos (from `Flutter/ephemeral/.symlinks/plugins/flutter_secure_storage_macos/macos`)
@@ -32,6 +36,8 @@ DEPENDENCIES:
   - window_manager (from `Flutter/ephemeral/.symlinks/plugins/window_manager/macos`)
 
 EXTERNAL SOURCES:
+  audio_service:
+    :path: Flutter/ephemeral/.symlinks/plugins/audio_service/darwin
   audio_session:
     :path: Flutter/ephemeral/.symlinks/plugins/audio_session/macos
   file_picker:
@@ -52,6 +58,7 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/window_manager/macos
 
 SPEC CHECKSUMS:
+  audio_service: cab6c1a0eaf01b5a35b567e11fa67d3cc1956910
   audio_session: 728ae3823d914f809c485d390274861a24b0904e
   file_picker: e716a70a9fe5fd9e09ebc922d7541464289443af
   flutter_secure_storage_macos: c2754d3483d20bb207bb9e5a14f1b8e771abcdb9

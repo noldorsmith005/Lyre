@@ -216,7 +216,10 @@ class ListeningStatsService {
         'play_count': r['play_count'] as int,
       }).toList();
 
-      await serverClient.syncHistoryToServer(historyItems);
+      final success = await serverClient.syncHistoryToServer(historyItems);
+      if (success) {
+        await _db!.delete('listening_history');
+      }
     } catch (e) {
       print('Error syncing history to server: $e');
     }

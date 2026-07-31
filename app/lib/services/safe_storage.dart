@@ -7,6 +7,7 @@ class SafeStorage {
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
     iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
     mOptions: MacOsOptions(accessibility: KeychainAccessibility.first_unlock),
+    aOptions: AndroidOptions(encryptedSharedPreferences: true),
   );
 
   static File? _fallbackFile;
@@ -46,17 +47,16 @@ class SafeStorage {
   Future<void> write({required String key, required String value}) async {
     try {
       await _secureStorage.write(key: key, value: value);
-    } catch (e) {
-      final data = await _loadFallback();
-      data[key] = value;
-      await _saveFallback();
-    }
+    } catch (_) {}
+    final data = await _loadFallback();
+    data[key] = value;
+    await _saveFallback();
   }
 
   Future<String?> read({required String key}) async {
     try {
       final val = await _secureStorage.read(key: key);
-      if (val != null) return val;
+      if (val != null && val.isNotEmpty) return val;
     } catch (e) {
       // Fallback
     }

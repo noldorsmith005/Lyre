@@ -11,7 +11,11 @@ import '../../widgets/mobile/mobile_playlist_actions_sheet.dart';
 class PlaylistDetailScreen extends StatefulWidget {
   final Playlist playlist;
   final String appDataPath;
-  final dynamic mediaHandler; // Inject MediaHandler for playlist operations
+  final dynamic mediaHandler;
+  final dynamic serverClient;
+  final bool isServerConnected;
+  final Function(Track)? onDownloadTrack;
+  final Function(Track)? onRemoveDownloadTrack;
   final List<Playlist> allPlaylists;
 
   const PlaylistDetailScreen({
@@ -19,6 +23,10 @@ class PlaylistDetailScreen extends StatefulWidget {
     required this.playlist,
     required this.appDataPath,
     required this.mediaHandler,
+    this.serverClient,
+    this.isServerConnected = false,
+    this.onDownloadTrack,
+    this.onRemoveDownloadTrack,
     required this.allPlaylists,
   }) : super(key: key);
 
@@ -67,16 +75,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: Text(_playlist.title, style: const TextStyle(color: Colors.white)),
         iconTheme: const IconThemeData(color: Colors.white),
-        actions: [
-          IconButton(
-            icon: Icon(audioService.shuffle ? Icons.shuffle_on : Icons.shuffle, color: audioService.shuffle ? context.watch<ThemeService>().themeColor : Colors.white),
-            onPressed: () {
-              audioService.setShuffle();
-            },
-          ),
-        ],
       ),
       body: _isLoading 
         ? Center(child: CircularProgressIndicator(color: context.watch<ThemeService>().themeColor))
@@ -84,52 +83,91 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-            child: Text(
-              '${_tracks.length} tracks | Duration: ${_formatDuration(totalDuration)}',
-              style: const TextStyle(fontSize: 14, color: Color(0xFF555555)),
+            padding: const EdgeInsets.fromLTRB(16.0, 4.0, 16.0, 12.0),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _playlist.title,
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${_tracks.length} tracks',
+                        style: const TextStyle(fontSize: 13, color: Color(0xFF888888)),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Duration: ${_formatDuration(totalDuration)}',
+                        style: const TextStyle(fontSize: 13, color: Color(0xFF888888)),
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  iconSize: 28,
+                  icon: const Icon(Icons.shuffle),
+                  color: audioService.shuffle ? context.watch<ThemeService>().themeColor : Colors.white,
+                  onPressed: () {
+                    audioService.setShuffle();
+                  },
+                ),
+              ],
             ),
           ),
           Expanded(
-            child: ListView.builder(
-              itemCount: _tracks.length,
-              itemBuilder: (context, index) {
-                final track = _tracks[index];
-                return MobileTrackRow(
-                  key: ValueKey(track.trackID),
-                  track: track,
-                  isPlaying: audioService.currentTrack?.trackID == track.trackID,
-                  appDataPath: widget.appDataPath,
-                  onTap: () {
-                    final remaining = _tracks.sublist(index);
-                    if (remaining.isNotEmpty) {
-                      audioService.clearPlaylistQueue();
-                      audioService.play(remaining.first);
-                      for (int i = 1; i < remaining.length; i++) {
-                        audioService.addToPlaylistQueue(remaining[i]);
-                      }
-                    }
-                  },
-                  onLongPress: () {
-                    showModalBottomSheet(
-                      context: context,
-                      backgroundColor: Colors.transparent,
-                      builder: (context) => MobilePlaylistActionsSheet(
-                        track: track,
-                        allPlaylists: widget.allPlaylists,
-                        onAddToPlaylist: (targetPlaylist) async {
-                          await widget.mediaHandler.addToPlaylist(targetPlaylist.playlistID, track.trackID);
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Added ${track.title} to ${targetPlaylist.title}')),
-                            );
-                          }
-                        },
-                      ),
+            child: ValueListenableBuilder<Set<int>>(
+              valueListenable: widget.serverClient?.downloadingTrackIdsNotifier ?? ValueNotifier<Set<int>>({}),
+              builder: (context, downloadingIds, child) {
+                return ListView.builder(
+                  itemCount: _tracks.length,
+                  itemBuilder: (context, index) {
+                    final track = _tracks[index];
+                    final isDownloading = downloadingIds.contains(track.trackID);
+                    return MobileTrackRow(
+                      key: ValueKey(track.trackID),
+                      track: track,
+                      isPlaying: audioService.currentTrack?.trackID == track.trackID,
+                      isDownloading: isDownloading,
+                      isServerConnected: widget.isServerConnected,
+                      appDataPath: widget.appDataPath,
+                      onTap: () {
+                        audioService.playTrackInContext(track, _tracks);
+                      },
+                      onDownloadTrack: widget.onDownloadTrack != null ? () async {
+                        await widget.onDownloadTrack!(track);
+                        await _loadTracks();
+                      } : null,
+                      onRemoveDownloadTrack: widget.onRemoveDownloadTrack != null ? () async {
+                        await widget.onRemoveDownloadTrack!(track);
+                        await _loadTracks();
+                      } : null,
+                      onLongPress: () {
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          backgroundColor: Colors.transparent,
+                          builder: (context) => MobilePlaylistActionsSheet(
+                            track: track,
+                            allPlaylists: widget.allPlaylists,
+                            mediaHandler: widget.mediaHandler,
+                          ),
+                        );
+                      },
+                      onQueue: () {
+                        audioService.addToQueue(track);
+                      },
                     );
-                  },
-                  onQueue: () {
-                    audioService.addToQueue(track);
                   },
                 );
               },
@@ -143,4 +181,5 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
     );
   }
 }
+
 

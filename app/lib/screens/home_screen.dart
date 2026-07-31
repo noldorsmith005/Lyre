@@ -49,20 +49,13 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadPlaylists();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _autoConnectServer();
-      }
-    });
+    _autoConnectServer();
   }
 
   Future<void> _autoConnectServer() async {
     if (widget.serverClient.registered()) {
       final canPing = await widget.serverClient.ping();
       if (canPing && mounted) {
-        setState(() {
-          _serverConnection = true;
-        });
         await SyncProgressDialog.show(context, widget.serverClient);
         if (mounted) {
           await _loadPlaylists();
@@ -252,11 +245,14 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _showSnackBar(String message, {bool isError = false}) {
     if (!mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Colors.redAccent : Colors.green,
-        duration: const Duration(seconds: 3),
+        content: Text(message, style: const TextStyle(color: Colors.white)),
+        backgroundColor: isError ? const Color(0xFF2A1616) : const Color(0xFF1E1E28),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
   }
@@ -300,12 +296,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _onPlayTrack(Track track) {
     final audioService = Provider.of<AudioPlayerService>(context, listen: false);
-    audioService.clearPlaylistQueue();
-    final idx = _tracks.indexOf(track);
-    for (int i = idx + 1; i < _tracks.length; i++) {
-      audioService.addToPlaylistQueue(_tracks[i]);
-    }
-    audioService.play(track);
+    audioService.playTrackInContext(track, _tracks);
   }
 
   void _onDownloadTrack(Track track) async {
@@ -315,6 +306,7 @@ class _HomeScreenState extends State<HomeScreen> {
       if (_currentPlaylist != null) {
         await _loadPlaylistTracks(_currentPlaylist!);
       }
+      _showSnackBar('Downloaded');
       setState(() {});
     } else {
       _showSnackBar('Track download failed or is unavailable on server.', isError: true);
@@ -459,6 +451,7 @@ class _HomeScreenState extends State<HomeScreen> {
               onTogglePlaylist: _onTogglePlaylist,
               isTrackInPlaylist: (playlist, track) => (_playlistTracksMap[playlist.playlistID] ?? []).contains(track.trackID),
               isServerConnected: _serverConnection,
+              serverClient: widget.serverClient,
             ),
           ),
           // Media Panel

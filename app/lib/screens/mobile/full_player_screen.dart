@@ -1,11 +1,11 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/audio_player_service.dart';
 import '../../services/theme_service.dart';
-import '../../models/track.dart';
-import '../../widgets/play_bars.dart';
 import '../../widgets/track_cover_image.dart';
+import '../../widgets/mobile/mobile_queue_modal.dart';
+
+
 
 class FullPlayerScreen extends StatelessWidget {
   final String appDataPath;
@@ -27,8 +27,7 @@ class FullPlayerScreen extends StatelessWidget {
       return Container(color: const Color(0xFF0F0F0F));
     }
 
-    final screenWidth = MediaQuery.of(context).size.width;
-    final coverSize = screenWidth - 64;
+    final topInset = MediaQuery.of(context).viewPadding.top;
 
     return Container(
       decoration: const BoxDecoration(
@@ -36,56 +35,50 @@ class FullPlayerScreen extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       child: SafeArea(
+        top: true,
+        bottom: true,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // Drag handle
-            Center(
-              child: Container(
-                margin: const EdgeInsets.symmetric(vertical: 14),
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: const Color(0xFF3E3E3E),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-            ),
-            
+            SizedBox(height: topInset > 0 ? 16 : 24),
             // Cover Art
-            Center(
-              child: Hero(
-                tag: 'mobile_player_cover_${currentTrack.trackID}',
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(16),
-                  child: Container(
-                    decoration: BoxDecoration(
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withValues(alpha: 0.5),
-                          blurRadius: 20,
-                          spreadRadius: 2,
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
+                child: Center(
+                  child: AspectRatio(
+                    aspectRatio: 1.0,
+                    child: Hero(
+                      tag: 'mobile_player_cover_${currentTrack.trackID}',
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withValues(alpha: 0.5),
+                                blurRadius: 20,
+                                spreadRadius: 2,
+                              ),
+                            ],
+                          ),
+                          child: TrackCoverImage(
+                            trackID: currentTrack.trackID,
+                            appDataPath: appDataPath,
+                            fit: BoxFit.cover,
+                            fallback: Image.asset(
+                              'assets/default.jpg',
+                              fit: BoxFit.cover,
+                            ),
+                          ),
                         ),
-                      ],
-                    ),
-                    child: TrackCoverImage(
-                      trackID: currentTrack.trackID,
-                      appDataPath: appDataPath,
-                      width: coverSize,
-                      height: coverSize,
-                      fit: BoxFit.cover,
-                      fallback: Image.asset(
-                        'assets/default.jpg',
-                        width: coverSize,
-                        height: coverSize,
-                        fit: BoxFit.cover,
                       ),
                     ),
                   ),
                 ),
               ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
             
             // Title & Artist
             Padding(
@@ -99,22 +92,13 @@ class FullPlayerScreen extends StatelessWidget {
                     style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
                     textAlign: TextAlign.center,
                   ),
-                  const SizedBox(height: 8),
+                  const SizedBox(height: 6),
                   Text(
                     currentTrack.artist,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 16, color: Color(0xFF888888)),
                     textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 12),
-                  PlayBars(
-                    barCount: 14,
-                    maxHeight: 20.0,
-                    minHeight: 4.0,
-                    barWidth: 3.5,
-                    barSpacing: 3.0,
-                    isPlaying: audioService.isPlaying,
                   ),
                 ],
               ),
@@ -171,14 +155,13 @@ class FullPlayerScreen extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                // Loop
+                // Shuffle
                 IconButton(
                   iconSize: 26,
-                  icon: Icon(audioService.loop ? Icons.repeat_one : Icons.repeat),
-                  color: Colors.white,
+                  icon: const Icon(Icons.shuffle),
+                  color: audioService.shuffle ? context.watch<ThemeService>().themeColor : Colors.white,
                   onPressed: () {
-                    audioService.loop = !audioService.loop;
-                    audioService.notifyListeners();
+                    audioService.setShuffle();
                   },
                 ),
                 const SizedBox(width: 16),
@@ -218,58 +201,53 @@ class FullPlayerScreen extends StatelessWidget {
                   onPressed: () => audioService.next(),
                 ),
                 const SizedBox(width: 16),
-                // Shuffle
+                // Loop
                 IconButton(
                   iconSize: 26,
-                  icon: Icon(audioService.shuffle ? Icons.shuffle_on_outlined : Icons.shuffle),
-                  color: Colors.white,
+                  icon: const Icon(Icons.repeat),
+                  color: audioService.loop ? context.watch<ThemeService>().themeColor : Colors.white,
                   onPressed: () {
-                    audioService.setShuffle();
+                    audioService.toggleLoop();
                   },
                 ),
               ],
             ),
             const SizedBox(height: 24),
             
-            // Queue section
+            // Queue Button / Bottom Actions
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 32),
               child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text('Next in Queue', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.white)),
-                  TextButton(
-                    onPressed: () => audioService.clearQueue(),
-                    child: const Text('Clear', style: TextStyle(color: Color(0xFF888888))),
+                  OutlinedButton.icon(
+                    onPressed: () => MobileQueueModal.show(context, appDataPath: appDataPath),
+                    icon: Icon(
+                      Icons.queue_music_rounded,
+                      color: context.watch<ThemeService>().themeColor,
+                      size: 22,
+                    ),
+                    label: const Text(
+                      'Queue',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                      side: const BorderSide(color: Color(0xFF333344), width: 1.2),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      backgroundColor: const Color(0xFF181822),
+                    ),
                   ),
                 ],
               ),
             ),
-            
-            Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-                itemCount: audioService.queue.length,
-                itemBuilder: (context, index) {
-                  final queuedTrack = audioService.queue[index];
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFF161616),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: ListTile(
-                      title: Text(queuedTrack.title, style: const TextStyle(color: Colors.white, fontSize: 14)),
-                      subtitle: Text(queuedTrack.artist, style: const TextStyle(color: Color(0xFF888888), fontSize: 12)),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.close, color: Color(0xFF555555), size: 20),
-                        onPressed: () => audioService.removeFromQueue(queuedTrack),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            ),
+            const SizedBox(height: 24),
           ],
         ),
       ),

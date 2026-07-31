@@ -6,6 +6,7 @@ import '../models/playlist.dart';
 import '../screens/settings_screen.dart';
 import '../services/theme_service.dart';
 import '../services/audio_player_service.dart';
+import '../services/server_client.dart';
 import '../utils/platform_utils.dart';
 import 'track_card.dart';
 
@@ -31,6 +32,7 @@ class MainPanel extends StatefulWidget {
   final Function(Playlist, Track) onTogglePlaylist;
   final bool Function(Playlist, Track) isTrackInPlaylist;
   final bool isServerConnected;
+  final ServerClient? serverClient;
 
   const MainPanel({
     Key? key,
@@ -54,7 +56,8 @@ class MainPanel extends StatefulWidget {
     required this.availablePlaylists,
     required this.onTogglePlaylist,
     required this.isTrackInPlaylist,
-    this.isServerConnected = false,
+    required this.isServerConnected,
+    this.serverClient,
   }) : super(key: key);
 
   @override
@@ -289,25 +292,33 @@ class _MainPanelState extends State<MainPanel> {
           _buildTopBar(),
           _buildHeaderRow(),
           Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.all(20),
-              physics: const BouncingScrollPhysics(),
-              itemCount: widget.tracks.length,
-              itemBuilder: (context, index) {
-                final track = widget.tracks[index];
-                final isPlaying = widget.playingTrack?.trackID == track.trackID;
-                return TrackCard(
-                  track: track,
-                  isDownloaded: track.downloaded,
-                  isPlaying: isPlaying,
-                  onPlay: () => widget.onPlayTrack(track),
-                  onDownload: widget.onDownloadTrack != null ? () => widget.onDownloadTrack!(track) : null,
-                  onRemoveDownload: widget.onRemoveDownloadTrack != null ? () => widget.onRemoveDownloadTrack!(track) : null,
-                  onQueue: () => widget.onQueueTrack(track),
-                  availablePlaylists: widget.availablePlaylists,
-                  onTogglePlaylist: widget.onTogglePlaylist,
-                  isTrackInPlaylist: widget.isTrackInPlaylist,
-                  appDataPath: Provider.of<AudioPlayerService>(context, listen: false).appDataPath ?? '',
+            child: ValueListenableBuilder<Set<int>>(
+              valueListenable: widget.serverClient?.downloadingTrackIdsNotifier ?? ValueNotifier<Set<int>>({}),
+              builder: (context, downloadingIds, child) {
+                return ListView.builder(
+                  padding: const EdgeInsets.all(20),
+                  physics: const BouncingScrollPhysics(),
+                  itemCount: widget.tracks.length,
+                  itemBuilder: (context, index) {
+                    final track = widget.tracks[index];
+                    final isPlaying = widget.playingTrack?.trackID == track.trackID;
+                    final isDownloading = downloadingIds.contains(track.trackID);
+                    return TrackCard(
+                      track: track,
+                      isDownloaded: track.downloaded,
+                      isDownloading: isDownloading,
+                      isPlaying: isPlaying,
+                      onPlay: () => widget.onPlayTrack(track),
+                      onDownload: widget.onDownloadTrack != null ? () => widget.onDownloadTrack!(track) : null,
+                      onRemoveDownload: widget.onRemoveDownloadTrack != null ? () => widget.onRemoveDownloadTrack!(track) : null,
+                      onQueue: () => widget.onQueueTrack(track),
+                      availablePlaylists: widget.availablePlaylists,
+                      onTogglePlaylist: widget.onTogglePlaylist,
+                      isTrackInPlaylist: widget.isTrackInPlaylist,
+                      appDataPath: Provider.of<AudioPlayerService>(context, listen: false).appDataPath ?? '',
+                      isServerConnected: widget.isServerConnected,
+                    );
+                  },
                 );
               },
             ),

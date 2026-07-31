@@ -500,8 +500,12 @@ class __QueueCardState extends State<_QueueCard> {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: _isHovered ? const Color(0xFF1C1C1C) : const Color(0xFF161616),
+          color: _isHovered ? const Color(0xFF1C1C28) : const Color(0xFF12121A),
           borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: _isHovered ? const Color(0xFF2E2E40) : const Color(0xFF1E1E2B),
+            width: 1.0,
+          ),
         ),
         child: Row(
           children: [

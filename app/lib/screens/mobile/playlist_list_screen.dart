@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/playlist.dart';
+import '../../models/track.dart';
 import '../../services/theme_service.dart';
 import '../settings_screen.dart';
 import 'playlist_detail_screen.dart';
@@ -12,6 +13,9 @@ class PlaylistListScreen extends StatelessWidget {
   final dynamic mediaHandler;
   final dynamic serverClient;
   final bool isServerConnected;
+  final VoidCallback? onRlsPressed;
+  final Function(Track)? onDownloadTrack;
+  final Function(Track)? onRemoveDownloadTrack;
   final VoidCallback onOpenLogin;
   final VoidCallback onLogoutPressed;
   final VoidCallback? onPlaybackPressed;
@@ -27,6 +31,9 @@ class PlaylistListScreen extends StatelessWidget {
     required this.mediaHandler,
     required this.serverClient,
     required this.isServerConnected,
+    this.onRlsPressed,
+    this.onDownloadTrack,
+    this.onRemoveDownloadTrack,
     required this.onOpenLogin,
     required this.onLogoutPressed,
     this.onPlaybackPressed,
@@ -45,96 +52,57 @@ class PlaylistListScreen extends StatelessWidget {
           children: [
             // Drawer Header
             Container(
-              padding: const EdgeInsets.all(20),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
               decoration: const BoxDecoration(
                 color: Color(0xFF1A1A1A),
                 border: Border(
                   bottom: BorderSide(color: Color(0xFF2A2A2A), width: 1),
                 ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              child: Row(
                 children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.graphic_eq_rounded, color: context.watch<ThemeService>().themeColor, size: 26),
-                          const SizedBox(width: 10),
-                          Text(
-                            'Lyre',
-                            style: TextStyle(
-                              color: Colors.white,
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
-                        ],
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close, color: Color(0xFF888888)),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ],
+                  Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: const Color(0xFF2A2A2A),
+                      border: Border.all(color: const Color(0xFF555555), width: 1.5),
+                    ),
+                    child: Icon(Icons.person, color: context.watch<ThemeService>().themeColor, size: 32),
                   ),
-                  const SizedBox(height: 20),
-                  Row(
-                    children: [
-                      Container(
-                        width: 52,
-                        height: 52,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: const Color(0xFF2A2A2A),
-                          border: Border.all(color: const Color(0xFF555555), width: 1.5),
-                        ),
-                        child: Icon(Icons.person, color: context.watch<ThemeService>().themeColor, size: 32),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Text(
+                      serverClient.registered()
+                          ? (serverClient.username != null && serverClient.username.toString().isNotEmpty
+                              ? serverClient.username.toString()
+                              : 'Connected User')
+                          : 'Guest Account',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
                       ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              isServerConnected ? 'Connected User' : 'Guest Account',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 16,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 3),
-                            Text(
-                              isServerConnected ? 'Server Connected' : 'Disconnected (Local)',
-                              style: TextStyle(
-                                color: isServerConnected ? const Color(0xFF00FF66) : const Color(0xFFFF8888),
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
                   ),
                 ],
               ),
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
 
             // Navigation List Items
             Expanded(
               child: ListView(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 children: [
                   _buildDrawerItem(
                     context,
                     icon: Icons.tune_rounded,
                     title: 'Vibe Queue',
-                    subtitle: 'Generate a 20-track vibe playlist',
                     onTap: () {
                       Navigator.pop(context);
                       if (onVibeQueuePressed != null) onVibeQueuePressed!();
@@ -145,7 +113,6 @@ class PlaylistListScreen extends StatelessWidget {
                     context,
                     icon: Icons.graphic_eq_rounded,
                     title: 'Lyre Playback',
-                    subtitle: 'Equalizer and playback statistics',
                     onTap: () {
                       Navigator.pop(context);
                       if (onPlaybackPressed != null) onPlaybackPressed!();
@@ -156,7 +123,6 @@ class PlaylistListScreen extends StatelessWidget {
                     context,
                     icon: Icons.settings_rounded,
                     title: 'Settings',
-                    subtitle: 'Theme customization & app settings',
                     onTap: () {
                       Navigator.pop(context);
                       Navigator.push(
@@ -169,12 +135,11 @@ class PlaylistListScreen extends StatelessWidget {
                     padding: EdgeInsets.symmetric(vertical: 12.0),
                     child: Divider(color: Color(0xFF262626), height: 1),
                   ),
-                  if (isServerConnected)
+                  if (serverClient.registered())
                     _buildDrawerItem(
                       context,
                       icon: Icons.logout_rounded,
                       title: 'Log Out',
-                      subtitle: 'Sign out and clear session',
                       iconColor: const Color(0xFFFF4444),
                       titleColor: const Color(0xFFFF4444),
                       onTap: () {
@@ -187,7 +152,6 @@ class PlaylistListScreen extends StatelessWidget {
                       context,
                       icon: Icons.login_rounded,
                       title: 'Log In',
-                      subtitle: 'Connect to your Lyre account',
                       iconColor: context.watch<ThemeService>().themeColor,
                       titleColor: context.watch<ThemeService>().themeColor,
                       onTap: () {
@@ -196,21 +160,6 @@ class PlaylistListScreen extends StatelessWidget {
                       },
                     ),
                 ],
-              ),
-            ),
-
-            // Footer
-            Container(
-              padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
-              decoration: const BoxDecoration(
-                border: Border(
-                  top: BorderSide(color: Color(0xFF222222), width: 1),
-                ),
-              ),
-              child: const Text(
-                'Lyre Mobile',
-                style: TextStyle(color: Color(0xFF555555), fontSize: 12),
-                textAlign: TextAlign.center,
               ),
             ),
           ],
@@ -223,7 +172,6 @@ class PlaylistListScreen extends StatelessWidget {
     BuildContext context, {
     required IconData icon,
     required String title,
-    required String subtitle,
     required VoidCallback onTap,
     Color iconColor = const Color(0xFF888888),
     Color titleColor = const Color(0xFFE8E8E8),
@@ -231,6 +179,7 @@ class PlaylistListScreen extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
         leading: Container(
           padding: const EdgeInsets.all(8),
@@ -242,13 +191,9 @@ class PlaylistListScreen extends StatelessWidget {
         ),
         title: Text(
           title,
+          textAlign: TextAlign.left,
           style: TextStyle(color: titleColor, fontSize: 15, fontWeight: FontWeight.w600),
         ),
-        subtitle: Text(
-          subtitle,
-          style: const TextStyle(color: Color(0xFF666666), fontSize: 12),
-        ),
-        trailing: const Icon(Icons.chevron_right, color: Color(0xFF444444), size: 18),
         onTap: onTap,
       ),
     );
@@ -262,17 +207,9 @@ class PlaylistListScreen extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: const Text(
-          'Lyre',
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white),
-        ),
+        toolbarHeight: 64,
+        automaticallyImplyLeading: false,
         actions: [
-          if (onCreatePlaylist != null)
-            IconButton(
-              icon: Icon(Icons.playlist_add, color: context.watch<ThemeService>().themeColor),
-              tooltip: 'Create Playlist',
-              onPressed: onCreatePlaylist,
-            ),
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
             child: Builder(
@@ -281,14 +218,14 @@ class PlaylistListScreen extends StatelessWidget {
                   Scaffold.of(context).openEndDrawer();
                 },
                 child: Container(
-                  width: 40,
-                  height: 40,
+                  width: 52,
+                  height: 52,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: const Color(0xFF2A2A2A),
-                    border: Border.all(color: const Color(0xFF555555), width: 1),
+                    border: Border.all(color: const Color(0xFF555555), width: 1.5),
                   ),
-                  child: Icon(Icons.person, color: context.watch<ThemeService>().themeColor, size: 26),
+                  child: Icon(Icons.person, color: context.watch<ThemeService>().themeColor, size: 32),
                 ),
               ),
             ),
@@ -296,45 +233,69 @@ class PlaylistListScreen extends StatelessWidget {
         ],
       ),
       floatingActionButton: onCreatePlaylist != null
-          ? FloatingActionButton(
-              onPressed: onCreatePlaylist,
-              backgroundColor: context.watch<ThemeService>().themeColor,
-              child: const Icon(Icons.add, color: Colors.white),
+          ? Padding(
+              padding: const EdgeInsets.only(bottom: 72.0),
+              child: FloatingActionButton(
+                onPressed: onCreatePlaylist,
+                backgroundColor: context.watch<ThemeService>().themeColorDark,
+                child: const Icon(Icons.add, color: Colors.white),
+              ),
             )
           : null,
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-            child: TextField(
-              readOnly: true,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => SearchScreen(
-                      mediaHandler: mediaHandler,
-                      serverClient: serverClient,
-                      isServerConnected: isServerConnected,
-                      appDataPath: appDataPath,
-                      allPlaylists: playlists,
+            padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    readOnly: true,
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => SearchScreen(
+                            mediaHandler: mediaHandler,
+                            serverClient: serverClient,
+                            isServerConnected: isServerConnected,
+                            onRlsPressed: onRlsPressed,
+                            onDownloadTrack: onDownloadTrack,
+                            onRemoveDownloadTrack: onRemoveDownloadTrack,
+                            appDataPath: appDataPath,
+                            allPlaylists: playlists,
+                          ),
+                        ),
+                      );
+                    },
+                    style: const TextStyle(color: Colors.white),
+                    decoration: InputDecoration(
+                      hintText: 'Search songs...',
+                      hintStyle: const TextStyle(color: Color(0xFF555555)),
+                      filled: true,
+                      fillColor: const Color(0xFF1E1E1E),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                      prefixIcon: const Icon(Icons.search, color: Colors.white),
                     ),
                   ),
-                );
-              },
-              style: const TextStyle(color: Colors.white),
-              decoration: InputDecoration(
-                hintText: 'Search songs...',
-                hintStyle: const TextStyle(color: Color(0xFF555555)),
-                filled: true,
-                fillColor: const Color(0xFF1E1E1E),
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                prefixIcon: const Icon(Icons.search, color: Colors.white),
-              ),
+                const SizedBox(width: 8),
+                IconButton(
+                  icon: Icon(
+                    Icons.cloud_outlined,
+                    color: isServerConnected
+                        ? context.watch<ThemeService>().themeColor
+                        : const Color(0xFF888888),
+                    size: 28,
+                  ),
+                  onPressed: onRlsPressed,
+                  tooltip: 'Connect to RLS',
+                ),
+              ],
             ),
           ),
           Expanded(
@@ -362,6 +323,10 @@ class PlaylistListScreen extends StatelessWidget {
                                 playlist: playlist,
                                 appDataPath: appDataPath,
                                 mediaHandler: mediaHandler,
+                                serverClient: serverClient,
+                                isServerConnected: isServerConnected,
+                                onDownloadTrack: onDownloadTrack,
+                                onRemoveDownloadTrack: onRemoveDownloadTrack,
                                 allPlaylists: playlists,
                               ),
                             ),
@@ -375,6 +340,7 @@ class PlaylistListScreen extends StatelessWidget {
                             borderRadius: BorderRadius.circular(10),
                             border: Border.all(color: const Color(0xFF1A1A1A)),
                           ),
+
                           child: Row(
                             children: [
                               const Icon(Icons.queue_music, color: Color(0xFF888888), size: 22),

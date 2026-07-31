@@ -30,16 +30,18 @@ _raise_file_descriptor_limit()
 
 app = Flask(__name__)
 
-DATABASE_URL = "./data.db"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATABASE_URL = os.path.join(BASE_DIR, "data.db")
 TRACK_FILE_TYPES = {
     "cover": {"ext": "jpg", "mimetype": "image/jpeg"},
-    "audio": {"ext": "wav", "mimetype": "audio/wav"},
+    "audio": {"ext": "flac", "mimetype": "audio/flac"},
 }
 SUPPORTED_TYPES = {
     "jpg": {"type": "cover"},
     "png": {"type": "cover"},
     "wav": {"type": "audio"},
     "mp3": {"type": "audio"},
+    "flac": {"type": "audio"},
 }
 
 
@@ -162,10 +164,23 @@ def authUser(req):
         try:
             with sqlite3.connect(DATABASE_URL) as conn:
                 cursor = conn.cursor()
-                cursor.execute("SELECT user_id FROM active_sessions WHERE token = ?", (token,))
+                cursor.execute("SELECT user_id FROM sessions WHERE token = ?", (token,))
                 row = cursor.fetchone()
                 if row:
-                    return str(row[0])
+                    uid = row[0]
+                    device = req.headers.get("X-Device")
+                    if device:
+                        cursor.execute(
+                            "UPDATE sessions SET last_seen = ?, client_ip = ?, device = ? WHERE token = ?",
+                            (int(time.time()), req.remote_addr, device, token)
+                        )
+                    else:
+                        cursor.execute(
+                            "UPDATE sessions SET last_seen = ?, client_ip = ? WHERE token = ?",
+                            (int(time.time()), req.remote_addr, token)
+                        )
+                    conn.commit()
+                    return str(uid)
         except Exception:
             pass
     return False
@@ -183,6 +198,7 @@ def createUser():
     user_data = request.get_json() or {}
     username = user_data.get('username')
     password = user_data.get('password')
+    device = user_data.get('device') or 'Unknown'
     if not username or not password:
         return "Username and password required", 400
     if userExists(username):
@@ -199,8 +215,8 @@ def createUser():
             (uid, username, hashed_pw, salt)
         )
         cursor.execute(
-            "INSERT OR REPLACE INTO active_sessions (user_id, username, token, last_seen, client_ip) VALUES (?, ?, ?, ?, ?)",
-            (uid, username, session_token, int(time.time()), request.remote_addr)
+            "INSERT OR REPLACE INTO sessions (token, user_id, username, last_seen, client_ip, device) VALUES (?, ?, ?, ?, ?, ?)",
+            (session_token, uid, username, int(time.time()), request.remote_addr, device)
         )
         conn.commit()
 
@@ -218,6 +234,7 @@ def loginUser():
     user_data = request.get_json() or {}
     username = user_data.get('username')
     password = user_data.get('password')
+    device = user_data.get('device') or 'Unknown'
 
     with sqlite3.connect(DATABASE_URL) as conn:
         cursor = conn.cursor()
@@ -233,8 +250,8 @@ def loginUser():
             return "Invalid credentials", 401
         session_token = secrets.token_hex(32)
         cursor.execute(
-            "INSERT OR REPLACE INTO active_sessions (user_id, username, token, last_seen, client_ip) VALUES (?, ?, ?, ?, ?)",
-            (uid, uname, session_token, int(time.time()), request.remote_addr)
+            "INSERT OR REPLACE INTO sessions (token, user_id, username, last_seen, client_ip, device) VALUES (?, ?, ?, ?, ?, ?)",
+            (session_token, uid, uname, int(time.time()), request.remote_addr, device)
         )
         conn.commit()
 
@@ -251,13 +268,15 @@ def validateSession():
         return "Invalid App Token", 401
     authorized = authUser(request)
     if authorized != False:
-        uid = int(authorized)
-        with sqlite3.connect(DATABASE_URL) as conn:
-            conn.execute(
-                "UPDATE active_sessions SET last_seen = ?, client_ip = ? WHERE user_id = ?",
-                (int(time.time()), request.remote_addr, uid)
-            )
-            conn.commit()
+        auth_header = request.headers.get("Authorization")
+        if auth_header and auth_header.startswith("Bearer "):
+            token = auth_header.split(" ")[1]
+            with sqlite3.connect(DATABASE_URL) as conn:
+                conn.execute(
+                    "UPDATE sessions SET last_seen = ?, client_ip = ? WHERE token = ?",
+                    (int(time.time()), request.remote_addr, token)
+                )
+                conn.commit()
         return jsonify({"status": "authenticated", "userID": authorized}), 200
     else:
         return "Unauthorized", 401
@@ -274,7 +293,8 @@ def init_db():
             existing_tables = [r[0] for r in cursor.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
             legacy_renames = [
                 ('Users', 'users'),
-                ('ActiveSessions', 'active_sessions'),
+                ('ActiveSessions', 'sessions'),
+                ('active_sessions', 'sessions'),
                 ('Tracks', 'tracks'),
                 ('History', 'history'),
                 ('Stats', 'stats')
@@ -298,12 +318,13 @@ def init_db():
                 )
             """)
             conn.execute("""
-                CREATE TABLE IF NOT EXISTS active_sessions (
-                    user_id INTEGER PRIMARY KEY,
+                CREATE TABLE IF NOT EXISTS sessions (
+                    token TEXT PRIMARY KEY,
+                    user_id INTEGER,
                     username TEXT,
-                    token TEXT,
                     last_seen INTEGER,
-                    client_ip TEXT
+                    client_ip TEXT,
+                    device TEXT
                 )
             """)
             conn.execute("""
@@ -312,9 +333,7 @@ def init_db():
                     title TEXT,
                     artist TEXT,
                     duration TEXT,
-                    contributor TEXT,
-                    title_lower TEXT,
-                    artist_lower TEXT
+                    contributor TEXT
                 )
             """)
             conn.execute("""
@@ -356,10 +375,10 @@ def init_db():
                     new_release          INTEGER DEFAULT 1
                 )
             """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_user_playlists_uid ON user_playlists(user_id);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_user_downloads_uid ON user_downloads(user_id);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_history_uid ON history(user_id);")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_tracks_search ON tracks(title_lower, artist_lower);")
             if os.path.exists('./sessions.json'):
                 try:
                     with open('./sessions.json', 'r') as f:
@@ -370,10 +389,10 @@ def init_db():
                                 (u.get('id'), u.get('username'), u.get('password_hash', ''), u.get('salt', ''))
                             )
                         for uid, sess in data.get('ActiveSessions', {}).items():
-                            if isinstance(sess, dict):
+                            if isinstance(sess, dict) and sess.get('token'):
                                 conn.execute(
-                                    "INSERT OR IGNORE INTO active_sessions (user_id, username, token, last_seen, client_ip) VALUES (?, ?, ?, ?, ?)",
-                                    (int(uid), sess.get('username'), sess.get('token'), sess.get('last_seen', int(time.time())), sess.get('client_ip', ''))
+                                    "INSERT OR IGNORE INTO sessions (token, user_id, username, last_seen, client_ip, device) VALUES (?, ?, ?, ?, ?, ?)",
+                                    (sess.get('token'), int(uid), sess.get('username'), sess.get('last_seen', int(time.time())), sess.get('client_ip', ''), sess.get('device'))
                                 )
                 except Exception as e:
                     print(f"Migration from sessions.json note: {e}")
@@ -506,7 +525,7 @@ def searchTracks(filter_text=""):
             SELECT t.track_id, t.title, t.artist, t.duration, t.contributor, ud.user_id
             FROM tracks t
             LEFT JOIN user_downloads ud ON t.track_id = ud.track_id AND ud.user_id = ?
-            WHERE lower(t.title) LIKE ? OR lower(t.artist) LIKE ? OR t.title_lower LIKE ? OR t.artist_lower LIKE ?
+            WHERE lower(t.title) LIKE ? OR lower(t.artist) LIKE ?
             ORDER BY t.title ASC
         """
         tracks = []
@@ -514,7 +533,7 @@ def searchTracks(filter_text=""):
             with sqlite3.connect(DATABASE_URL) as conn:
                 cursor = conn.cursor()
                 like_val = f"%{normalized_filter}%"
-                cursor.execute(sql, (userID, like_val, like_val, like_val, like_val))
+                cursor.execute(sql, (userID, like_val, like_val))
                 for row in cursor.fetchall():
                     contributor_user = getUser(row[4]) if row[4] and str(row[4]).isdigit() else None
                     contributor_name = contributor_user['username'] if contributor_user else str(row[4] or "")
@@ -541,37 +560,13 @@ def download(id, type):
     if authUser(request) == False:
         return "Unauthorized", 401
 
-    if type == "audio":
-        wav_path = f"./audio/{id}.wav"
-        if not os.path.exists(wav_path):
-            return {"error": "Audio file not found"}, 404
+    file_info = TRACK_FILE_TYPES[type]
+    file_path = f"./{type}/{id}.{file_info['ext']}"
 
-        unique_id = uuid.uuid4().hex
-        tmp_flac_path = f"./tmp/{id}_{unique_id}.flac"
-        try:
-            compressFLAC(wav_path, tmp_flac_path)
-        except Exception as e:
-            return {"error": f"Failed to convert WAV to FLAC: {e}"}, 500
+    if not os.path.exists(file_path):
+        return {"error": f"{type.capitalize()} file not found"}, 404
 
-        @after_this_request
-        def removeFile(response):
-            try:
-                if os.path.exists(tmp_flac_path):
-                    os.remove(tmp_flac_path)
-            except Exception as e:
-                print(f"Error removing temporary FLAC file: {e}")
-            return response
-
-        return send_file(tmp_flac_path, mimetype="audio/flac")
-
-    else:
-        file_info = TRACK_FILE_TYPES[type]
-        file_path = f"./{type}/{id}.{file_info['ext']}"
-
-        if not os.path.exists(file_path):
-            return {"error": f"{type.capitalize()} file not found"}, 404
-
-        return send_file(file_path, mimetype=file_info["mimetype"])
+    return send_file(file_path, mimetype=file_info["mimetype"], conditional=True)
 
 @app.route("/tracks/<int:id>/upload/<ext>", methods=["POST"])
 def uploadFile(id, ext):
@@ -590,7 +585,7 @@ def uploadFile(id, ext):
     os.makedirs("./tmp", exist_ok=True)
 
     upload_path = f"./tmp/{id}.{ext}"
-    final_path = os.path.join(dest_dir, f"{id}.wav" if type == "audio" else f"{id}.jpg")
+    final_path = os.path.join(dest_dir, f"{id}.flac" if type == "audio" else f"{id}.jpg")
 
     try:
         with open(upload_path, "wb") as f:
@@ -603,9 +598,17 @@ def uploadFile(id, ext):
         if type == "audio":
             if ext == "mp3":
                 Utils.toWav(id)
-            wav_path = f"./tmp/{id}.wav"
-            stripWAV(wav_path)
-            os.replace(wav_path, final_path)
+            
+            if ext in ["wav", "mp3"]:
+                wav_path = f"./tmp/{id}.wav"
+                stripWAV(wav_path)
+                flac_path = f"./tmp/{id}.flac"
+                compressFLAC(wav_path, flac_path)
+                if os.path.exists(wav_path):
+                    os.remove(wav_path)
+                os.replace(flac_path, final_path)
+            elif ext == "flac":
+                os.replace(upload_path, final_path)
         else:
             if ext == "png":
                 Utils.toJpg(id)
@@ -613,7 +616,7 @@ def uploadFile(id, ext):
             os.replace(jpg_path, final_path)
 
     except Exception as e:
-        for p in [f"./tmp/{id}.{ext}", f"./tmp/{id}.wav", f"./tmp/{id}.jpg"]:
+        for p in [f"./tmp/{id}.{ext}", f"./tmp/{id}.wav", f"./tmp/{id}.jpg", f"./tmp/{id}.flac"]:
             try:
                 if os.path.exists(p):
                     os.remove(p)
@@ -661,13 +664,11 @@ def addUpload():
     title_val = user_data.get('title', '')
     artist_val = user_data.get('artist', '')
     duration_val = user_data.get('duration', '')
-    title_lower = re.sub(r'[^a-zA-Z0-9 ]', '', title_val).lower().strip()
-    artist_lower = re.sub(r'[^a-zA-Z0-9 ]', '', artist_val).lower().strip()
 
-    sql = "INSERT OR IGNORE INTO tracks (track_id, title, artist, duration, contributor, title_lower, artist_lower) VALUES (?, ?, ?, ?, ?, ?, ?)"
+    sql = "INSERT OR IGNORE INTO tracks (track_id, title, artist, duration, contributor) VALUES (?, ?, ?, ?, ?)"
     try:
         with sqlite3.connect(DATABASE_URL) as conn:
-            conn.execute(sql, (new_id, title_val, artist_val, duration_val, str(userID), title_lower, artist_lower))
+            conn.execute(sql, (new_id, title_val, artist_val, duration_val, str(userID)))
             conn.commit()
     except sqlite3.Error as e:
         print(f"Could not add track to database: {e}")
@@ -941,6 +942,7 @@ def calculate_all_user_monthly_stats():
 
             cursor.execute("DELETE FROM history WHERE user_id = ?", (uid,))
 
+        cursor.execute("DELETE FROM history")
         conn.commit()
 import threading
 import calendar

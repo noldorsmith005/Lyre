@@ -18,16 +18,17 @@ Stores registered user accounts and credentials.
 
 ---
 
-### 2. `active_sessions`
-Tracks active user session tokens and connection metadata.
+### 2. `sessions`
+Tracks active user session tokens and connection metadata per device.
 
 | Column | Type | Constraints | Description |
 | :--- | :--- | :--- | :--- |
-| `user_id` | `INTEGER` | `PRIMARY KEY` | Associated user ID |
+| `token` | `TEXT` | `PRIMARY KEY` | 64-character hex session token |
+| `user_id` | `INTEGER` | | Associated user ID |
 | `username` | `TEXT` | | Username associated with the session |
-| `token` | `TEXT` | | 64-character hex session token |
 | `last_seen` | `INTEGER` | | Unix timestamp of last API activity |
 | `client_ip` | `TEXT` | | Remote IP address of client |
+| `device` | `TEXT` | | Device name/identifier associated with the session |
 
 ---
 
@@ -41,8 +42,6 @@ Stores metadata for uploaded audio tracks.
 | `artist` | `TEXT` | | Track artist name |
 | `duration` | `TEXT` | | Formatted track duration (`MM:SS`) |
 | `contributor` | `TEXT` | | User ID or name of uploader |
-| `title_lower` | `TEXT` | | Normalized title for case-insensitive search |
-| `artist_lower` | `TEXT` | | Normalized artist for case-insensitive search |
 
 ---
 

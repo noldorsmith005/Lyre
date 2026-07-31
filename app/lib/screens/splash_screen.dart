@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/theme_service.dart';
@@ -80,8 +82,19 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     final themeAccent = themeService.themeColorAccent;
     final iconAsset = themeService.appIconTransparentAsset;
 
+    final isIOS = !kIsWeb && Platform.isIOS;
+    final glowSize = isIOS ? 480.0 : 350.0;
+    final centerGlowAlpha = isIOS ? 0.75 : 0.35;
+    final outerGlowAlpha = isIOS ? 0.35 : 0.12;
+    final iconShadowAlpha = isIOS ? 0.85 : 0.4;
+    final iconShadowBlur = isIOS ? 56.0 : 36.0;
+    final iconShadowSpread = isIOS ? 8.0 : 2.0;
+    final textShadowAlpha = isIOS ? 0.95 : 0.6;
+    final textShadowBlur = isIOS ? 28.0 : 16.0;
+    final backgroundColor = isIOS ? const Color(0xFF0D0D14) : const Color(0xFF07070A);
+
     return Scaffold(
-      backgroundColor: const Color(0xFF07070A),
+      backgroundColor: backgroundColor,
       body: Stack(
         children: [
           // Background ambient glow
@@ -90,14 +103,14 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
             builder: (context, child) {
               return Center(
                 child: Container(
-                  width: 350,
-                  height: 350,
+                  width: glowSize,
+                  height: glowSize,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        themeColor.withValues(alpha: 0.35 * _glowAnimation.value),
-                        themeAccent.withValues(alpha: 0.12 * _glowAnimation.value),
+                        themeColor.withValues(alpha: centerGlowAlpha * _glowAnimation.value),
+                        themeAccent.withValues(alpha: outerGlowAlpha * _glowAnimation.value),
                         Colors.transparent,
                       ],
                       stops: const [0.0, 0.5, 1.0],
@@ -125,9 +138,9 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                         shape: BoxShape.circle,
                         boxShadow: [
                           BoxShadow(
-                            color: themeAccent.withValues(alpha: 0.4),
-                            blurRadius: 36,
-                            spreadRadius: 2,
+                            color: themeAccent.withValues(alpha: iconShadowAlpha),
+                            blurRadius: iconShadowBlur,
+                            spreadRadius: iconShadowSpread,
                           ),
                         ],
                       ),
@@ -157,8 +170,8 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                         color: Colors.white,
                         shadows: [
                           Shadow(
-                            color: themeAccent.withValues(alpha: 0.6),
-                            blurRadius: 16,
+                            color: themeAccent.withValues(alpha: textShadowAlpha),
+                            blurRadius: textShadowBlur,
                           ),
                         ],
                       ),

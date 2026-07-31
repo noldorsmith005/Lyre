@@ -44,7 +44,7 @@ python3 setup/create_database.py server/data.db
 
 ### 3. Media Directory Layout
 The backend server manages audio files and artwork covers within specified directories. Ensure the target storage path contains the following directory structure:
-- Audio storage: `audio/{track_id}.wav`
+- Audio storage: `audio/{track_id}.flac`
 - Cover artwork storage: `cover/{track_id}.jpg`
 
 ### 4. Launch Backend Server

@@ -13,6 +13,11 @@ class MediaHandler {
   late String _appDataPath;
   VoidCallback? onPlaylistChanged;
 
+  List<Playlist> _cachedPlaylists = [];
+  List<Track> _cachedAllTracks = [];
+  Map<int, List<Track>> _cachedPlaylistTracks = {};
+  bool _isCacheLoaded = false;
+
   Database get db => _db;
   String get appDataPath => _appDataPath;
 
@@ -110,12 +115,57 @@ class MediaHandler {
           ''');
         },
         onOpen: (db) async {
-          await db.rawQuery('PRAGMA journal_mode=WAL;');
-          await db.execute('PRAGMA busy_timeout=5000;');
+          try {
+            await db.execute('PRAGMA journal_mode = WAL;');
+            await db.execute('PRAGMA busy_timeout = 5000;');
+          } catch (_) {}
         },
       ),
     );
     ListeningStatsService.instance.setDatabase(_db);
+    await loadAllIntoMemory();
+  }
+
+  Future<void> loadAllIntoMemory() async {
+    try {
+      final pResult = await _db.query('playlists');
+      final playlists = pResult.map((row) => Playlist(
+        playlistID: row['playlist_id'] as int,
+        title: row['title'] as String,
+      )).toList();
+
+      final tResult = await _db.query('tracks');
+      final tracks = tResult.map((row) => Track(
+        trackID: row['track_id'] as int,
+        title: row['title'] as String,
+        artist: row['artist'] as String,
+        duration: row['duration'] as String,
+        downloaded: true,
+        contributor: '',
+      )).toList();
+
+      final tracksById = <int, Track>{
+        for (var t in tracks) t.trackID: t,
+      };
+
+      final ptResult = await _db.query('playlist_tracks', orderBy: 'order_index ASC');
+      final playlistTracks = <int, List<Track>>{};
+      for (var row in ptResult) {
+        final pid = row['playlist_id'] as int;
+        final tid = row['track_id'] as int;
+        final track = tracksById[tid];
+        if (track != null) {
+          playlistTracks.putIfAbsent(pid, () => []).add(track);
+        }
+      }
+
+      _cachedPlaylists = playlists;
+      _cachedAllTracks = tracks;
+      _cachedPlaylistTracks = playlistTracks;
+      _isCacheLoaded = true;
+    } catch (e) {
+      print('Error preloading playlists and tracks into memory: $e');
+    }
   }
 
   Future<List<Track>> searchTracks(String filter) async {
@@ -124,59 +174,29 @@ class MediaHandler {
       return [];
     }
 
-    final result = await _db.rawQuery(
-      'SELECT * FROM tracks WHERE LOWER(title) LIKE ? OR LOWER(artist) LIKE ? ORDER BY title ASC',
-      ['%$normalizedFilter%', '%$normalizedFilter%']
-    );
+    if (!_isCacheLoaded) {
+      await loadAllIntoMemory();
+    }
 
-    return result.map((row) => Track(
-      trackID: row['track_id'] as int,
-      title: row['title'] as String,
-      artist: row['artist'] as String,
-      duration: row['duration'] as String,
-      downloaded: true,
-      contributor: '',
-    )).toList();
+    return _cachedAllTracks.where((t) {
+      final titleNorm = t.title.toLowerCase();
+      final artistNorm = t.artist.toLowerCase();
+      return titleNorm.contains(normalizedFilter) || artistNorm.contains(normalizedFilter);
+    }).toList();
   }
 
   Future<List<Playlist>> loadPlaylists() async {
-    final result = await _db.query('playlists');
-    return result.map((row) => Playlist(
-      playlistID: row['playlist_id'] as int,
-      title: row['title'] as String,
-    )).toList();
+    if (!_isCacheLoaded) {
+      await loadAllIntoMemory();
+    }
+    return List<Playlist>.from(_cachedPlaylists);
   }
 
   Future<List<Track>> loadPlaylistTracks(int playlistID) async {
-    List<Map<String, dynamic>> idResults;
-    try {
-      idResults = await _db.query(
-        'playlist_tracks',
-        where: 'playlist_id = ?',
-        whereArgs: [playlistID],
-        orderBy: 'order_index ASC',
-      );
-    } catch (e) {
-      print('Could not load playlist track IDs: $e');
-      return [];
+    if (!_isCacheLoaded) {
+      await loadAllIntoMemory();
     }
-
-    List<Track> tracks = [];
-    for (var row in idResults) {
-      final trackId = row['track_id'] as int;
-      final trackResults = await _db.query('tracks', where: 'track_id = ?', whereArgs: [trackId]);
-      for (var tRow in trackResults) {
-        tracks.add(Track(
-          trackID: tRow['track_id'] as int,
-          title: tRow['title'] as String,
-          artist: tRow['artist'] as String,
-          duration: tRow['duration'] as String,
-          downloaded: true,
-          contributor: '',
-        ));
-      }
-    }
-    return tracks;
+    return List<Track>.from(_cachedPlaylistTracks[playlistID] ?? []);
   }
 
   Future<void> addToPlaylist(int playlistId, int trackId) async {
@@ -185,6 +205,7 @@ class MediaHandler {
         'INSERT OR IGNORE INTO playlist_tracks (playlist_id, order_index, track_id) VALUES (?, (SELECT COALESCE(MAX(order_index), 0) + 1 FROM playlist_tracks WHERE playlist_id = ?), ?)',
         [playlistId, playlistId, trackId]
       );
+      await loadAllIntoMemory();
       await setPendingPlaylistPush(true);
       onPlaylistChanged?.call();
     } catch (e) {
@@ -195,6 +216,7 @@ class MediaHandler {
   Future<void> removeFromPlaylist(int playlistId, int trackId) async {
     try {
       await _db.delete('playlist_tracks', where: 'playlist_id = ? AND track_id = ?', whereArgs: [playlistId, trackId]);
+      await loadAllIntoMemory();
       await setPendingPlaylistPush(true);
       onPlaylistChanged?.call();
     } catch (e) {
@@ -205,6 +227,7 @@ class MediaHandler {
   Future<void> changeTrackOrder(int playlistId, int trackId, int newOrder) async {
     try {
       await _db.update('playlist_tracks', {'order_index': newOrder}, where: 'playlist_id = ? AND track_id = ?', whereArgs: [playlistId, trackId]);
+      await loadAllIntoMemory();
       await setPendingPlaylistPush(true);
       onPlaylistChanged?.call();
     } catch (e) {
@@ -213,13 +236,12 @@ class MediaHandler {
   }
 
   Future<bool> isInPlaylist(int playlistId, int trackId) async {
-    try {
-      final result = await _db.query('playlist_tracks', where: 'playlist_id = ? AND track_id = ?', whereArgs: [playlistId, trackId], limit: 1);
-      return result.isNotEmpty;
-    } catch (e) {
-      print('Could not check playlist contents: $e');
-      return false;
+    if (!_isCacheLoaded) {
+      await loadAllIntoMemory();
     }
+    final tracks = _cachedPlaylistTracks[playlistId];
+    if (tracks == null) return false;
+    return tracks.any((t) => t.trackID == trackId);
   }
 
   Future<void> createPlaylist() async {
@@ -242,6 +264,7 @@ class MediaHandler {
       await _db.insert('playlist_ids', {
         'playlist_id': newPlaylistId
       });
+      await loadAllIntoMemory();
       await setPendingPlaylistPush(true);
       onPlaylistChanged?.call();
     } catch (e) {
@@ -254,6 +277,7 @@ class MediaHandler {
       await _db.delete('playlist_tracks', where: 'playlist_id = ?', whereArgs: [playlistId]);
       await _db.delete('playlists', where: 'playlist_id = ?', whereArgs: [playlistId]);
       await _db.delete('playlist_ids', where: 'playlist_id = ?', whereArgs: [playlistId]);
+      await loadAllIntoMemory();
       await setPendingPlaylistPush(true);
       onPlaylistChanged?.call();
     } catch (e) {
@@ -264,6 +288,7 @@ class MediaHandler {
   Future<void> editPlaylistTitle(int playlistId, String newTitle) async {
     try {
       await _db.update('playlists', {'title': newTitle}, where: 'playlist_id = ?', whereArgs: [playlistId]);
+      await loadAllIntoMemory();
       await setPendingPlaylistPush(true);
       onPlaylistChanged?.call();
     } catch (e) {
@@ -283,6 +308,7 @@ class MediaHandler {
         },
         conflictAlgorithm: ConflictAlgorithm.ignore,
       );
+      await loadAllIntoMemory();
     } catch (e) {
       print('Could not add track: $e');
     }
@@ -292,25 +318,17 @@ class MediaHandler {
     try {
       await _db.delete('playlist_tracks', where: 'track_id = ?', whereArgs: [track.trackID]);
       await _db.delete('tracks', where: 'track_id = ?', whereArgs: [track.trackID]);
+      await loadAllIntoMemory();
     } catch (e) {
       print('Could not delete track: $e');
     }
   }
 
   Future<List<Track>> getAllTracks() async {
-    try {
-      final result = await _db.query('tracks');
-      return result.map((row) => Track(
-        trackID: row['track_id'] as int,
-        title: row['title'] as String,
-        artist: row['artist'] as String,
-        duration: row['duration'] as String,
-        downloaded: true,
-        contributor: '',
-      )).toList();
-    } catch (e) {
-      return [];
+    if (!_isCacheLoaded) {
+      await loadAllIntoMemory();
     }
+    return List<Track>.from(_cachedAllTracks);
   }
 
   Future<bool> syncLocalPlaylists(List<dynamic> serverPlaylists) async {
@@ -352,6 +370,8 @@ class MediaHandler {
         }
       }
 
+      await loadAllIntoMemory();
+
       return hasUnsyncedLocal;
     } catch (e) {
       print('Error syncing local playlists: $e');
@@ -390,6 +410,8 @@ class MediaHandler {
           } catch (_) {}
         }
       }
+
+      await loadAllIntoMemory();
     } catch (e) {
       print('Error clearing all local data: $e');
     }
@@ -461,4 +483,3 @@ class MediaHandler {
     } catch (_) {}
   }
 }
-

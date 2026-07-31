@@ -11,6 +11,7 @@ import 'track_cover_image.dart';
 class TrackCard extends StatefulWidget {
   final Track track;
   final bool isDownloaded;
+  final bool isDownloading;
   final bool isPlaying;
   final VoidCallback onPlay;
   final VoidCallback? onDownload;
@@ -20,11 +21,13 @@ class TrackCard extends StatefulWidget {
   final Function(Playlist, Track) onTogglePlaylist;
   final bool Function(Playlist, Track) isTrackInPlaylist;
   final String appDataPath;
+  final bool isServerConnected;
 
   const TrackCard({
     Key? key,
     required this.track,
     required this.isDownloaded,
+    this.isDownloading = false,
     required this.isPlaying,
     required this.onPlay,
     this.onDownload,
@@ -34,6 +37,7 @@ class TrackCard extends StatefulWidget {
     required this.onTogglePlaylist,
     required this.isTrackInPlaylist,
     required this.appDataPath,
+    this.isServerConnected = true,
   }) : super(key: key);
 
   @override
@@ -164,35 +168,44 @@ class _TrackCardState extends State<TrackCard> {
               SizedBox(
                 width: 28,
                 child: Center(
-                  child: widget.isDownloaded
-                      ? _buildTooltip(
-                          message: 'Play',
-                          child: MouseRegion(
-                            cursor: SystemMouseCursors.click,
-                            child: GestureDetector(
-                              onTap: widget.onPlay,
-                              child: const Icon(
-                                Icons.play_arrow_rounded,
-                                size: 22,
-                                color: Colors.white,
-                              ),
-                            ),
+                  child: widget.isDownloading
+                      ? SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.0,
+                            valueColor: AlwaysStoppedAnimation<Color>(context.watch<ThemeService>().themeColor),
                           ),
                         )
-                      : _buildTooltip(
-                          message: 'Download',
-                          child: MouseRegion(
-                            cursor: SystemMouseCursors.click,
-                            child: GestureDetector(
-                              onTap: widget.onDownload ?? () {},
-                              child: Icon(
-                                Icons.file_download_outlined,
-                                size: 22,
-                                color: context.watch<ThemeService>().themeColor,
+                      : widget.isDownloaded
+                          ? _buildTooltip(
+                              message: 'Play',
+                              child: MouseRegion(
+                                cursor: SystemMouseCursors.click,
+                                child: GestureDetector(
+                                  onTap: widget.onPlay,
+                                  child: const Icon(
+                                    Icons.play_arrow_rounded,
+                                    size: 22,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            )
+                          : _buildTooltip(
+                              message: 'Download',
+                              child: MouseRegion(
+                                cursor: SystemMouseCursors.click,
+                                child: GestureDetector(
+                                  onTap: widget.onDownload ?? () {},
+                                  child: Icon(
+                                    Icons.file_download_outlined,
+                                    size: 22,
+                                    color: context.watch<ThemeService>().themeColor,
+                                  ),
+                                ),
                               ),
                             ),
-                          ),
-                        ),
                 ),
               ),
               const SizedBox(width: 12),
@@ -259,6 +272,17 @@ class _TrackCardState extends State<TrackCard> {
               ),
               
               if (widget.isDownloaded) ...[
+              _buildTooltip(
+                message: 'Add to Queue',
+                child: _HoverIconButton(
+                  icon: Icons.playlist_add_rounded,
+                  size: 22,
+                  color: Colors.white,
+                  onTap: widget.onQueue ?? () {},
+                ),
+              ),
+              const SizedBox(width: 16),
+
               Builder(
                 builder: (ctx) => _buildTooltip(
                   message: 'Add to Playlist',
@@ -274,18 +298,7 @@ class _TrackCardState extends State<TrackCard> {
                   ),
                 ),
               ),
-              const SizedBox(width: 16),
-              
-              _buildTooltip(
-                message: 'Add to Queue',
-                child: _HoverIconButton(
-                  icon: Icons.playlist_add_rounded,
-                  size: 22,
-                  color: Colors.white,
-                  onTap: widget.onQueue ?? () {},
-                ),
-              ),
-              if (widget.onRemoveDownload != null) ...[
+              if (widget.isServerConnected && widget.onRemoveDownload != null) ...[
                 const SizedBox(width: 16),
                 _buildTooltip(
                   message: 'Remove Download',

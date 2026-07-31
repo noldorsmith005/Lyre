@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../models/track.dart';
 import '../../models/playlist.dart';
 import '../../services/audio_player_service.dart';
 import '../../services/server_client.dart';
-import '../../services/theme_service.dart';
 import 'playlist_list_screen.dart';
 import '../playback_screen.dart';
 import '../../services/listening_stats_service.dart';
@@ -38,20 +38,13 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
   void initState() {
     super.initState();
     _loadPlaylists();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        _autoConnectServer();
-      }
-    });
+    _autoConnectServer();
   }
 
   Future<void> _autoConnectServer() async {
     if (widget.serverClient.registered()) {
       final canPing = await widget.serverClient.ping();
       if (canPing && mounted) {
-        setState(() {
-          _serverConnection = true;
-        });
         await SyncProgressDialog.show(context, widget.serverClient);
         if (mounted) {
           _loadPlaylists();
@@ -69,13 +62,61 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
 
   void _showSnackBar(String message, {bool isError = false}) {
     if (!mounted) return;
+    ScaffoldMessenger.of(context).clearSnackBars();
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
-        backgroundColor: isError ? Colors.redAccent : Colors.green,
-        duration: const Duration(seconds: 3),
+        content: Text(message, style: const TextStyle(color: Colors.white)),
+        backgroundColor: isError ? const Color(0xFF2A1616) : const Color(0xFF1E1E28),
+        duration: const Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
     );
+  }
+
+  void _onRlsPressed() async {
+    if (!_serverConnection && !widget.serverClient.registered()) {
+      _openLoginScreen();
+    } else {
+      setState(() {
+        _serverConnection = !_serverConnection;
+      });
+    }
+  }
+
+  Future<bool> _onDownloadTrack(Track track) async {
+    final success = await widget.serverClient.downloadTrack(track);
+    if (success) {
+      track.downloaded = true;
+      _loadPlaylists();
+      _showSnackBar('Downloaded');
+      setState(() {});
+      return true;
+    } else {
+      _showSnackBar('Track download failed or is unavailable on server.', isError: true);
+      return false;
+    }
+  }
+
+  Future<bool> _onRemoveDownloadTrack(Track track) async {
+    final confirmed = await ConfirmationDialog.show(
+      context,
+      title: 'Remove Download',
+      message: 'Are you sure you want to remove "${track.title}" from your local downloads?',
+      confirmText: 'Remove',
+    );
+    if (confirmed == true) {
+      final success = await widget.serverClient.removeDownload(track);
+      if (!success) {
+        _showSnackBar('Failed to remove download on server.', isError: true);
+      }
+      track.downloaded = false;
+      _loadPlaylists();
+      _showSnackBar('Removed download for "${track.title}"');
+      setState(() {});
+      return true;
+    }
+    return false;
   }
 
   void _onCreatePlaylist() async {
@@ -128,9 +169,7 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
         _serverConnection = false;
       });
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Logged out and cleared all local data.')),
-        );
+        _showSnackBar('Logged out and cleared all local data.');
       }
     }
   }
@@ -195,6 +234,9 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
         mediaHandler: widget.mediaHandler,
         serverClient: widget.serverClient,
         isServerConnected: _serverConnection,
+        onRlsPressed: _onRlsPressed,
+        onDownloadTrack: _onDownloadTrack,
+        onRemoveDownloadTrack: _onRemoveDownloadTrack,
         onOpenLogin: _openLoginScreen,
         onLogoutPressed: _onMobileLogout,
         onPlaybackPressed: _onMobilePlayback,
@@ -209,5 +251,6 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
     );
   }
 }
+
 
 

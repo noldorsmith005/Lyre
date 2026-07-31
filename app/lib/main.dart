@@ -34,6 +34,8 @@ void main() async {
   await serverClient.init();
 
   final audioPlayerService = AudioPlayerService();
+  audioPlayerService.serverClient = serverClient;
+  await audioPlayerService.init();
 
   // Desktop window setup
   if (isDesktop) {

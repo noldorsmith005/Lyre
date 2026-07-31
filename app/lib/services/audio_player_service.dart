@@ -3,12 +3,152 @@ import 'dart:io';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:audio_service/audio_service.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/track.dart';
 import 'listening_stats_service.dart';
+import 'server_client.dart';
+
+class LyreAudioHandler extends BaseAudioHandler {
+  final AudioPlayer _player;
+  AudioPlayerService? _service;
+
+  LyreAudioHandler(this._player) {
+    _player.playbackEventStream.listen((PlaybackEvent event) {
+      _updatePlaybackState();
+    });
+
+    _player.playerStateStream.listen((PlayerState state) {
+      _updatePlaybackState();
+    });
+
+    _player.positionStream.listen((position) {
+      _updatePlaybackState();
+    });
+
+    _player.durationStream.listen((duration) {
+      if (mediaItem.value != null && duration != null) {
+        mediaItem.add(mediaItem.value!.copyWith(duration: duration));
+      }
+    });
+  }
+
+  void _updatePlaybackState() {
+    final playing = _player.playing;
+    final processingState = const {
+      ProcessingState.idle: AudioProcessingState.idle,
+      ProcessingState.loading: AudioProcessingState.loading,
+      ProcessingState.buffering: AudioProcessingState.buffering,
+      ProcessingState.ready: AudioProcessingState.ready,
+      ProcessingState.completed: AudioProcessingState.completed,
+    }[_player.processingState] ?? AudioProcessingState.idle;
+
+    playbackState.add(playbackState.value.copyWith(
+      controls: [
+        MediaControl.skipToPrevious,
+        if (playing) MediaControl.pause else MediaControl.play,
+        MediaControl.skipToNext,
+        MediaControl.stop,
+      ],
+      systemActions: const {
+        MediaAction.seek,
+        MediaAction.seekForward,
+        MediaAction.seekBackward,
+      },
+      androidCompactActionIndices: const [0, 1, 2],
+      processingState: processingState,
+      playing: playing,
+      updatePosition: _player.position,
+      bufferedPosition: _player.bufferedPosition,
+      speed: _player.speed,
+    ));
+  }
+
+  void attachService(AudioPlayerService service) {
+    _service = service;
+  }
+
+  void updateTrackMediaItem(Track track, String appDataPath) {
+    File artFile = File('$appDataPath/cover/${track.trackID}.jpg');
+    if (!artFile.existsSync()) {
+      artFile = File('$appDataPath/artwork/${track.trackID}.jpg');
+    }
+    Uri? artUri;
+    if (artFile.existsSync()) {
+      artUri = Uri.file(artFile.path);
+    }
+
+    mediaItem.add(MediaItem(
+      id: track.trackID.toString(),
+      album: track.artist,
+      title: track.title,
+      artist: track.artist,
+      artUri: artUri,
+      duration: _player.duration,
+    ));
+    _updatePlaybackState();
+  }
+
+  void clearMediaItem() {
+    mediaItem.add(null);
+    _updatePlaybackState();
+  }
+
+  @override
+  Future<void> play() async {
+    if (_service != null) {
+      await _service!.resume();
+    } else {
+      await _player.play();
+    }
+    _updatePlaybackState();
+  }
+
+  @override
+  Future<void> pause() async {
+    if (_service != null) {
+      await _service!.pause();
+    } else {
+      await _player.pause();
+    }
+    _updatePlaybackState();
+  }
+
+  @override
+  Future<void> stop() async {
+    if (_service != null) {
+      await _service!.stopAndClear();
+    } else {
+      await _player.stop();
+    }
+    _updatePlaybackState();
+  }
+
+  @override
+  Future<void> seek(Duration position) async {
+    await _player.seek(position);
+    _updatePlaybackState();
+  }
+
+  @override
+  Future<void> skipToNext() async {
+    if (_service != null) {
+      _service!.next();
+    }
+  }
+
+  @override
+  Future<void> skipToPrevious() async {
+    if (_service != null) {
+      _service!.previous();
+    }
+  }
+}
 
 class AudioPlayerService extends ChangeNotifier {
   final AudioPlayer _player = AudioPlayer();
+  LyreAudioHandler? _audioHandler;
   StreamSubscription? _stateSubscription;
   Track? currentTrack;
   bool isPlaying = false;
@@ -28,34 +168,63 @@ class AudioPlayerService extends ChangeNotifier {
 
   List<Track> queue = [];
   List<Track> playlist = [];
-  int _playlistIndex = 0;
   String? _appDataPath;
 
   String? get appDataPath => _appDataPath;
 
+  final Completer<void> _initCompleter = Completer<void>();
+  bool _isInitDone = false;
+  int _playRequestId = 0;
+
   AudioPlayerService() {
-    _init();
+    init();
   }
 
-  Future<void> _init() async {
-    if (Platform.isMacOS) {
-      final home = Platform.environment['HOME'];
-      _appDataPath = '$home/Library/Application Support/Lyre';
-    } else if (Platform.isWindows) {
-      final appData = Platform.environment['APPDATA'];
-      _appDataPath = '$appData/Lyre';
-    } else {
-      final dir = await getApplicationDocumentsDirectory();
-      _appDataPath = '${dir.path}/Lyre';
-    }
-
-    _stateSubscription = _player.playerStateStream.listen((state) {
-      if (state.processingState == ProcessingState.completed) {
-        next();
+  Future<void> init() async {
+    if (_isInitDone) return _initCompleter.future;
+    try {
+      if (Platform.isMacOS) {
+        final home = Platform.environment['HOME'];
+        _appDataPath = '$home/Library/Application Support/Lyre';
+      } else if (Platform.isWindows) {
+        final appData = Platform.environment['APPDATA'];
+        _appDataPath = '$appData/Lyre';
+      } else {
+        final dir = await getApplicationDocumentsDirectory();
+        _appDataPath = '${dir.path}/Lyre';
       }
-      isPlaying = state.playing;
-      notifyListeners();
-    });
+
+      try {
+        final session = await AudioSession.instance;
+        await session.configure(const AudioSessionConfiguration.music());
+
+        _audioHandler = await AudioService.init(
+          builder: () => LyreAudioHandler(_player),
+          config: const AudioServiceConfig(
+            androidNotificationChannelId: 'com.lyre.audio',
+            androidNotificationChannelName: 'Lyre Audio Playback',
+            androidNotificationOngoing: true,
+            androidStopForegroundOnPause: true,
+          ),
+        );
+        _audioHandler?.attachService(this);
+      } catch (e) {
+        print('AudioService init error: $e');
+      }
+
+      _stateSubscription = _player.playerStateStream.listen((state) {
+        if (state.processingState == ProcessingState.completed) {
+          next();
+        }
+        isPlaying = state.playing;
+        notifyListeners();
+      });
+    } finally {
+      _isInitDone = true;
+      if (!_initCompleter.isCompleted) {
+        _initCompleter.complete();
+      }
+    }
   }
 
   Stream<Duration> get positionStream => _player.positionStream;
@@ -68,26 +237,89 @@ class AudioPlayerService extends ChangeNotifier {
     super.dispose();
   }
 
-  Future<void> play(Track track) async {
-    if (_appDataPath == null) return;
-    
-    final file = File('$_appDataPath/audio/${track.trackID}.flac');
-    if (!await file.exists()) {
-      print('FLAC file not found: ${file.path}');
-      return;
-    }
+  ServerClient? serverClient;
 
-    currentTrack = track;
-    isPlaying = true;
-    notifyListeners();
+  Future<void> play(Track track, {ServerClient? serverClient}) async {
+    if (!_isInitDone) {
+      await _initCompleter.future;
+    }
+    if (_appDataPath == null) return;
+
+    final currentRequestId = ++_playRequestId;
 
     try {
+      final client = serverClient ?? this.serverClient;
+      final file = File('$_appDataPath/audio/${track.trackID}.flac');
+      if (!await file.exists()) {
+        if (client != null && client.registered()) {
+          currentTrack = track;
+          isPlaying = true;
+          notifyListeners();
+          final success = await client.downloadTrack(track);
+          if (currentRequestId != _playRequestId) return;
+          if (!success) {
+            currentTrack = null;
+            isPlaying = false;
+            notifyListeners();
+            return;
+          }
+        } else {
+          print('FLAC file not found: ${file.path}');
+          currentTrack = null;
+          isPlaying = false;
+          notifyListeners();
+          return;
+        }
+      }
+
+      if (currentRequestId != _playRequestId) return;
+
+      currentTrack = track;
+      isPlaying = true;
+      if (_appDataPath != null) {
+        _audioHandler?.updateTrackMediaItem(track, _appDataPath!);
+      }
+      notifyListeners();
+
+      try {
+        final session = await AudioSession.instance;
+        await session.setActive(true);
+      } catch (_) {}
+
+      await _player.stop();
+      if (currentRequestId != _playRequestId) return;
+
       await _player.setFilePath(file.path);
+      if (currentRequestId != _playRequestId) return;
+
+      if (_appDataPath != null) {
+        _audioHandler?.updateTrackMediaItem(track, _appDataPath!);
+      }
       await _player.play();
       ListeningStatsService.instance.logPlay(track);
     } catch (e) {
       print('Error playing audio: $e');
+      if (currentRequestId == _playRequestId) {
+        isPlaying = false;
+        notifyListeners();
+      }
     }
+  }
+
+  void playTrackInContext(Track track, List<Track> contextTracks) {
+    clearPlaylistQueue();
+    final idx = contextTracks.indexWhere((t) => t.trackID == track.trackID);
+    if (idx != -1) {
+      for (int i = idx + 1; i < contextTracks.length; i++) {
+        addToPlaylistQueue(contextTracks[i]);
+      }
+    }
+    play(track);
+  }
+
+  void playFromQueue(Track track) {
+    removeFromQueue(track);
+    play(track);
   }
 
   Future<void> pause() async {
@@ -119,24 +351,24 @@ class AudioPlayerService extends ChangeNotifier {
       _player.seek(Duration.zero);
       _player.play();
     } else if (queue.isNotEmpty) {
-      play(queue.removeAt(0));
+      final nextTrack = queue.removeAt(0);
+      notifyListeners();
+      play(nextTrack);
     } else if (playlist.isNotEmpty) {
+      final Track nextTrack;
       if (shuffle) {
         final random = Random();
         final idx = random.nextInt(playlist.length);
-        play(playlist[idx]);
+        nextTrack = playlist.removeAt(idx);
       } else {
-        if (_playlistIndex < playlist.length) {
-          play(playlist[_playlistIndex++]);
-        } else {
-          _player.stop();
-          isPlaying = false;
-          notifyListeners();
-        }
+        nextTrack = playlist.removeAt(0);
       }
+      notifyListeners();
+      play(nextTrack);
     } else {
       _player.stop();
       isPlaying = false;
+      _audioHandler?.clearMediaItem();
       notifyListeners();
     }
   }
@@ -144,6 +376,9 @@ class AudioPlayerService extends ChangeNotifier {
   void addToQueue(Track track) {
     queue.add(track);
     notifyListeners();
+    if (currentTrack == null && !isPlaying) {
+      next();
+    }
   }
 
   void addToPlaylistQueue(Track track) {
@@ -163,7 +398,6 @@ class AudioPlayerService extends ChangeNotifier {
 
   void clearPlaylistQueue() {
     playlist.clear();
-    _playlistIndex = 0;
     notifyListeners();
   }
 
@@ -175,12 +409,15 @@ class AudioPlayerService extends ChangeNotifier {
     isPlaying = false;
     queue.clear();
     playlist.clear();
-    _playlistIndex = 0;
+    _audioHandler?.clearMediaItem();
     notifyListeners();
   }
 
   void setShuffle([bool? value]) {
-    shuffle = value ?? !shuffle;
+    _shuffle = value ?? !_shuffle;
+    if (_shuffle && playlist.isNotEmpty) {
+      playlist.shuffle();
+    }
     notifyListeners();
   }
 

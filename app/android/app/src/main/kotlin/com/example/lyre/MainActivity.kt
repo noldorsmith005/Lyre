@@ -2,11 +2,11 @@ package com.example.lyre
 
 import android.content.ComponentName
 import android.content.pm.PackageManager
-import io.flutter.embedding.android.FlutterActivity
+import com.ryanheise.audioservice.AudioServiceActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
-class MainActivity : FlutterActivity() {
+class MainActivity : AudioServiceActivity() {
     private val CHANNEL = "com.lyre.app/icon"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {

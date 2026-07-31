@@ -102,7 +102,7 @@ class _VibeQueueModalState extends State<VibeQueueModal> {
                     Icon(Icons.tune_rounded, color: themeColor, size: 26),
                     const SizedBox(width: 10),
                     const Text(
-                      'whats the vibe today?',
+                      'What\'s the Vibe Today?',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 22,
