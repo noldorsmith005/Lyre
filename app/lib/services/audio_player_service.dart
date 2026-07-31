@@ -183,6 +183,7 @@ class AudioPlayerService extends ChangeNotifier {
   String? get appDataPath => _appDataPath;
 
   final Completer<void> _initCompleter = Completer<void>();
+  bool _isInitStarted = false;
   bool _isInitDone = false;
   int _playRequestId = 0;
 
@@ -191,7 +192,8 @@ class AudioPlayerService extends ChangeNotifier {
   }
 
   Future<void> init() async {
-    if (_isInitDone) return _initCompleter.future;
+    if (_isInitStarted || _isInitDone) return _initCompleter.future;
+    _isInitStarted = true;
     try {
       if (Platform.isMacOS) {
         final home = Platform.environment['HOME'];

@@ -53,20 +53,33 @@ class _HomeScreenState extends State<HomeScreen> {
     _autoConnectServer();
   }
 
+  bool _isAutoConnecting = false;
+  DateTime? _lastSyncTime;
+
   Future<void> _autoConnectServer() async {
-    if (widget.serverClient.registered()) {
-      final canPing = await widget.serverClient.ping();
-      if (canPing && mounted) {
-        await SyncProgressDialog.show(context, widget.serverClient);
-        if (mounted) {
-          await _loadPlaylists();
-          if (_searchQuery.trim().isNotEmpty) {
-            await _onSearch(_searchQuery);
-          } else if (_currentPlaylist != null) {
-            await _loadPlaylistTracks(_currentPlaylist!);
+    if (_isAutoConnecting || widget.serverClient.isSyncing) return;
+    if (_lastSyncTime != null && DateTime.now().difference(_lastSyncTime!) < const Duration(seconds: 15)) {
+      return;
+    }
+    _isAutoConnecting = true;
+    try {
+      if (widget.serverClient.registered()) {
+        final canPing = await widget.serverClient.ping();
+        if (canPing && mounted) {
+          _lastSyncTime = DateTime.now();
+          await SyncProgressDialog.show(context, widget.serverClient);
+          if (mounted) {
+            await _loadPlaylists();
+            if (_searchQuery.trim().isNotEmpty) {
+              await _onSearch(_searchQuery);
+            } else if (_currentPlaylist != null) {
+              await _loadPlaylistTracks(_currentPlaylist!);
+            }
           }
         }
       }
+    } finally {
+      _isAutoConnecting = false;
     }
   }
 

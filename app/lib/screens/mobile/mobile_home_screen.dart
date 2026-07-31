@@ -32,26 +32,52 @@ class MobileHomeScreen extends StatefulWidget {
   State<MobileHomeScreen> createState() => _MobileHomeScreenState();
 }
 
-class _MobileHomeScreenState extends State<MobileHomeScreen> {
+class _MobileHomeScreenState extends State<MobileHomeScreen> with WidgetsBindingObserver {
   List<Playlist> _playlists = [];
   bool _serverConnection = false;
+  bool _isAutoConnecting = false;
+  DateTime? _lastSyncTime;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadPlaylists();
     _autoConnectServer();
   }
 
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _autoConnectServer();
+    }
+  }
+
   Future<void> _autoConnectServer() async {
-    if (widget.serverClient.registered()) {
-      final canPing = await widget.serverClient.ping();
-      if (canPing && mounted) {
-        await SyncProgressDialog.show(context, widget.serverClient);
-        if (mounted) {
-          _loadPlaylists();
+    if (_isAutoConnecting || widget.serverClient.isSyncing) return;
+    if (_lastSyncTime != null && DateTime.now().difference(_lastSyncTime!) < const Duration(seconds: 15)) {
+      return;
+    }
+    _isAutoConnecting = true;
+    try {
+      if (widget.serverClient.registered()) {
+        final canPing = await widget.serverClient.ping();
+        if (canPing && mounted) {
+          _lastSyncTime = DateTime.now();
+          await SyncProgressDialog.show(context, widget.serverClient);
+          if (mounted) {
+            _loadPlaylists();
+          }
         }
       }
+    } finally {
+      _isAutoConnecting = false;
     }
   }
 

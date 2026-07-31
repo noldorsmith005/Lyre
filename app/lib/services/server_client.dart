@@ -295,7 +295,7 @@ class ServerClient {
         Uri.parse(targetUrl),
         headers: _headers(json: true),
         body: jsonEncode({'playlists': playlists}),
-      );
+      ).timeout(const Duration(seconds: 10));
       return response.statusCode == 200;
     } catch (e) {
       return false;
@@ -309,7 +309,7 @@ class ServerClient {
       final response = await http.get(
         Uri.parse(targetUrl),
         headers: _headers(),
-      );
+      ).timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
         return jsonDecode(response.body) as List<dynamic>;
       }
@@ -356,22 +356,26 @@ class ServerClient {
     }
   }
 
+  bool _isSyncing = false;
+  bool get isSyncing => _isSyncing;
+
   Future<bool> performPullSync({void Function(SyncProgress progress)? onProgress}) async {
-    if (!registered() || appUrl == null) {
-      onProgress?.call(const SyncProgress(status: 'Not registered or server URL missing', progress: 1.0));
+    if (!registered() || appUrl == null || _isSyncing) {
+      onProgress?.call(const SyncProgress(status: 'Not registered, server missing, or sync in progress', progress: 1.0));
       return false;
     }
 
-    onProgress?.call(const SyncProgress(status: 'Connecting to server...', progress: 0.05));
-
-    final isOnline = await ping();
-    if (!isOnline) {
-      print('Offline or server unreachable: Skipping startup pull sync.');
-      onProgress?.call(const SyncProgress(status: 'Server unreachable', progress: 1.0));
-      return false;
-    }
-
+    _isSyncing = true;
     try {
+      onProgress?.call(const SyncProgress(status: 'Connecting to server...', progress: 0.05));
+
+      final isOnline = await ping();
+      if (!isOnline) {
+        print('Offline or server unreachable: Skipping startup pull sync.');
+        onProgress?.call(const SyncProgress(status: 'Server unreachable', progress: 1.0));
+        return false;
+      }
+
       // Process pending offline download tracking
       final pendingDownloads = await mediaHandler.getPendingDownloads();
       for (final trackId in pendingDownloads) {
@@ -459,6 +463,8 @@ class ServerClient {
       onProgress?.call(SyncProgress(status: 'Sync failed: $e', progress: 1.0));
       await Future.delayed(const Duration(milliseconds: 500));
       return false;
+    } finally {
+      _isSyncing = false;
     }
   }
 
@@ -469,7 +475,7 @@ class ServerClient {
       final response = await http.get(
         Uri.parse(targetUrl),
         headers: _headers(),
-      );
+      ).timeout(const Duration(seconds: 10));
       if (response.statusCode == 200) {
         final List<dynamic> jsonList = jsonDecode(response.body);
         return jsonList.map((json) => Track(
@@ -497,13 +503,13 @@ class ServerClient {
       ..headers.addAll(_headers());
 
     try {
-      final response = await _httpClient.send(request);
+      final response = await _httpClient.send(request).timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         if (!await tmpFile.parent.exists()) {
           await tmpFile.parent.create(recursive: true);
         }
         final sink = tmpFile.openWrite();
-        await response.stream.pipe(sink);
+        await response.stream.pipe(sink).timeout(const Duration(seconds: 30));
         await tmpFile.rename(targetLocalFile.path);
       } else {
         print('Download failed for $type/$id: HTTP ${response.statusCode}');
@@ -512,6 +518,9 @@ class ServerClient {
       }
     } catch (e) {
       print('An error occurred during transmission: $e');
+      if (await tmpFile.exists()) {
+        try { await tmpFile.delete(); } catch (_) {}
+      }
       rethrow;
     }
   }
@@ -543,8 +552,8 @@ class ServerClient {
       rawRequest.contentLength = length;
       localFile.openRead().pipe(rawRequest.sink);
 
-      final response = await rawRequest.send();
-      final responseBody = await response.stream.bytesToString();
+      final response = await rawRequest.send().timeout(const Duration(seconds: 30));
+      final responseBody = await response.stream.bytesToString().timeout(const Duration(seconds: 30));
       if (response.statusCode == 201) {
         print('Upload succeeded for $type/$id');
       } else {
@@ -560,7 +569,7 @@ class ServerClient {
     await http.post(
       Uri.parse(targetUrl),
       headers: _headers(),
-    );
+    ).timeout(const Duration(seconds: 8));
   }
 
   Future<String> _updateUploads(Track track) async {
@@ -578,7 +587,7 @@ class ServerClient {
       Uri.parse(targetUrl),
       headers: _headers(json: true),
       body: jsonString,
-    );
+    ).timeout(const Duration(seconds: 10));
     return response.body;
   }
 
@@ -587,7 +596,7 @@ class ServerClient {
     await http.post(
       Uri.parse(targetUrl),
       headers: _headers(),
-    );
+    ).timeout(const Duration(seconds: 8));
   }
 
   Future<void> removeAllTrackedDownloadsServerSide() async {
@@ -604,9 +613,10 @@ class ServerClient {
   }
 
   Future<bool> ping() async {
-    if (appUrl == null) await autoDetectServer();
-    if (appUrl == null) return false;
-    return _pingUrl(appUrl!);
+    if (appUrl != null && await _pingUrl(appUrl!)) {
+      return true;
+    }
+    return await autoDetectServer();
   }
 
   Future<List<Track>> searchTracks(String filter) async {
@@ -641,7 +651,7 @@ class ServerClient {
       await Future.wait([
         _download('audio', track.trackID),
         _download('cover', track.trackID),
-      ]);
+      ]).timeout(const Duration(seconds: 35));
       if (updateServerTracking) {
         try {
           await _updateDownloads(track.trackID);
@@ -731,7 +741,7 @@ class ServerClient {
         Uri.parse('$appUrl/history/sync'),
         headers: _headers(json: true),
         body: jsonEncode({'history': historyItems}),
-      );
+      ).timeout(const Duration(seconds: 10));
       return response.statusCode == 200;
     } catch (e) {
       return false;

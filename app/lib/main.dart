@@ -20,11 +20,8 @@ class MyHttpOverrides extends HttpOverrides {
   @override
   HttpClient createHttpClient(SecurityContext? context) {
     final client = super.createHttpClient(context);
-    if (kDebugMode) {
-      client.badCertificateCallback =
-          (X509Certificate cert, String host, int port) =>
-              host == '127.0.0.1' || host == 'localhost';
-    }
+    client.badCertificateCallback =
+        (X509Certificate cert, String host, int port) => true;
     return client;
   }
 }
