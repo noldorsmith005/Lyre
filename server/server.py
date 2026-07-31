@@ -5,7 +5,6 @@ import os
 import re
 import json
 import sqlite3
-import base64
 import random
 import hashlib
 import urllib.parse
@@ -18,7 +17,6 @@ from utils import Utils
 import resource
 import time
 import secrets
-import uuid
 
 def _raise_file_descriptor_limit():
     try:
@@ -45,6 +43,7 @@ if os.path.exists(CONFIG_PATH):
 app = Flask(__name__)
 app.config['ENV'] = 'production'
 app.config['DEBUG'] = False
+app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 if config.get("secret_key"):
     app.config["SECRET_KEY"] = config["secret_key"]
 
@@ -111,9 +110,6 @@ def userExists(username):
         cursor = conn.cursor()
         cursor.execute("SELECT 1 FROM users WHERE username = ?", (username,))
         return cursor.fetchone() is not None
-
-def userDownloaded(ids, id):
-    return id in ids
 
 def compressFLAC(wav_path, flac_path):
     os.makedirs(os.path.dirname(flac_path), exist_ok=True)
@@ -441,7 +437,6 @@ def pushSyncPlaylists():
         cursor.execute("SELECT track_id FROM tracks")
         valid_track_ids = {row[0] for row in cursor.fetchall()}
         try:
-            conn.execute("BEGIN TRANSACTION")
             cursor.execute("DELETE FROM user_playlists WHERE user_id = ?", (user_id,))
             for pl in playlists:
                 playlist_id = pl.get("playlist_id")
@@ -505,20 +500,19 @@ def getUserDownloads():
     with sqlite3.connect(DATABASE_URL) as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT t.track_id, t.title, t.artist, t.duration, t.contributor
+            SELECT t.track_id, t.title, t.artist, t.duration, COALESCE(u.username, t.contributor)
             FROM tracks t
             JOIN user_downloads ud ON t.track_id = ud.track_id
+            LEFT JOIN users u ON CAST(t.contributor AS INTEGER) = u.id
             WHERE ud.user_id = ?
         """, (user_id,))
         for row in cursor.fetchall():
-            contributor_user = getUser(row[4]) if row[4] and str(row[4]).isdigit() else None
-            contributor_name = contributor_user['username'] if contributor_user else str(row[4] or "")
             tracks.append({
                 "trackID": row[0],
                 "title": row[1],
                 "artist": row[2],
                 "duration": row[3],
-                "contributor": contributor_name,
+                "contributor": str(row[4] or ""),
                 "downloaded": True
             })
 
@@ -540,9 +534,10 @@ def searchTracks(filter_text=""):
     if len(filter_text) > 0:
         normalized_filter = re.sub(r'[^a-zA-Z0-9 ]', '', filter_text).lower().strip()
         sql = """
-            SELECT t.track_id, t.title, t.artist, t.duration, t.contributor, ud.user_id
+            SELECT t.track_id, t.title, t.artist, t.duration, COALESCE(u.username, t.contributor), ud.user_id
             FROM tracks t
             LEFT JOIN user_downloads ud ON t.track_id = ud.track_id AND ud.user_id = ?
+            LEFT JOIN users u ON CAST(t.contributor AS INTEGER) = u.id
             WHERE lower(t.title) LIKE ? OR lower(t.artist) LIKE ?
             ORDER BY t.title ASC
         """
@@ -553,14 +548,12 @@ def searchTracks(filter_text=""):
                 like_val = f"%{normalized_filter}%"
                 cursor.execute(sql, (userID, like_val, like_val))
                 for row in cursor.fetchall():
-                    contributor_user = getUser(row[4]) if row[4] and str(row[4]).isdigit() else None
-                    contributor_name = contributor_user['username'] if contributor_user else str(row[4] or "")
                     tracks.append({
                         "trackID": row[0],
                         "title": row[1],
                         "artist": row[2],
                         "duration": row[3],
-                        "contributor": contributor_name,
+                        "contributor": str(row[4] or ""),
                         "downloaded": row[5] is not None
                     })
         except sqlite3.Error as e:
@@ -591,8 +584,20 @@ def uploadFile(id, ext):
     auth_token = request.headers.get("AppToken")
     if auth_token != APP_TOKEN:
         return "Invalid App Token", 401
-    if authUser(request) == False:
+    authorized = authUser(request)
+    if authorized == False:
         return "Unauthorized", 401
+
+    user_id = int(authorized)
+    with sqlite3.connect(DATABASE_URL) as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT contributor FROM tracks WHERE track_id = ?", (id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({"error": "Track not found"}), 404
+        contributor = str(row[0]) if row[0] is not None else ""
+        if contributor != str(user_id):
+            return jsonify({"error": "Forbidden: You are not the contributor of this track"}), 403
 
     if not ext in SUPPORTED_TYPES:
         return "Invalid file type", 415
@@ -775,6 +780,9 @@ def getUserStats(user_id):
     if authorized == False:
         return "Unauthorized", 401
 
+    if int(authorized) != user_id:
+        return jsonify({"error": "Forbidden"}), 403
+
     with sqlite3.connect(DATABASE_URL) as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT user_id, month_year, total_minutes, total_plays, daily_avg_minutes, percentile_text, top_tracks_json, top_artists_json, top_percentages_json, theme_color, new_release FROM stats WHERE user_id = ?", (user_id,))
@@ -818,6 +826,9 @@ def ackUserStats(user_id):
     authorized = authUser(request)
     if authorized == False:
         return "Unauthorized", 401
+
+    if int(authorized) != user_id:
+        return jsonify({"error": "Forbidden"}), 403
 
     with sqlite3.connect(DATABASE_URL) as conn:
         cursor = conn.cursor()
@@ -957,8 +968,6 @@ def calculate_all_user_monthly_stats():
                 "Top Music Listener", json.dumps(top_5_tracks), json.dumps(top_5_artists),
                 json.dumps(top_percentages), month_theme
             ))
-
-            cursor.execute("DELETE FROM history WHERE user_id = ?", (uid,))
 
         cursor.execute("DELETE FROM history")
         conn.commit()

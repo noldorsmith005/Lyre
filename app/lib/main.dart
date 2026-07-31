@@ -18,7 +18,8 @@ class MyHttpOverrides extends HttpOverrides {
   HttpClient createHttpClient(SecurityContext? context) {
     return super.createHttpClient(context)
       ..badCertificateCallback =
-          (X509Certificate cert, String host, int port) => true;
+          (X509Certificate cert, String host, int port) =>
+              host == '127.0.0.1' || host == 'localhost';
   }
 }
 
@@ -182,7 +183,7 @@ class _DesktopWrapperState extends State<DesktopWrapper> {
 
   bool _handleKeyEvent(KeyEvent event) {
     if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.space) {
-      if (_isEditingText()) {
+      if (!mounted || _isEditingText()) {
         return false;
       }
       final audioService = Provider.of<AudioPlayerService>(context, listen: false);

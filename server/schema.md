@@ -95,3 +95,15 @@ Stores monthly listening analytics and theme settings per user.
 | `top_percentages_json` | `TEXT` | | JSON string of listener percentiles |
 | `theme_color` | `TEXT` | | Monthly theme color scheme name |
 | `new_release` | `INTEGER` | `DEFAULT 1` | Flag indicating unacknowledged new stats release |
+
+---
+
+## Secondary Indexes
+
+| Index Name | Target Table | Target Columns | Purpose |
+| :--- | :--- | :--- | :--- |
+| `idx_sessions_user_id` | `sessions` | `user_id` | Fast session lookup by user ID |
+| `idx_user_playlists_uid` | `user_playlists` | `user_id` | Fast playlist lookup by user ID |
+| `idx_user_downloads_uid` | `user_downloads` | `user_id` | Fast download mapping lookup by user ID |
+| `idx_history_uid` | `history` | `user_id` | Fast user play history aggregation |
+

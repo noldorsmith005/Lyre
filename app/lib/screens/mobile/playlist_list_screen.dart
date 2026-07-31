@@ -357,34 +357,38 @@ class PlaylistListScreen extends StatelessWidget {
                                 onSelected: (value) async {
                                   if (value == 'rename' && onRenamePlaylist != null) {
                                     final controller = TextEditingController(text: playlist.title);
-                                    final newName = await showDialog<String>(
-                                      context: context,
-                                      builder: (context) => AlertDialog(
-                                        backgroundColor: const Color(0xFF1E1E1E),
-                                        title: const Text('Rename Playlist', style: TextStyle(color: Colors.white)),
-                                        content: TextField(
-                                          controller: controller,
-                                          autofocus: true,
-                                          style: const TextStyle(color: Colors.white),
-                                          decoration: const InputDecoration(
-                                            labelText: 'Playlist Name',
-                                            labelStyle: TextStyle(color: Colors.grey),
+                                    try {
+                                      final newName = await showDialog<String>(
+                                        context: context,
+                                        builder: (context) => AlertDialog(
+                                          backgroundColor: const Color(0xFF1E1E1E),
+                                          title: const Text('Rename Playlist', style: TextStyle(color: Colors.white)),
+                                          content: TextField(
+                                            controller: controller,
+                                            autofocus: true,
+                                            style: const TextStyle(color: Colors.white),
+                                            decoration: const InputDecoration(
+                                              labelText: 'Playlist Name',
+                                              labelStyle: TextStyle(color: Colors.grey),
+                                            ),
                                           ),
+                                          actions: [
+                                            TextButton(
+                                              onPressed: () => Navigator.pop(context),
+                                              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                                            ),
+                                            TextButton(
+                                              onPressed: () => Navigator.pop(context, controller.text.trim()),
+                                              child: const Text('Save', style: TextStyle(color: Colors.white)),
+                                            ),
+                                          ],
                                         ),
-                                        actions: [
-                                          TextButton(
-                                            onPressed: () => Navigator.pop(context),
-                                            child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-                                          ),
-                                          TextButton(
-                                            onPressed: () => Navigator.pop(context, controller.text.trim()),
-                                            child: const Text('Save', style: TextStyle(color: Colors.white)),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                    if (newName != null && newName.isNotEmpty) {
-                                      onRenamePlaylist!(playlist, newName);
+                                      );
+                                      if (newName != null && newName.isNotEmpty) {
+                                        onRenamePlaylist!(playlist, newName);
+                                      }
+                                    } finally {
+                                      controller.dispose();
                                     }
                                   } else if (value == 'delete' && onDeletePlaylist != null) {
                                     onDeletePlaylist!(playlist);

@@ -13,25 +13,33 @@ import 'server_client.dart';
 class LyreAudioHandler extends BaseAudioHandler {
   final AudioPlayer _player;
   AudioPlayerService? _service;
+  final List<StreamSubscription> _subscriptions = [];
 
   LyreAudioHandler(this._player) {
-    _player.playbackEventStream.listen((PlaybackEvent event) {
+    _subscriptions.add(_player.playbackEventStream.listen((PlaybackEvent event) {
       _updatePlaybackState();
-    });
+    }));
 
-    _player.playerStateStream.listen((PlayerState state) {
+    _subscriptions.add(_player.playerStateStream.listen((PlayerState state) {
       _updatePlaybackState();
-    });
+    }));
 
-    _player.positionStream.listen((position) {
+    _subscriptions.add(_player.positionStream.listen((position) {
       _updatePlaybackState();
-    });
+    }));
 
-    _player.durationStream.listen((duration) {
+    _subscriptions.add(_player.durationStream.listen((duration) {
       if (mediaItem.value != null && duration != null) {
         mediaItem.add(mediaItem.value!.copyWith(duration: duration));
       }
-    });
+    }));
+  }
+
+  Future<void> disposeSubscriptions() async {
+    for (final sub in _subscriptions) {
+      await sub.cancel();
+    }
+    _subscriptions.clear();
   }
 
   void _updatePlaybackState() {
