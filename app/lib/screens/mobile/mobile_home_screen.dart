@@ -14,6 +14,8 @@ import '../../services/vibe_queue_service.dart';
 import '../../widgets/mobile/bottom_player_bar.dart';
 import '../login_screen.dart';
 
+
+
 class MobileHomeScreen extends StatefulWidget {
   final dynamic mediaHandler;
   final ServerClient serverClient;
@@ -156,13 +158,12 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> {
     final confirmed = await ConfirmationDialog.show(
       context,
       title: 'Log Out',
-      message: 'Are you sure you want to log out? This will clear all local playlists, downloaded tracks, server-tracked downloads, and session data.',
+      message: 'Are you sure you want to log out? This will clear local data and remote session data.',
       confirmText: 'Log Out',
     );
     if (confirmed == true) {
       final audioService = Provider.of<AudioPlayerService>(context, listen: false);
       await audioService.stopAndClear();
-      await widget.serverClient.removeAllTrackedDownloadsServerSide();
       await widget.serverClient.logout();
       _loadPlaylists();
       setState(() {

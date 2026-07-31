@@ -49,6 +49,13 @@ if config.get("secret_key"):
 
 db_path = config.get("database", "data.db")
 DATABASE_URL = db_path if os.path.isabs(db_path) else os.path.join(BASE_DIR, db_path)
+
+def get_db():
+    conn = sqlite3.connect(DATABASE_URL, timeout=10.0)
+    conn.execute("PRAGMA foreign_keys = ON;")
+    conn.execute("PRAGMA busy_timeout = 5000;")
+    return conn
+
 TRACK_FILE_TYPES = {
     "cover": {"ext": "jpg", "mimetype": "image/jpeg"},
     "audio": {"ext": "flac", "mimetype": "audio/flac"},
@@ -63,7 +70,7 @@ SUPPORTED_TYPES = {
 
 
 # Helpers
-APP_TOKEN = "n8cQiw4z6oSHFixnEFK7"
+APP_TOKEN = os.environ.get("APP_TOKEN") or config.get("app_token") or "n8cQiw4z6oSHFixnEFK7"
 if os.path.exists('./sessions.json'):
     try:
         with open('./sessions.json', 'r') as file:
@@ -74,7 +81,7 @@ if os.path.exists('./sessions.json'):
         pass
 
 def genID():
-    with sqlite3.connect(DATABASE_URL) as conn:
+    with get_db() as conn:
         cursor = conn.cursor()
         while True:
             uid = random.randint(10000, 99999)
@@ -83,7 +90,7 @@ def genID():
                 return uid
 
 def genTrackID():
-    with sqlite3.connect(DATABASE_URL) as conn:
+    with get_db() as conn:
         cursor = conn.cursor()
         while True:
             new_id = random.randint(10000, 99999)
@@ -92,7 +99,7 @@ def genTrackID():
                 return new_id
 
 def getUser(id):
-    with sqlite3.connect(DATABASE_URL) as conn:
+    with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT id, username, salt, password_hash FROM users WHERE id = ?", (int(id),))
         row = cursor.fetchone()
@@ -106,7 +113,7 @@ def getUser(id):
         return False
 
 def userExists(username):
-    with sqlite3.connect(DATABASE_URL) as conn:
+    with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT 1 FROM users WHERE username = ?", (username,))
         return cursor.fetchone() is not None
@@ -176,7 +183,7 @@ def authUser(req):
     if auth_header and auth_header.startswith("Bearer "):
         token = auth_header.split(" ")[1]
         try:
-            with sqlite3.connect(DATABASE_URL) as conn:
+            with get_db() as conn:
                 cursor = conn.cursor()
                 cursor.execute("SELECT user_id FROM sessions WHERE token = ?", (token,))
                 row = cursor.fetchone()
@@ -218,16 +225,24 @@ def createUser():
     if userExists(username):
         return "User already exists", 409
 
-    uid = genID()
     hashed_pw, salt = hashPassword(password)
     session_token = secrets.token_hex(32)
 
-    with sqlite3.connect(DATABASE_URL) as conn:
+    with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute(
-            "INSERT INTO users (id, username, password_hash, salt) VALUES (?, ?, ?, ?)",
-            (uid, username, hashed_pw, salt)
-        )
+        while True:
+            uid = genID()
+            try:
+                cursor.execute(
+                    "INSERT INTO users (id, username, password_hash, salt) VALUES (?, ?, ?, ?)",
+                    (uid, username, hashed_pw, salt)
+                )
+                break
+            except sqlite3.IntegrityError as err:
+                if "users.id" in str(err):
+                    continue
+                raise err
+
         cursor.execute(
             "INSERT OR REPLACE INTO sessions (token, user_id, username, last_seen, client_ip, device) VALUES (?, ?, ?, ?, ?, ?)",
             (session_token, uid, username, int(time.time()), request.remote_addr, device)
@@ -250,7 +265,7 @@ def loginUser():
     password = user_data.get('password')
     device = user_data.get('device') or 'Unknown'
 
-    with sqlite3.connect(DATABASE_URL) as conn:
+    with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT id, username, password_hash, salt FROM users WHERE username = ?", (username,))
         row = cursor.fetchone()
@@ -285,7 +300,7 @@ def validateSession():
         auth_header = request.headers.get("Authorization")
         if auth_header and auth_header.startswith("Bearer "):
             token = auth_header.split(" ")[1]
-            with sqlite3.connect(DATABASE_URL) as conn:
+            with get_db() as conn:
                 conn.execute(
                     "UPDATE sessions SET last_seen = ?, client_ip = ? WHERE token = ?",
                     (int(time.time()), request.remote_addr, token)
@@ -296,9 +311,25 @@ def validateSession():
         return "Unauthorized", 401
 
 
+@app.post("/auth/logout")
+def logoutUser():
+    auth_token = request.headers.get("AppToken")
+    if auth_token != APP_TOKEN:
+        return "Invalid App Token", 401
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        return "Unauthorized", 401
+    token = auth_header.split(" ")[1]
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM sessions WHERE token = ?", (token,))
+        conn.commit()
+    return jsonify({"status": "logged_out"}), 200
+
+
 def init_db():
     try:
-        with sqlite3.connect(DATABASE_URL) as conn:
+        with get_db() as conn:
             conn.execute("PRAGMA journal_mode=WAL;")
             conn.execute("PRAGMA busy_timeout=5000;")
             
@@ -432,7 +463,7 @@ def pushSyncPlaylists():
     payload = request.get_json() or {}
     playlists = payload.get("playlists", [])
 
-    with sqlite3.connect(DATABASE_URL) as conn:
+    with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT track_id FROM tracks")
         valid_track_ids = {row[0] for row in cursor.fetchall()}
@@ -442,7 +473,7 @@ def pushSyncPlaylists():
                 playlist_id = pl.get("playlist_id")
                 name = pl.get("name")
                 raw_tracks = pl.get("tracks", [])
-                sanitized_tracks = [tid for tid in raw_tracks if isinstance(tid, int)]
+                sanitized_tracks = [tid for tid in raw_tracks if isinstance(tid, int) and tid in valid_track_ids]
                 tracks_json = json.dumps(sanitized_tracks)
                 cursor.execute(
                     "INSERT INTO user_playlists (user_id, playlist_id, name, tracks) VALUES (?, ?, ?, ?)",
@@ -451,7 +482,8 @@ def pushSyncPlaylists():
             conn.commit()
         except Exception as e:
             conn.rollback()
-            return jsonify({"error": f"Failed to sync playlists: {e}"}), 500
+            print(f"[ERROR] Failed to sync playlists: {e}")
+            return jsonify({"error": "Failed to sync playlists"}), 500
 
     return jsonify({"status": "success"}), 200
 
@@ -468,7 +500,7 @@ def pullSyncPlaylists():
 
     user_id = int(authorized)
     playlists = []
-    with sqlite3.connect(DATABASE_URL) as conn:
+    with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT playlist_id, name, tracks FROM user_playlists WHERE user_id = ?", (user_id,))
         for row in cursor.fetchall():
@@ -497,7 +529,7 @@ def getUserDownloads():
 
     user_id = int(authorized)
     tracks = []
-    with sqlite3.connect(DATABASE_URL) as conn:
+    with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
             SELECT t.track_id, t.title, t.artist, t.duration, COALESCE(u.username, t.contributor)
@@ -543,7 +575,7 @@ def searchTracks(filter_text=""):
         """
         tracks = []
         try:
-            with sqlite3.connect(DATABASE_URL) as conn:
+            with get_db() as conn:
                 cursor = conn.cursor()
                 like_val = f"%{normalized_filter}%"
                 cursor.execute(sql, (userID, like_val, like_val))
@@ -589,7 +621,7 @@ def uploadFile(id, ext):
         return "Unauthorized", 401
 
     user_id = int(authorized)
-    with sqlite3.connect(DATABASE_URL) as conn:
+    with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT contributor FROM tracks WHERE track_id = ?", (id,))
         row = cursor.fetchone()
@@ -627,8 +659,6 @@ def uploadFile(id, ext):
                 stripWAV(wav_path)
                 flac_path = f"./tmp/{id}.flac"
                 compressFLAC(wav_path, flac_path)
-                if os.path.exists(wav_path):
-                    os.remove(wav_path)
                 os.replace(flac_path, final_path)
             elif ext == "flac":
                 os.replace(upload_path, final_path)
@@ -639,13 +669,15 @@ def uploadFile(id, ext):
             os.replace(jpg_path, final_path)
 
     except Exception as e:
-        for p in [f"./tmp/{id}.{ext}", f"./tmp/{id}.wav", f"./tmp/{id}.jpg", f"./tmp/{id}.flac"]:
+        print(f"[ERROR] Upload failed for track {id} ({ext}): {e}")
+        return {"error": "Upload failed"}, 500
+    finally:
+        for p in [f"./tmp/{id}.{ext}", f"./tmp/{id}.wav", f"./tmp/{id}.png", f"./tmp/{id}.jpg", f"./tmp/{id}.flac"]:
             try:
                 if os.path.exists(p):
                     os.remove(p)
             except Exception:
                 pass
-        return {"error": f"Upload failed: {e}"}, 500
 
     return {"status": "ok"}, 201
 
@@ -660,7 +692,7 @@ def addDownloaded(id):
     userID = int(authorized)
 
     try:
-        with sqlite3.connect(DATABASE_URL) as conn:
+        with get_db() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT 1 FROM tracks WHERE track_id = ?", (id,))
             if not cursor.fetchone():
@@ -683,18 +715,27 @@ def addUpload():
     userID = int(authorized)
     user_data = request.get_json() or {}
 
-    new_id = genTrackID()
     title_val = user_data.get('title', '')
     artist_val = user_data.get('artist', '')
     duration_val = user_data.get('duration', '')
 
-    sql = "INSERT OR IGNORE INTO tracks (track_id, title, artist, duration, contributor) VALUES (?, ?, ?, ?, ?)"
+    sql = "INSERT INTO tracks (track_id, title, artist, duration, contributor) VALUES (?, ?, ?, ?, ?)"
     try:
-        with sqlite3.connect(DATABASE_URL) as conn:
-            conn.execute(sql, (new_id, title_val, artist_val, duration_val, str(userID)))
-            conn.commit()
+        with get_db() as conn:
+            cursor = conn.cursor()
+            while True:
+                new_id = genTrackID()
+                try:
+                    cursor.execute(sql, (new_id, title_val, artist_val, duration_val, str(userID)))
+                    conn.commit()
+                    break
+                except sqlite3.IntegrityError as err:
+                    if "tracks.track_id" in str(err):
+                        continue
+                    raise err
     except sqlite3.Error as e:
         print(f"Could not add track to database: {e}")
+        return jsonify({"error": "Failed to create track"}), 500
 
     return str(new_id), 201
 
@@ -709,7 +750,7 @@ def removeDownloaded(id):
     userID = int(authorized)
 
     try:
-        with sqlite3.connect(DATABASE_URL) as conn:
+        with get_db() as conn:
             conn.execute("DELETE FROM user_downloads WHERE user_id = ? AND track_id = ?", (userID, id))
             conn.commit()
     except sqlite3.Error as e:
@@ -728,7 +769,7 @@ def clearAllDownloads():
     userID = int(authorized)
 
     try:
-        with sqlite3.connect(DATABASE_URL) as conn:
+        with get_db() as conn:
             conn.execute("DELETE FROM user_downloads WHERE user_id = ?", (userID,))
             conn.commit()
     except sqlite3.Error as e:
@@ -752,7 +793,7 @@ def syncHistory():
     payload = request.get_json() or {}
     items = payload.get("history", [])
 
-    with sqlite3.connect(DATABASE_URL) as conn:
+    with get_db() as conn:
         cursor = conn.cursor()
         for item in items:
             track_id = int(item.get("track_id", 0))
@@ -783,7 +824,7 @@ def getUserStats(user_id):
     if int(authorized) != user_id:
         return jsonify({"error": "Forbidden"}), 403
 
-    with sqlite3.connect(DATABASE_URL) as conn:
+    with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("SELECT user_id, month_year, total_minutes, total_plays, daily_avg_minutes, percentile_text, top_tracks_json, top_artists_json, top_percentages_json, theme_color, new_release FROM stats WHERE user_id = ?", (user_id,))
         row = cursor.fetchone()
@@ -830,7 +871,7 @@ def ackUserStats(user_id):
     if int(authorized) != user_id:
         return jsonify({"error": "Forbidden"}), 403
 
-    with sqlite3.connect(DATABASE_URL) as conn:
+    with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("UPDATE stats SET new_release = 0 WHERE user_id = ?", (user_id,))
         conn.commit()
@@ -861,7 +902,7 @@ def calculate_all_user_monthly_stats():
     ]
     month_theme = random.choice(theme_palettes)
 
-    with sqlite3.connect(DATABASE_URL) as conn:
+    with get_db() as conn:
         cursor = conn.cursor()
         
         cursor.execute("SELECT DISTINCT user_id FROM history")
@@ -893,8 +934,11 @@ def calculate_all_user_monthly_stats():
             total_sec = 0
             for tid, count in u_history.items():
                 t_info = tracks_db.get(tid, {"title": f"Track {tid}", "artist": "Unknown Artist", "duration": "3:30"})
-                dur_parts = str(t_info["duration"]).split(":")
-                dur_sec = (int(dur_parts[0]) * 60 + int(dur_parts[1])) if len(dur_parts) == 2 else 210
+                try:
+                    dur_parts = str(t_info["duration"]).split(":")
+                    dur_sec = (int(dur_parts[0]) * 60 + int(dur_parts[1])) if len(dur_parts) == 2 else 210
+                except Exception:
+                    dur_sec = 210
                 total_sec += dur_sec * count
                 user_tracks_list.append({
                     "trackID": tid,

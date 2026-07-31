@@ -1,5 +1,4 @@
 import os
-import sys
 from PIL import Image
 from pydub import AudioSegment
 
@@ -14,15 +13,8 @@ class Utils:
         if output_path is None:
             output_path = os.path.splitext(input_path)[0] + '.wav'
             
-        try:
-            audio = AudioSegment.from_mp3(input_path)
-            audio.export(output_path, format='wav')
-        finally:
-            if os.path.exists(input_path):
-                try:
-                    os.remove(input_path)
-                except Exception as e:
-                    print(f"An error occurred while deleting the file: {e}")
+        audio = AudioSegment.from_mp3(input_path)
+        audio.export(output_path, format='wav')
 
     @staticmethod
     def toJpg(id):
@@ -40,10 +32,4 @@ class Utils:
         except Exception as e:
             print(f"An error occurred during image conversion: {e}")
             raise e
-        finally:
-            if os.path.exists(png_path):
-                try:
-                    os.remove(png_path)
-                except Exception as e:
-                    print(f"An error occurred while deleting the file: {e}")
 

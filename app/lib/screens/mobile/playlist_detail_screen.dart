@@ -8,6 +8,8 @@ import '../../widgets/mobile/mobile_track_row.dart';
 import '../../widgets/mobile/bottom_player_bar.dart';
 import '../../widgets/mobile/mobile_playlist_actions_sheet.dart';
 
+
+
 class PlaylistDetailScreen extends StatefulWidget {
   final Playlist playlist;
   final String appDataPath;

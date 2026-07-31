@@ -19,8 +19,9 @@ import '../widgets/sync_progress_dialog.dart';
 import '../widgets/vibe_queue_modal.dart';
 import '../services/vibe_queue_service.dart';
 import 'register_screen.dart';
-
 import '../services/listening_stats_service.dart';
+
+
 
 class HomeScreen extends StatefulWidget {
   final MediaHandler mediaHandler;
@@ -190,13 +191,12 @@ class _HomeScreenState extends State<HomeScreen> {
     final confirmed = await ConfirmationDialog.show(
       context,
       title: 'Log Out',
-      message: 'Are you sure you want to log out? This will clear all local playlists, downloaded tracks, server-tracked downloads, and session data.',
+      message: 'Are you sure you want to log out? This will clear local data and remote session data.',
       confirmText: 'Log Out',
     );
     if (confirmed == true) {
       final audioService = Provider.of<AudioPlayerService>(context, listen: false);
       await audioService.stopAndClear();
-      await widget.serverClient.removeAllTrackedDownloadsServerSide();
       await widget.serverClient.logout();
       await _loadPlaylists();
       setState(() {

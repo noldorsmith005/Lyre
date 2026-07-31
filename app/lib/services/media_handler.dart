@@ -8,6 +8,8 @@ import '../models/playlist.dart';
 import 'listening_stats_service.dart';
 import 'dart:math';
 
+
+
 class MediaHandler {
   late Database _db;
   late String _appDataPath;
@@ -406,6 +408,7 @@ class MediaHandler {
       await _db.delete('tracks');
       await _db.delete('listening_history');
       await _db.delete('local_stats');
+      await _db.delete('sync_queue');
 
       // 2. Clear all downloaded audio files
       final audioDir = Directory(p.join(_appDataPath, 'audio'));

@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/theme_service.dart';
 
+
+
 class SplashScreen extends StatefulWidget {
   final Widget nextScreen;
   final Duration duration;

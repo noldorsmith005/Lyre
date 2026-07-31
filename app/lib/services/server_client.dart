@@ -9,6 +9,8 @@ import '../models/track.dart';
 import 'media_handler.dart';
 import 'listening_stats_service.dart';
 
+
+
 class SyncProgress {
   final String status;
   final double progress;
@@ -60,7 +62,7 @@ class ServerClient {
     } catch (e) {
       primaryUrl = 'https://127.0.0.1:57967';
       fallbackUrl = 'https://localhost:57967';
-      appKey = 'n8cQiw4z6oSHFixnEFK7';
+      appKey = '';
     }
   }
 
@@ -90,6 +92,17 @@ class ServerClient {
   }
 
   Future<void> logout() async {
+    if (appUrl != null && sessionToken != null) {
+      try {
+        final targetUrl = '$appUrl/auth/logout';
+        await http.post(
+          Uri.parse(targetUrl),
+          headers: _headers(),
+        ).timeout(const Duration(seconds: 5));
+      } catch (e) {
+        print('Error notifying server of logout: $e');
+      }
+    }
     await clearRLSConfig();
   }
 

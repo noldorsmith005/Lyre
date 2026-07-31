@@ -10,6 +10,8 @@ import 'mobile/mobile_home_screen.dart';
 import 'register_screen.dart';
 import '../widgets/sync_progress_dialog.dart';
 
+
+
 class LoginScreen extends StatefulWidget {
   final MediaHandler? mediaHandler;
   final ServerClient serverClient;

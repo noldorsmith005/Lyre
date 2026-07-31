@@ -9,6 +9,8 @@ import 'home_screen.dart';
 import 'login_screen.dart';
 import 'mobile/mobile_home_screen.dart';
 
+
+
 class RegisterScreen extends StatefulWidget {
   final MediaHandler? mediaHandler;
   final ServerClient serverClient;

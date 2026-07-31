@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
@@ -13,13 +14,18 @@ import 'screens/login_screen.dart';
 import 'screens/splash_screen.dart';
 import 'utils/platform_utils.dart';
 
+
+
 class MyHttpOverrides extends HttpOverrides {
   @override
   HttpClient createHttpClient(SecurityContext? context) {
-    return super.createHttpClient(context)
-      ..badCertificateCallback =
+    final client = super.createHttpClient(context);
+    if (kDebugMode) {
+      client.badCertificateCallback =
           (X509Certificate cert, String host, int port) =>
               host == '127.0.0.1' || host == 'localhost';
+    }
+    return client;
   }
 }
 
@@ -118,7 +124,7 @@ class LyreApp extends StatelessWidget {
   }
 }
 
-/// Desktop wrapper adds global keyboard shortcuts (Spacebar = play/pause)
+/// Desktop wrapper adds global keyboard shortcuts (Spacebar -> play/pause)
 class DesktopWrapper extends StatefulWidget {
   final MediaHandler mediaHandler;
   final ServerClient serverClient;

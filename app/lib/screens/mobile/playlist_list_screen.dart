@@ -7,6 +7,8 @@ import '../settings_screen.dart';
 import 'playlist_detail_screen.dart';
 import 'search_screen.dart';
 
+
+
 class PlaylistListScreen extends StatelessWidget {
   final List<Playlist> playlists;
   final String appDataPath;

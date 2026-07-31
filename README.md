@@ -1,90 +1,90 @@
 # Lyre
 
 ## Overview
-Lyre is a full-stack media platform designed for music streaming, catalog management, audio playback, and synchronized media storage. The platform consists of a Flutter-based multi-platform client application and a Python Flask backend service powered by SQLite. It provides robust user authentication, seamless playlist synchronization, FLAC/WAV audio processing, song catalog search, and user listening analytics.
-
-## Key Features
-
-- **Audio Streaming & Storage**: Supports high-quality WAV audio uploads, metadata processing, and optional FLAC audio compression.
-- **Cross-Device Playlist & Library Sync**: Bidirectional sync protocol allowing client applications to push local playlists and pull server-managed track collections and state changes.
-- **User Authentication & Session Management**: Secure user registration, salted password hashing, token validation, and multi-session tracking.
-- **Media Playback & Queue Control**: Comprehensive media queue management, audio streaming with range support, local asset caching, and cover art retrieval.
-- **Catalog Search & Discovery**: Dynamic query engine for searching tracks across title, artist, and associated metadata.
-- **Listening Analytics & User Statistics**: Automated history tracking, playback metrics, and monthly statistical reporting for active users.
-- **Cross-Platform Client**: Built with Flutter and Dart, featuring secure credential storage, offline caching capability, and desktop windowing support.
+Lyre is a full-stack, cross-platform media streaming and sync platform designed for high-fidelity audio playback, catalog management, cloud library synchronization, and monthly listening analytics. The platform features a Flutter-based client application supporting desktop (macOS, Windows, Linux) and mobile (iOS, Android) platforms, backed by a Python Flask service powered by `gevent` and SQLite.
 
 ## Architecture & Project Structure
 
-- [app/](file:///Users/nate/Desktop/Dev/temp/Lyre/app): Flutter client application supporting desktop (macOS, Windows, Linux) and mobile platforms (iOS, Android).
-- [server/](file:///Users/nate/Desktop/Dev/temp/Lyre/server): Python Flask backend server handling API requests, user authentication, database operations, and audio compression.
-- [setup/](file:///Users/nate/Desktop/Dev/temp/Lyre/setup): Utility scripts for database initialization and environment configuration.
+- [app/](file:///Users/nate/Desktop/Dev/temp/Lyre/app): Flutter cross-platform client application.
+  - **Desktop UI**: Dedicated `HomeScreen` layout featuring responsive sidebars, custom window management (`window_manager`), and global keyboard hotkeys (e.g., Spacebar play/pause).
+  - **Mobile UI**: Native `MobileHomeScreen`, `FullPlayerScreen`, `PlaylistListScreen`, `PlaylistDetailScreen`, and `SearchScreen`.
+  - **Services**: `AudioPlayerService` (`just_audio`), `ServerClient`, `MediaHandler` (`sqflite`/`sqflite_common_ffi`), `ThemeService`, `ListeningStatsService`, and `VibeQueueService`.
+- [server/](file:///Users/nate/Desktop/Dev/temp/Lyre/server): Python Flask backend service running a HTTPS `gevent` WSGI server.
+  - Handles authentication, catalog search, audio processing (MP3/WAV/FLAC) and artwork conversions (PNG/JPG), bidirectional playlist/download sync, listening history tracking, and automated monthly analytics generation.
+- [server/schema.md](file:///Users/nate/Desktop/Dev/temp/Lyre/server/schema.md): Detailed database schema documentation for `data.db`.
+
+## Key Features
+
+- **High-Fidelity Audio Uploads & Processing**: Supports uploading MP3, WAV, and FLAC audio files alongside PNG and JPEG cover artwork. Automatically converts MP3 to WAV using `pydub`, strips WAV headers, compresses audio into FLAC via the `flac` CLI, and converts artwork PNGs to optimized JPEGs.
+- **Cross-Platform Client**: Supports desktop (macOS, Windows, Linux) and mobile (iOS, Android). Features platform-adapted UIs, global keyboard control on desktop, secure credential storage via `flutter_secure_storage`, and local metadata caching via `sqflite`.
+- **Authentication & Multi-Session Tracking**: User registration and login powered by PBKDF2-HMAC-SHA256 password hashing with unique salt generation. Session management tracks active device tokens, client IP addresses, and last activity timestamps.
+- **Cloud Library & Playlist Sync**: Bidirectional sync protocol allowing clients to push local playlist definitions to the server (`/sync/push`) and pull server-synced playlists (`/sync/pull`). Supports remote download tracking (`/sync/user_downloads`, `/tracks/downloads/update/<id>`, `/tracks/downloads/remove/<id>`, `/tracks/downloads/clear_all`).
+- **Catalog Search & Discovery**: Dynamic track search endpoint matching normalized search strings across titles and artist names.
+- **Listening History & Monthly Analytics**: Client history synchronization (`/history/sync`) aggregates user play counts. An automated background thread on the server computes monthly listener statistics (`/stats/<user_id>`), listener percentile rankings, top track/artist summaries, and monthly theme color palettes (`ThemeService`), with user acknowledgment support (`/stats/ack/<user_id>`).
 
 ## Prerequisites
 
 - **Python**: Version 3.8 or higher
 - **SQLite**: SQLite 3
-- **FLAC CLI**: `flac` command-line utility (required for server-side audio compression)
-- **Flutter SDK**: Version 3.12 or higher (for client development and execution)
+- **FLAC CLI**: `flac` command-line tool (required for server-side FLAC audio compression)
+- **FFmpeg**: Required by `pydub` for MP3 audio conversions
+- **Flutter SDK**: Version 3.9.0 or higher
 
 ---
 
 ## Server Setup & Administration
 
 ### 1. Install Dependencies
-Ensure Python 3 is installed on the host machine, then install the necessary dependencies:
+Install Python dependencies specified in `server/requirements.txt` along with media handling libraries:
+
 ```bash
-pip install flask
+pip install -r server/requirements.txt pillow pydub
 ```
 
-### 2. Initialize Database
-Run the database creation script to construct the SQLite database schema:
-```bash
-python3 setup/create_database.py server/data.db
+### 2. Configuration
+Server configuration is defined in [server/config.json](file:///Users/nate/Desktop/Dev/temp/Lyre/server/config.json):
+
+```json
+{
+  "host": "0.0.0.0",
+  "port": 57967,
+  "secret_key": "lyre-dev-secret-key-change-me",
+  "database": "data.db",
+  "ssl_cert": "cert.pem",
+  "ssl_key": "key.pem"
+}
 ```
 
-### 3. Media Directory Layout
-The backend server manages audio files and artwork covers within specified directories. Ensure the target storage path contains the following directory structure:
-- Audio storage: `audio/{track_id}.flac`
-- Cover artwork storage: `cover/{track_id}.jpg`
+### 3. Launch Server
+Run the Flask server script:
 
-### 4. Launch Backend Server
-Start the Flask application server:
 ```bash
 python3 server/server.py
 ```
-The server will initialize default sessions, verify database connectivity, and listen for incoming HTTPS request traffic.
+
+On execution, `server.py` automatically initializes the SQLite database schema (`data.db`) if it does not exist, starts the background monthly statistics scheduler, and listens on the configured host, port, and SSL certificate.
 
 ---
 
 ## Client Setup & Execution
 
-### 1. Client Configuration
-Copy and populate the configuration template from [setup/client.config](file:///Users/nate/Desktop/Dev/temp/Lyre/setup/client.config):
-```ini
-appKey=<YOUR_APP_KEY>
-appUrl=<YOUR_SERVER_URL>
-server-key-mod=0
-server-key-public=0
-sig-key-mod=0
-sig-key-private=0
-user-id=<USER_ID>
-```
-For desktop runtime environments, place `client.config`, SQLite data files, and local `audio/` and `cover/` directories in your platform's application support folder (e.g., `~/Library/Application Support/Lyre` on macOS).
+### 1. Install Client Dependencies
+Navigate to the `app` directory and retrieve packages:
 
-### 2. Run Flutter Client
-Navigate to the client application root and fetch project dependencies:
 ```bash
 cd app
 flutter pub get
 ```
 
-Launch the application in development mode:
+### 2. Run Application
+Launch the Flutter application in development mode:
+
 ```bash
 flutter run
 ```
 
-### 3. Packaging & Distribution
-Standalone client applications can be built for desktop and mobile platforms using standard Flutter build tooling:
+### 3. Build & Package
+Build standalone binaries for desktop or mobile platforms:
 
 ```bash
 cd app
@@ -100,4 +100,8 @@ flutter build linux
 
 # Build for Android
 flutter build apk
+
+# Build for iOS
+flutter build ipa
 ```
+
