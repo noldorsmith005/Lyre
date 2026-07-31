@@ -1,3 +1,6 @@
+from gevent import monkey
+monkey.patch_all()
+
 import os
 import re
 import json
@@ -28,12 +31,25 @@ def _raise_file_descriptor_limit():
 
 _raise_file_descriptor_limit()
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CONFIG_PATH = os.path.join(BASE_DIR, "config.json")
+config = {}
+if os.path.exists(CONFIG_PATH):
+    try:
+        with open(CONFIG_PATH, "r") as f:
+            config = json.load(f)
+        print(f"[Config] Loaded server configuration from {CONFIG_PATH}")
+    except Exception as e:
+        print(f"[Config] Failed to load config.json: {e}")
+
 app = Flask(__name__)
 app.config['ENV'] = 'production'
 app.config['DEBUG'] = False
+if config.get("secret_key"):
+    app.config["SECRET_KEY"] = config["secret_key"]
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DATABASE_URL = os.path.join(BASE_DIR, "data.db")
+db_path = config.get("database", "data.db")
+DATABASE_URL = db_path if os.path.isabs(db_path) else os.path.join(BASE_DIR, db_path)
 TRACK_FILE_TYPES = {
     "cover": {"ext": "jpg", "mimetype": "image/jpeg"},
     "audio": {"ext": "flac", "mimetype": "audio/flac"},
@@ -981,19 +997,59 @@ threading.Thread(target=monthly_stats_scheduler, daemon=True).start()
 
 
 if __name__ == "__main__":
-    base_dir = os.path.dirname(os.path.abspath(__file__))
-    cert_path = os.path.join(base_dir, "cert.pem")
-    key_path = os.path.join(base_dir, "key.pem")
-    if os.path.exists(cert_path) and os.path.exists(key_path):
-        ssl_ctx = (cert_path, key_path)
-    else:
-        ssl_ctx = "adhoc"
-    app.run(
-        host="0.0.0.0",
-        port=57967,
-        ssl_context=ssl_ctx,
-        debug=False,
-        use_reloader=False,
-        threaded=True
-    )
+    import sys
+    import signal
+    import ssl
+    from gevent.pywsgi import WSGIServer
+
+    class CustomWSGIServer(WSGIServer):
+        def wrap_socket_and_handle(self, client_socket, address):
+            try:
+                super().wrap_socket_and_handle(client_socket, address)
+            except (ssl.SSLEOFError, ConnectionResetError, BrokenPipeError):
+                pass
+            except ssl.SSLError as exc:
+                if "UNEXPECTED_EOF_WHILE_READING" in str(exc) or "EOF" in str(exc):
+                    pass
+                else:
+                    raise
+
+        def handle_error(self, context, type_value_tb):
+            if type_value_tb and len(type_value_tb) >= 2:
+                exc_val = type_value_tb[1]
+                if isinstance(exc_val, (ConnectionResetError, BrokenPipeError, ssl.SSLEOFError)):
+                    return
+                if isinstance(exc_val, ssl.SSLError) and ("UNEXPECTED_EOF_WHILE_READING" in str(exc_val) or "EOF" in str(exc_val)):
+                    return
+            super().handle_error(context, type_value_tb)
+
+    def shutdown_handler(sig, frame):
+        print("\nShutting down server...", file=sys.stdout)
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, shutdown_handler)
+
+    host = config.get("host", "0.0.0.0")
+    port = int(config.get("port", 57967))
+    ssl_cert = config.get("ssl_cert", "cert.pem")
+    if not os.path.isabs(ssl_cert):
+        ssl_cert = os.path.join(BASE_DIR, ssl_cert)
+    ssl_key = config.get("ssl_key", "key.pem")
+    if not os.path.isabs(ssl_key):
+        ssl_key = os.path.join(BASE_DIR, ssl_key)
+
+    kwargs = {
+        "log": sys.stdout,
+        "error_log": sys.stderr
+    }
+    if os.path.exists(ssl_cert) and os.path.exists(ssl_key):
+        kwargs["certfile"] = ssl_cert
+        kwargs["keyfile"] = ssl_key
+
+    print(f"Starting gevent WSGI server on https://{host}:{port}", file=sys.stdout)
+    server = CustomWSGIServer((host, port), app, **kwargs)
+    try:
+        server.serve_forever()
+    except KeyboardInterrupt:
+        sys.exit(0)
 

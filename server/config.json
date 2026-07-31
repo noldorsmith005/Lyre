@@ -1,0 +1,8 @@
+{
+  "host": "0.0.0.0",
+  "port": 57967,
+  "secret_key": "lyre-dev-secret-key-change-me",
+  "database": "data.db",
+  "ssl_cert": "cert.pem",
+  "ssl_key": "key.pem"
+}

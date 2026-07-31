@@ -107,44 +107,40 @@ class ServerClient {
     await mediaHandler.clearAllLocalData();
   }
 
-  Future<bool> _pingUrl(String targetUrl) async {
+  Future<bool> _pingUrl(String targetUrl, {int timeoutMs = 1500}) async {
     try {
       final url = '$targetUrl/ping';
       final response = await http.get(
         Uri.parse(url),
         headers: {'AppToken': appKey ?? ''},
-      ).timeout(const Duration(seconds: 3));
+      ).timeout(Duration(milliseconds: timeoutMs));
       return response.statusCode == 200;
     } catch (e) {
       return false;
     }
   }
 
-  Future<bool> autoDetectServer() async {
-    final isMobilePlatform = Platform.isIOS || Platform.isAndroid;
-    final primaryIsLoopback = primaryUrl != null && (primaryUrl!.contains('127.0.0.1') || primaryUrl!.contains('localhost'));
-
-    // On mobile devices, check LAN fallback first if primary is configured as loopback
-    if (isMobilePlatform && primaryIsLoopback && fallbackUrl != null && await _pingUrl(fallbackUrl!)) {
+  Future<bool> autoDetectServer({int timeoutMs = 1500}) async {
+    if (primaryUrl == null) {
       appUrl = fallbackUrl;
-      return true;
+      return appUrl != null;
     }
 
-    if (primaryUrl != null && await _pingUrl(primaryUrl!)) {
+    if (fallbackUrl == null || fallbackUrl!.isEmpty) {
+      appUrl = primaryUrl;
+      return await _pingUrl(primaryUrl!, timeoutMs: timeoutMs);
+    }
+
+    print('[ServerClient] Probing primary server: $primaryUrl');
+    if (await _pingUrl(primaryUrl!, timeoutMs: timeoutMs)) {
+      print('[ServerClient] Primary server is reachable. Using: $primaryUrl');
       appUrl = primaryUrl;
       return true;
     }
-    if (fallbackUrl != null && await _pingUrl(fallbackUrl!)) {
-      appUrl = fallbackUrl;
-      return true;
-    }
 
-    if (isMobilePlatform && primaryIsLoopback && fallbackUrl != null) {
-      appUrl = fallbackUrl;
-    } else {
-      appUrl = primaryUrl ?? fallbackUrl;
-    }
-    return false;
+    print('[ServerClient] Primary server check failed. Falling back to: $fallbackUrl');
+    appUrl = fallbackUrl;
+    return await _pingUrl(fallbackUrl!, timeoutMs: timeoutMs);
   }
 
   bool registered() {
@@ -168,11 +164,13 @@ class ServerClient {
   }
 
   Future<String?> createAndRegister(String targetUsername, String password, {String? device}) async {
-    if (appUrl == null) await autoDetectServer();
-    final targetUrl = '$appUrl/auth/register';
+    if (appUrl == null || !(await _pingUrl(appUrl!))) {
+      await autoDetectServer();
+    }
     final deviceName = device ?? defaultDeviceName;
 
-    try {
+    Future<String?> attemptRegister(String baseUrl) async {
+      final targetUrl = '$baseUrl/auth/register';
       final response = await http.post(
         Uri.parse(targetUrl),
         headers: _headers(json: true),
@@ -191,20 +189,36 @@ class ServerClient {
       userID = data['userID'] as String?;
       sessionToken = data['sessionToken'] as String?;
       username = targetUsername;
+      appUrl = baseUrl;
 
       await _saveSecureCredentials();
       return null;
+    }
+
+    try {
+      if (appUrl != null) {
+        return await attemptRegister(appUrl!);
+      }
     } catch (e) {
+      if (fallbackUrl != null && appUrl != fallbackUrl) {
+        try {
+          return await attemptRegister(fallbackUrl!);
+        } catch (_) {}
+      }
       return "Connection error: $e";
     }
+
+    return "Server unreachable.";
   }
 
   Future<String?> login(String targetUsername, String password, {String? device}) async {
-    if (appUrl == null) await autoDetectServer();
-    final targetUrl = '$appUrl/auth/login';
+    if (appUrl == null || !(await _pingUrl(appUrl!))) {
+      await autoDetectServer();
+    }
     final deviceName = device ?? defaultDeviceName;
 
-    try {
+    Future<String?> attemptLogin(String baseUrl) async {
+      final targetUrl = '$baseUrl/auth/login';
       final response = await http.post(
         Uri.parse(targetUrl),
         headers: _headers(json: true),
@@ -223,12 +237,26 @@ class ServerClient {
       userID = data['userID'] as String?;
       sessionToken = data['sessionToken'] as String?;
       username = targetUsername;
+      appUrl = baseUrl;
 
       await _saveSecureCredentials();
       return null;
+    }
+
+    try {
+      if (appUrl != null) {
+        return await attemptLogin(appUrl!);
+      }
     } catch (e) {
+      if (fallbackUrl != null && appUrl != fallbackUrl) {
+        try {
+          return await attemptLogin(fallbackUrl!);
+        } catch (_) {}
+      }
       return "Connection error: $e";
     }
+
+    return "Server unreachable.";
   }
 
   Future<bool> validateSession() async {
