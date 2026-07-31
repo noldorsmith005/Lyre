@@ -56,7 +56,7 @@ class PlaybackScreen extends StatefulWidget {
           ],
         ),
         content: const Text(
-          'Monthly playback statistics have not been generated yet. Check back at midnight on the last day of the month!',
+          'Monthly playback statistics have not been generated yet. Check back at midnight on the first day of the month!',
           style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.4),
         ),
         actions: [

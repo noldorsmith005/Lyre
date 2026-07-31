@@ -8,7 +8,7 @@
 PRODUCT_NAME = Lyre
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.example.lyre
+PRODUCT_BUNDLE_IDENTIFIER = com.nategartland.lyre
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.example. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 com.nategartland. All rights reserved.

@@ -201,7 +201,7 @@ class AudioPlayerService extends ChangeNotifier {
         _audioHandler = await AudioService.init(
           builder: () => LyreAudioHandler(_player),
           config: const AudioServiceConfig(
-            androidNotificationChannelId: 'com.lyre.audio',
+            androidNotificationChannelId: 'com.nategartland.lyre.audio',
             androidNotificationChannelName: 'Lyre Audio Playback',
             androidNotificationOngoing: true,
             androidStopForegroundOnPause: true,

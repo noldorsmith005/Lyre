@@ -10,7 +10,7 @@ import UIKit
     GeneratedPluginRegistrant.register(with: self)
 
     if let controller = window?.rootViewController as? FlutterViewController {
-      let iconChannel = FlutterMethodChannel(name: "com.lyre.app/icon", binaryMessenger: controller.binaryMessenger)
+      let iconChannel = FlutterMethodChannel(name: "com.nategartland.lyre/icon", binaryMessenger: controller.binaryMessenger)
 
       iconChannel.setMethodCallHandler({
         (call: FlutterMethodCall, result: @escaping FlutterResult) -> Void in

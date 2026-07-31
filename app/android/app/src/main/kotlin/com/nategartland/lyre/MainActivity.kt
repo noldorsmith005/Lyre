@@ -1,4 +1,4 @@
-package com.example.lyre
+package com.nategartland.lyre
 
 import android.content.ComponentName
 import android.content.pm.PackageManager
@@ -7,7 +7,7 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : AudioServiceActivity() {
-    private val CHANNEL = "com.lyre.app/icon"
+    private val CHANNEL = "com.nategartland.lyre/icon"
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)

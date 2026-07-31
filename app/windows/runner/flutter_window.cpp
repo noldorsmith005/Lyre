@@ -33,7 +33,7 @@ bool FlutterWindow::OnCreate() {
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   auto channel = std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
-      flutter_controller_->engine()->messenger(), "com.lyre.app/icon",
+      flutter_controller_->engine()->messenger(), "com.nategartland.lyre/icon",
       &flutter::StandardMethodCodec::GetInstance());
 
   HWND hwnd = GetHandle();

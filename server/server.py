@@ -29,6 +29,8 @@ def _raise_file_descriptor_limit():
 _raise_file_descriptor_limit()
 
 app = Flask(__name__)
+app.config['ENV'] = 'production'
+app.config['DEBUG'] = False
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATABASE_URL = os.path.join(BASE_DIR, "data.db")
@@ -945,28 +947,22 @@ def calculate_all_user_monthly_stats():
         cursor.execute("DELETE FROM history")
         conn.commit()
 import threading
-import calendar
 import datetime
 
 def monthly_stats_scheduler():
     while True:
         try:
             now = datetime.datetime.now()
-            # Find the last day of the current month
-            last_day_current_month = calendar.monthrange(now.year, now.month)[1]
-            target_time = datetime.datetime(now.year, now.month, last_day_current_month, 0, 0, 0)
+            # Target midnight on the first day of the current month
+            target_time = datetime.datetime(now.year, now.month, 1, 0, 0, 0)
 
             if now >= target_time:
-                # If we've already passed midnight on the last day of this month,
-                # schedule for midnight on the last day of next month
+                # If we've already passed midnight on the 1st day of this month,
+                # schedule for midnight on the 1st day of next month
                 if now.month == 12:
-                    next_year = now.year + 1
-                    next_month = 1
+                    target_time = datetime.datetime(now.year + 1, 1, 1, 0, 0, 0)
                 else:
-                    next_year = now.year
-                    next_month = now.month + 1
-                last_day_next_month = calendar.monthrange(next_year, next_month)[1]
-                target_time = datetime.datetime(next_year, next_month, last_day_next_month, 0, 0, 0)
+                    target_time = datetime.datetime(now.year, now.month + 1, 1, 0, 0, 0)
 
             sleep_seconds = (target_time - now).total_seconds()
             time.sleep(min(sleep_seconds, 3600))
@@ -974,7 +970,7 @@ def monthly_stats_scheduler():
             now_check = datetime.datetime.now()
             # If target_time is reached (within 1 hour window), calculate monthly stats
             if now_check >= target_time and (now_check - target_time).total_seconds() < 3600:
-                print(f"[{now_check}] Running scheduled monthly stats calculation for midnight on last day of month...")
+                print(f"[{now_check}] Running scheduled monthly stats calculation for midnight on first day of month...")
                 calculate_all_user_monthly_stats()
                 time.sleep(65)
         except Exception as e:
@@ -996,6 +992,8 @@ if __name__ == "__main__":
         host="0.0.0.0",
         port=57967,
         ssl_context=ssl_ctx,
-        debug=True
+        debug=False,
+        use_reloader=False,
+        threaded=True
     )
 

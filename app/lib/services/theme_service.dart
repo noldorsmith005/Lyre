@@ -7,7 +7,7 @@ import 'package:path_provider/path_provider.dart';
 class ThemeService extends ChangeNotifier {
   static final _storage = SafeStorage();
   static const String _storageKey = 'lyre_theme_color_key';
-  static const MethodChannel _platformChannel = MethodChannel('com.lyre.app/icon');
+  static const MethodChannel _platformChannel = MethodChannel('com.nategartland.lyre/icon');
 
   String _themeColorKey = 'red';
 

@@ -10,7 +10,7 @@ class MainFlutterWindow: NSWindow {
 
     RegisterGeneratedPlugins(registry: flutterViewController)
 
-    let iconChannel = FlutterMethodChannel(name: "com.lyre.app/icon", binaryMessenger: flutterViewController.engine.binaryMessenger)
+    let iconChannel = FlutterMethodChannel(name: "com.nategartland.lyre/icon", binaryMessenger: flutterViewController.engine.binaryMessenger)
     iconChannel.setMethodCallHandler { (call: FlutterMethodCall, result: @escaping FlutterResult) in
       if call.method == "setAppIcon" {
         guard let args = call.arguments as? [String: Any],
