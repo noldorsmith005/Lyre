@@ -29,6 +29,14 @@
 		A10000012E00000000000014 /* app_icon_purple.png in Resources */ = {isa = PBXBuildFile; fileRef = A10000012E00000000000013 /* app_icon_purple.png */; };
 		A10000012E00000000000016 /* app_icon_purple@2x.png in Resources */ = {isa = PBXBuildFile; fileRef = A10000012E00000000000015 /* app_icon_purple@2x.png */; };
 		A10000012E00000000000018 /* app_icon_purple@3x.png in Resources */ = {isa = PBXBuildFile; fileRef = A10000012E00000000000017 /* app_icon_purple@3x.png */; };
+		A10000012E0000000000001A /* app_icon_red-152.png in Resources */ = {isa = PBXBuildFile; fileRef = A10000012E00000000000019 /* app_icon_red-152.png */; };
+		A10000012E0000000000001C /* app_icon_red-167.png in Resources */ = {isa = PBXBuildFile; fileRef = A10000012E0000000000001B /* app_icon_red-167.png */; };
+		A10000012E0000000000001E /* app_icon_green-152.png in Resources */ = {isa = PBXBuildFile; fileRef = A10000012E0000000000001D /* app_icon_green-152.png */; };
+		A10000012E00000000000020 /* app_icon_green-167.png in Resources */ = {isa = PBXBuildFile; fileRef = A10000012E0000000000001F /* app_icon_green-167.png */; };
+		A10000012E00000000000022 /* app_icon_blue-152.png in Resources */ = {isa = PBXBuildFile; fileRef = A10000012E00000000000021 /* app_icon_blue-152.png */; };
+		A10000012E00000000000024 /* app_icon_blue-167.png in Resources */ = {isa = PBXBuildFile; fileRef = A10000012E00000000000023 /* app_icon_blue-167.png */; };
+		A10000012E00000000000026 /* app_icon_purple-152.png in Resources */ = {isa = PBXBuildFile; fileRef = A10000012E00000000000025 /* app_icon_purple-152.png */; };
+		A10000012E00000000000028 /* app_icon_purple-167.png in Resources */ = {isa = PBXBuildFile; fileRef = A10000012E00000000000027 /* app_icon_purple-167.png */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -88,6 +96,14 @@
 		A10000012E00000000000013 /* app_icon_purple.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = app_icon_purple.png; sourceTree = "<group>"; };
 		A10000012E00000000000015 /* app_icon_purple@2x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "app_icon_purple@2x.png"; sourceTree = "<group>"; };
 		A10000012E00000000000017 /* app_icon_purple@3x.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "app_icon_purple@3x.png"; sourceTree = "<group>"; };
+		A10000012E00000000000019 /* app_icon_red-152.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "app_icon_red-152.png"; sourceTree = "<group>"; };
+		A10000012E0000000000001B /* app_icon_red-167.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "app_icon_red-167.png"; sourceTree = "<group>"; };
+		A10000012E0000000000001D /* app_icon_green-152.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "app_icon_green-152.png"; sourceTree = "<group>"; };
+		A10000012E0000000000001F /* app_icon_green-167.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "app_icon_green-167.png"; sourceTree = "<group>"; };
+		A10000012E00000000000021 /* app_icon_blue-152.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "app_icon_blue-152.png"; sourceTree = "<group>"; };
+		A10000012E00000000000023 /* app_icon_blue-167.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "app_icon_blue-167.png"; sourceTree = "<group>"; };
+		A10000012E00000000000025 /* app_icon_purple-152.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "app_icon_purple-152.png"; sourceTree = "<group>"; };
+		A10000012E00000000000027 /* app_icon_purple-167.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = "app_icon_purple-167.png"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -183,6 +199,14 @@
 				A10000012E00000000000013 /* app_icon_purple.png */,
 				A10000012E00000000000015 /* app_icon_purple@2x.png */,
 				A10000012E00000000000017 /* app_icon_purple@3x.png */,
+				A10000012E00000000000019 /* app_icon_red-152.png */,
+				A10000012E0000000000001B /* app_icon_red-167.png */,
+				A10000012E0000000000001D /* app_icon_green-152.png */,
+				A10000012E0000000000001F /* app_icon_green-167.png */,
+				A10000012E00000000000021 /* app_icon_blue-152.png */,
+				A10000012E00000000000023 /* app_icon_blue-167.png */,
+				A10000012E00000000000025 /* app_icon_purple-152.png */,
+				A10000012E00000000000027 /* app_icon_purple-167.png */,
 			);
 			path = Runner;
 			sourceTree = "<group>";
@@ -313,6 +337,14 @@
 				A10000012E00000000000014 /* app_icon_purple.png in Resources */,
 				A10000012E00000000000016 /* app_icon_purple@2x.png in Resources */,
 				A10000012E00000000000018 /* app_icon_purple@3x.png in Resources */,
+				A10000012E0000000000001A /* app_icon_red-152.png in Resources */,
+				A10000012E0000000000001C /* app_icon_red-167.png in Resources */,
+				A10000012E0000000000001E /* app_icon_green-152.png in Resources */,
+				A10000012E00000000000020 /* app_icon_green-167.png in Resources */,
+				A10000012E00000000000022 /* app_icon_blue-152.png in Resources */,
+				A10000012E00000000000024 /* app_icon_blue-167.png in Resources */,
+				A10000012E00000000000026 /* app_icon_purple-152.png in Resources */,
+				A10000012E00000000000028 /* app_icon_purple-167.png in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -512,8 +544,13 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.nategartland.lyre;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Profile;
@@ -697,9 +734,14 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.nategartland.lyre;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Debug;
@@ -723,8 +765,13 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.nategartland.lyre;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SUPPORTS_MACCATALYST = NO;
+				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
+				SUPPORTS_XR_DESIGNED_FOR_IPHONE_IPAD = NO;
 				SWIFT_OBJC_BRIDGING_HEADER = "Runner/Runner-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = 1;
 				VERSIONING_SYSTEM = "apple-generic";
 			};
 			name = Release;

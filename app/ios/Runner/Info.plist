@@ -113,6 +113,8 @@
 				<key>CFBundleIconFiles</key>
 				<array>
 					<string>app_icon_red</string>
+					<string>app_icon_red-152</string>
+					<string>app_icon_red-167</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
@@ -122,6 +124,8 @@
 				<key>CFBundleIconFiles</key>
 				<array>
 					<string>app_icon_green</string>
+					<string>app_icon_green-152</string>
+					<string>app_icon_green-167</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
@@ -131,6 +135,8 @@
 				<key>CFBundleIconFiles</key>
 				<array>
 					<string>app_icon_blue</string>
+					<string>app_icon_blue-152</string>
+					<string>app_icon_blue-167</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
@@ -140,6 +146,8 @@
 				<key>CFBundleIconFiles</key>
 				<array>
 					<string>app_icon_purple</string>
+					<string>app_icon_purple-152</string>
+					<string>app_icon_purple-167</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
@@ -149,6 +157,8 @@
 				<key>CFBundleIconFiles</key>
 				<array>
 					<string>app_icon_red</string>
+					<string>app_icon_red-152</string>
+					<string>app_icon_red-167</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
@@ -158,6 +168,8 @@
 				<key>CFBundleIconFiles</key>
 				<array>
 					<string>app_icon_green</string>
+					<string>app_icon_green-152</string>
+					<string>app_icon_green-167</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
@@ -167,6 +179,8 @@
 				<key>CFBundleIconFiles</key>
 				<array>
 					<string>app_icon_blue</string>
+					<string>app_icon_blue-152</string>
+					<string>app_icon_blue-167</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
@@ -176,6 +190,8 @@
 				<key>CFBundleIconFiles</key>
 				<array>
 					<string>app_icon_purple</string>
+					<string>app_icon_purple-152</string>
+					<string>app_icon_purple-167</string>
 				</array>
 				<key>UIPrerenderedIcon</key>
 				<false/>
@@ -228,6 +244,10 @@
 	</dict>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Lyre requires local network access to discover and connect to your server.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Lyre requires access to your photo library to select custom cover art and import media files.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Lyre requires access to the microphone for audio recording and visualization features.</string>
 	<key>NSBonjourServices</key>
 	<array>
 		<string>_http._tcp</string>

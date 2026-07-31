@@ -1,0 +1,3 @@
+Features: 
+    -Drag to rearrange
+    -Bind space bar to play button on desktop
