@@ -51,9 +51,9 @@ db_path = config.get("database", "data.db")
 DATABASE_URL = db_path if os.path.isabs(db_path) else os.path.join(BASE_DIR, db_path)
 
 def get_db():
-    conn = sqlite3.connect(DATABASE_URL, timeout=10.0)
+    conn = sqlite3.connect(DATABASE_URL, timeout=15.0)
     conn.execute("PRAGMA foreign_keys = ON;")
-    conn.execute("PRAGMA busy_timeout = 5000;")
+    conn.execute("PRAGMA busy_timeout = 10000;")
     return conn
 
 TRACK_FILE_TYPES = {
@@ -176,6 +176,8 @@ def hashPassword(password, salt=None):
     return hashed, salt
 
 # User creation and authentication
+_session_last_seen = {}
+
 def authUser(req):
     auth_header = req.headers.get("Authorization")
 
@@ -189,18 +191,21 @@ def authUser(req):
                 row = cursor.fetchone()
                 if row:
                     uid = row[0]
-                    device = req.headers.get("X-Device")
-                    if device:
-                        cursor.execute(
-                            "UPDATE sessions SET last_seen = ?, client_ip = ?, device = ? WHERE token = ?",
-                            (int(time.time()), req.remote_addr, device, token)
-                        )
-                    else:
-                        cursor.execute(
-                            "UPDATE sessions SET last_seen = ?, client_ip = ? WHERE token = ?",
-                            (int(time.time()), req.remote_addr, token)
-                        )
-                    conn.commit()
+                    now = int(time.time())
+                    if now - _session_last_seen.get(token, 0) > 60:
+                        _session_last_seen[token] = now
+                        device = req.headers.get("X-Device")
+                        if device:
+                            cursor.execute(
+                                "UPDATE sessions SET last_seen = ?, client_ip = ?, device = ? WHERE token = ?",
+                                (now, req.remote_addr, device, token)
+                            )
+                        else:
+                            cursor.execute(
+                                "UPDATE sessions SET last_seen = ?, client_ip = ? WHERE token = ?",
+                                (now, req.remote_addr, token)
+                            )
+                        conn.commit()
                     return str(uid)
         except Exception:
             pass
@@ -609,7 +614,7 @@ def download(id, type):
     if not os.path.exists(file_path):
         return {"error": f"{type.capitalize()} file not found"}, 404
 
-    return send_file(file_path, mimetype=file_info["mimetype"], conditional=True)
+    return send_file(file_path, mimetype=file_info["mimetype"], conditional=True, buffer_size=131072)
 
 @app.route("/tracks/<int:id>/upload/<ext>", methods=["POST"])
 def uploadFile(id, ext):

@@ -413,7 +413,7 @@ class ServerClient {
         final totalTrackOps = tracksToDownload.length + tracksToRemove.length;
         int completedOps = 0;
 
-        const int concurrency = 3;
+        const int concurrency = 2;
         for (int i = 0; i < tracksToDownload.length; i += concurrency) {
           final chunk = tracksToDownload.sublist(
             i,
@@ -502,14 +502,18 @@ class ServerClient {
     final request = http.Request('GET', Uri.parse(targetUrl))
       ..headers.addAll(_headers());
 
+    IOSink? sink;
     try {
-      final response = await _httpClient.send(request).timeout(const Duration(seconds: 15));
+      final response = await _httpClient.send(request).timeout(const Duration(seconds: 30));
       if (response.statusCode == 200) {
         if (!await tmpFile.parent.exists()) {
           await tmpFile.parent.create(recursive: true);
         }
-        final sink = tmpFile.openWrite();
-        await response.stream.pipe(sink).timeout(const Duration(seconds: 30));
+        sink = tmpFile.openWrite();
+        await sink.addStream(response.stream).timeout(const Duration(seconds: 180));
+        await sink.flush();
+        await sink.close();
+        sink = null;
         await tmpFile.rename(targetLocalFile.path);
       } else {
         print('Download failed for $type/$id: HTTP ${response.statusCode}');
@@ -518,6 +522,9 @@ class ServerClient {
       }
     } catch (e) {
       print('An error occurred during transmission: $e');
+      if (sink != null) {
+        try { await sink.close(); } catch (_) {}
+      }
       if (await tmpFile.exists()) {
         try { await tmpFile.delete(); } catch (_) {}
       }
@@ -552,15 +559,17 @@ class ServerClient {
       rawRequest.contentLength = length;
       localFile.openRead().pipe(rawRequest.sink);
 
-      final response = await rawRequest.send().timeout(const Duration(seconds: 30));
-      final responseBody = await response.stream.bytesToString().timeout(const Duration(seconds: 30));
+      final response = await rawRequest.send().timeout(const Duration(seconds: 60));
+      final responseBody = await response.stream.bytesToString().timeout(const Duration(seconds: 60));
       if (response.statusCode == 201) {
         print('Upload succeeded for $type/$id');
       } else {
         print('Upload failed for $type/$id: HTTP ${response.statusCode} - $responseBody');
+        throw Exception('Upload failed for $type/$id: HTTP ${response.statusCode}');
       }
     } catch (e) {
-      print('An error occurred during transmission: $e');
+      print('An error occurred during upload transmission: $e');
+      rethrow;
     }
   }
 
@@ -573,16 +582,16 @@ class ServerClient {
   }
 
   Future<String> _updateUploads(Track track) async {
-    final targetUrl = '$appUrl/tracks/uploads/update';
+    final targetUrl = '$appUrl/tracks/new';
     final jsonString = jsonEncode({
-      'trackID': track.trackID,
+      'track_id': track.trackID,
       'title': track.title,
       'artist': track.artist,
       'duration': track.duration,
       'downloaded': track.downloaded,
       'contributor': track.contributor,
     });
-    
+
     final response = await http.post(
       Uri.parse(targetUrl),
       headers: _headers(json: true),
@@ -606,7 +615,7 @@ class ServerClient {
       await http.post(
         Uri.parse(targetUrl),
         headers: _headers(),
-      );
+      ).timeout(const Duration(seconds: 8));
     } catch (e) {
       print('Clear all tracked downloads server-side failed: $e');
     }
@@ -620,27 +629,28 @@ class ServerClient {
   }
 
   Future<List<Track>> searchTracks(String filter) async {
-    if (filter.trim().isEmpty) return [];
-    final encodedFilter = Uri.encodeComponent(filter.trim());
-    final targetUrl = '$appUrl/tracks/$encodedFilter';
-    final response = await http.get(
-      Uri.parse(targetUrl),
-      headers: _headers(),
-    );
-
-    if (response.statusCode != 200) {
-      return [];
+    if (!registered() || appUrl == null) return [];
+    try {
+      final encodedFilter = Uri.encodeComponent(filter);
+      final response = await http.get(
+        Uri.parse('$appUrl/tracks/search/$encodedFilter'),
+        headers: _headers(),
+      ).timeout(const Duration(seconds: 8));
+      if (response.statusCode == 200) {
+        final List<dynamic> jsonList = jsonDecode(response.body);
+        return jsonList.map((json) => Track(
+          trackID: json['track_id'] as int,
+          title: json['title'] as String,
+          artist: json['artist'] as String,
+          duration: json['duration'] as String,
+          downloaded: json['downloaded'] as bool,
+          contributor: json['contributor'] as String,
+        )).toList();
+      }
+    } catch (e) {
+      print('Error searching tracks: $e');
     }
-
-    final List<dynamic> jsonList = jsonDecode(response.body);
-    return jsonList.map((json) => Track(
-      trackID: json['trackID'] as int,
-      title: json['title'] as String,
-      artist: json['artist'] as String,
-      duration: json['duration'] as String,
-      downloaded: json['downloaded'] as bool,
-      contributor: json['contributor'] as String,
-    )).toList();
+    return [];
   }
 
   Future<bool> downloadTrack(Track track, {bool updateServerTracking = true}) async {
@@ -648,10 +658,13 @@ class ServerClient {
     current.add(track.trackID);
     downloadingTrackIdsNotifier.value = current;
     try {
-      await Future.wait([
-        _download('audio', track.trackID),
-        _download('cover', track.trackID),
-      ]).timeout(const Duration(seconds: 35));
+      try {
+        await _download('cover', track.trackID);
+      } catch (e) {
+        print('Cover download note for track ${track.trackID}: $e');
+      }
+      await _download('audio', track.trackID);
+
       if (updateServerTracking) {
         try {
           await _updateDownloads(track.trackID);

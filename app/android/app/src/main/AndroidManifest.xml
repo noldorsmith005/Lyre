@@ -47,7 +47,7 @@
 
         <activity-alias
             android:name=".MainActivityRed"
-            android:enabled="true"
+            android:enabled="false"
             android:exported="true"
             android:icon="@mipmap/ic_launcher_red"
             android:label="Lyre"
