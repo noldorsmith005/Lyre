@@ -556,9 +556,11 @@ def getUserDownloads():
     return jsonify(tracks), 200
 
 @app.get("/tracks/")
-@app.get("/tracks/<string:filter_text>")
+@app.get("/tracks/<path:filter_text>")
+@app.get("/tracks/search/")
+@app.get("/tracks/search/<path:filter_text>")
 def searchTracks(filter_text=""):
-    filter_text = urllib.parse.unquote_plus(filter_text)
+    filter_text = urllib.parse.unquote_plus(filter_text).strip()
     auth_token = request.headers.get("AppToken")
     if auth_token != APP_TOKEN:
         return "Invalid App Token", 401
@@ -587,6 +589,7 @@ def searchTracks(filter_text=""):
                 for row in cursor.fetchall():
                     tracks.append({
                         "trackID": row[0],
+                        "track_id": row[0],
                         "title": row[1],
                         "artist": row[2],
                         "duration": row[3],
@@ -614,7 +617,7 @@ def download(id, type):
     if not os.path.exists(file_path):
         return {"error": f"{type.capitalize()} file not found"}, 404
 
-    return send_file(file_path, mimetype=file_info["mimetype"], conditional=True, buffer_size=131072)
+    return send_file(file_path, mimetype=file_info["mimetype"], conditional=False)
 
 @app.route("/tracks/<int:id>/upload/<ext>", methods=["POST"])
 def uploadFile(id, ext):
@@ -800,18 +803,23 @@ def syncHistory():
 
     with get_db() as conn:
         cursor = conn.cursor()
-        for item in items:
-            track_id = int(item.get("track_id", 0))
-            p_count = int(item.get("play_count", 1))
-            if track_id <= 0:
-                continue
-            cursor.execute("""
-                INSERT INTO history (user_id, track_id, play_count)
-                VALUES (?, ?, ?)
-                ON CONFLICT(user_id, track_id) DO UPDATE SET
-                    play_count = play_count + excluded.play_count
-            """, (user_id, track_id, p_count))
-        conn.commit()
+        try:
+            for item in items:
+                track_id = int(item.get("track_id", 0))
+                p_count = int(item.get("play_count", 1))
+                if track_id <= 0:
+                    continue
+                cursor.execute("""
+                    INSERT INTO history (user_id, track_id, play_count)
+                    VALUES (?, ?, ?)
+                    ON CONFLICT(user_id, track_id) DO UPDATE SET
+                        play_count = play_count + excluded.play_count
+                """, (user_id, track_id, p_count))
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            print(f"[ERROR] Failed to sync history: {e}")
+            return jsonify({"error": "Failed to sync history"}), 500
 
     return jsonify({"status": "success"}), 200
 

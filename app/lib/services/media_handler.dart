@@ -358,29 +358,31 @@ class MediaHandler {
       final localMap = {for (var p in localPlaylists) p.playlistID: p};
       final serverMap = <int, Map<String, dynamic>>{};
 
-      for (var sp in serverPlaylists) {
-        final pid = sp['playlist_id'] as int;
-        final name = (sp['name'] as String?) ?? 'Playlist $pid';
-        final trackIds = (sp['tracks'] as List<dynamic>? ?? []).map((e) => e as int).toList();
-        serverMap[pid] = {'name': name, 'tracks': trackIds};
+      await _db.transaction((txn) async {
+        for (var sp in serverPlaylists) {
+          final pid = sp['playlist_id'] as int;
+          final name = (sp['name'] as String?) ?? 'Playlist $pid';
+          final trackIds = (sp['tracks'] as List<dynamic>? ?? []).map((e) => e as int).toList();
+          serverMap[pid] = {'name': name, 'tracks': trackIds};
 
-        if (!localMap.containsKey(pid)) {
-          await _db.insert('playlists', {'playlist_id': pid, 'title': name}, conflictAlgorithm: ConflictAlgorithm.replace);
-          await _db.insert('playlist_ids', {'playlist_id': pid}, conflictAlgorithm: ConflictAlgorithm.replace);
-        } else {
-          await _db.update('playlists', {'title': name}, where: 'playlist_id = ?', whereArgs: [pid]);
-        }
+          if (!localMap.containsKey(pid)) {
+            await txn.insert('playlists', {'playlist_id': pid, 'title': name}, conflictAlgorithm: ConflictAlgorithm.replace);
+            await txn.insert('playlist_ids', {'playlist_id': pid}, conflictAlgorithm: ConflictAlgorithm.replace);
+          } else {
+            await txn.update('playlists', {'title': name}, where: 'playlist_id = ?', whereArgs: [pid]);
+          }
 
-        // Clear and re-insert tracks for this playlist in sequence
-        await _db.delete('playlist_tracks', where: 'playlist_id = ?', whereArgs: [pid]);
-        for (int i = 0; i < trackIds.length; i++) {
-          await _db.insert('playlist_tracks', {
-            'playlist_id': pid,
-            'order_index': i + 1,
-            'track_id': trackIds[i],
-          });
+          // Clear and re-insert tracks for this playlist in sequence
+          await txn.delete('playlist_tracks', where: 'playlist_id = ?', whereArgs: [pid]);
+          for (int i = 0; i < trackIds.length; i++) {
+            await txn.insert('playlist_tracks', {
+              'playlist_id': pid,
+              'order_index': i + 1,
+              'track_id': trackIds[i],
+            });
+          }
         }
-      }
+      });
 
       // Check if there are any local playlists not yet on the server
       bool hasUnsyncedLocal = false;

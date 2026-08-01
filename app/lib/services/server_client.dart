@@ -24,7 +24,6 @@ class SyncProgress {
 }
 
 class ServerClient {
-  final http.Client _httpClient = http.Client();
   late String _appDataPath;
   final MediaHandler mediaHandler;
   final SafeStorage _storage = SafeStorage();
@@ -413,7 +412,7 @@ class ServerClient {
         final totalTrackOps = tracksToDownload.length + tracksToRemove.length;
         int completedOps = 0;
 
-        const int concurrency = 2;
+        const int concurrency = 1;
         for (int i = 0; i < tracksToDownload.length; i += concurrency) {
           final chunk = tracksToDownload.sublist(
             i,
@@ -421,7 +420,9 @@ class ServerClient {
           );
           final progressVal = 0.20 + (0.50 * (completedOps / (totalTrackOps > 0 ? totalTrackOps : 1)));
           onProgress?.call(SyncProgress(
-            status: 'Downloading tracks (${i + 1}-${i + chunk.length}/${tracksToDownload.length})',
+            status: concurrency > 1
+                ? 'Downloading tracks (${i + 1}-${i + chunk.length}/${tracksToDownload.length})'
+                : 'Downloading track (${i + 1}/${tracksToDownload.length})',
             detail: chunk.map((t) => t.title).join(', '),
             progress: progressVal,
           ));
@@ -499,18 +500,22 @@ class ServerClient {
     final targetLocalFile = File('$_appDataPath/$type/$id.$ext');
     final tmpFile = File('${targetLocalFile.path}.part');
 
-    final request = http.Request('GET', Uri.parse(targetUrl))
-      ..headers.addAll(_headers());
+    final client = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 15)
+      ..badCertificateCallback = (cert, host, port) => true;
 
     IOSink? sink;
     try {
-      final response = await _httpClient.send(request).timeout(const Duration(seconds: 30));
+      final request = await client.getUrl(Uri.parse(targetUrl)).timeout(const Duration(seconds: 30));
+      _headers().forEach((k, v) => request.headers.set(k, v));
+      final response = await request.close().timeout(const Duration(seconds: 30));
+
       if (response.statusCode == 200) {
         if (!await tmpFile.parent.exists()) {
           await tmpFile.parent.create(recursive: true);
         }
         sink = tmpFile.openWrite();
-        await sink.addStream(response.stream).timeout(const Duration(seconds: 180));
+        await sink.addStream(response).timeout(const Duration(seconds: 180));
         await sink.flush();
         await sink.close();
         sink = null;
@@ -529,6 +534,8 @@ class ServerClient {
         try { await tmpFile.delete(); } catch (_) {}
       }
       rethrow;
+    } finally {
+      client.close(force: true);
     }
   }
 
@@ -630,8 +637,10 @@ class ServerClient {
 
   Future<List<Track>> searchTracks(String filter) async {
     if (!registered() || appUrl == null) return [];
+    final cleanFilter = filter.trim();
+    if (cleanFilter.isEmpty) return [];
     try {
-      final encodedFilter = Uri.encodeComponent(filter);
+      final encodedFilter = Uri.encodeComponent(cleanFilter);
       final response = await http.get(
         Uri.parse('$appUrl/tracks/search/$encodedFilter'),
         headers: _headers(),
@@ -639,12 +648,12 @@ class ServerClient {
       if (response.statusCode == 200) {
         final List<dynamic> jsonList = jsonDecode(response.body);
         return jsonList.map((json) => Track(
-          trackID: json['track_id'] as int,
-          title: json['title'] as String,
-          artist: json['artist'] as String,
-          duration: json['duration'] as String,
-          downloaded: json['downloaded'] as bool,
-          contributor: json['contributor'] as String,
+          trackID: ((json['trackID'] ?? json['track_id']) ?? 0) as int,
+          title: (json['title'] ?? '') as String,
+          artist: (json['artist'] ?? '') as String,
+          duration: (json['duration'] ?? '') as String,
+          downloaded: (json['downloaded'] ?? false) as bool,
+          contributor: (json['contributor'] ?? '') as String,
         )).toList();
       }
     } catch (e) {
