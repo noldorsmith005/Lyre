@@ -940,9 +940,15 @@ def getUserStats(user_id):
         cursor.execute("SELECT user_id, month_year, total_minutes, total_plays, daily_avg_minutes, percentile_text, top_tracks_json, top_artists_json, top_percentages_json, theme_color, new_release FROM stats WHERE user_id = ?", (user_id,))
         row = cursor.fetchone()
         if not row:
+            import datetime
+            now_dt = datetime.datetime.now()
+            pm = 12 if now_dt.month == 1 else now_dt.month - 1
+            py = now_dt.year - 1 if now_dt.month == 1 else now_dt.year
+            mnames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
+            def_label = f"{mnames[pm - 1]} {py}"
             return jsonify({
                 "user_id": user_id,
-                "month_year": "July 2026",
+                "month_year": def_label,
                 "total_minutes": 0,
                 "total_plays": 0,
                 "daily_avg_minutes": 0,
@@ -992,9 +998,18 @@ def ackUserStats(user_id):
 
 def calculate_all_user_monthly_stats():
     import datetime
+    import calendar
     now = datetime.datetime.now()
     month_names = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
-    month_label = f"{month_names[now.month - 1]} {now.year}"
+    
+    if now.month == 1:
+        prev_month = 12
+        prev_year = now.year - 1
+    else:
+        prev_month = now.month - 1
+        prev_year = now.year
+
+    month_label = f"{month_names[prev_month - 1]} {prev_year}"
 
     # Generate single shared random theme palette for this monthly release (12 themes)
     theme_palettes = [
@@ -1097,7 +1112,8 @@ def calculate_all_user_monthly_stats():
             top_2_artists_pct = [{"artist": x["artist"], "percentile": x["percentile"]} for x in artist_percentiles[:2]]
 
             total_minutes = max(1, round(total_sec / 60))
-            daily_avg = max(1, round(total_minutes / max(1, now.day)))
+            num_days = calendar.monthrange(prev_year, prev_month)[1]
+            daily_avg = max(1, round(total_minutes / num_days))
 
             top_percentages = {
                 "top_tracks": top_2_tracks_pct,

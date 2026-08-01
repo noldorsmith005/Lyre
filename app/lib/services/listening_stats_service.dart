@@ -248,7 +248,9 @@ class ListeningStatsService {
       'January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December'
     ];
-    return '${monthNames[now.month - 1]} ${now.year}';
+    final prevMonth = now.month == 1 ? 12 : now.month - 1;
+    final prevYear = now.month == 1 ? now.year - 1 : now.year;
+    return '${monthNames[prevMonth - 1]} $prevYear';
   }
 
   Future<MonthlyPlaybackStats?> fetchOrGetStats(ServerClient? serverClient, [List<Track>? allLocalTracks]) async {
@@ -336,15 +338,18 @@ class ListeningStatsService {
   Future<MonthlyPlaybackStats> getMonthlyStats(List<Track> allLocalTracks) async {
     final now = DateTime.now();
     final monthLabel = _getMonthYearLabel(now);
-    final startOfMonth = DateTime(now.year, now.month, 1).toIso8601String();
+    final prevMonth = now.month == 1 ? 12 : now.month - 1;
+    final prevYear = now.month == 1 ? now.year - 1 : now.year;
+    final startOfPrevMonth = DateTime(prevYear, prevMonth, 1).toIso8601String();
+    final startOfCurrentMonth = DateTime(now.year, now.month, 1).toIso8601String();
 
     List<Map<String, dynamic>> rows = [];
     if (_db != null) {
       try {
         rows = await _db!.query(
           'listening_history',
-          where: 'timestamp >= ?',
-          whereArgs: [startOfMonth],
+          where: 'timestamp >= ? AND timestamp < ?',
+          whereArgs: [startOfPrevMonth, startOfCurrentMonth],
         );
       } catch (e) {
         print('Error fetching history: $e');
@@ -419,8 +424,8 @@ class ListeningStatsService {
     int totalPlaysCount = sortedTracks.fold(0, (sum, t) => sum + t.playCount);
 
     int totalMinutes = (calcTotalSec / 60).round();
-    int dayOfMonth = max(1, now.day);
-    int dailyAvg = (totalMinutes / dayOfMonth).round();
+    int daysInPrevMonth = DateTime(prevYear, prevMonth + 1, 0).day;
+    int dailyAvg = (totalMinutes / daysInPrevMonth).round();
 
     // Compute top 2 track and artist percentiles
     final topTrackItems = top5Tracks.take(2).map((t) => PercentileItem(
