@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/playlist.dart';
@@ -45,6 +46,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<int, List<int>> _playlistTracksMap = {};
 
   String _searchQuery = '';
+  Timer? _searchDebounce;
 
   @override
   void initState() {
@@ -56,6 +58,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     widget.serverClient.isSyncingNotifier.removeListener(_onSyncStatusChanged);
     super.dispose();
   }
@@ -148,6 +151,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _onSearch(String query) async {
     _searchQuery = query;
+    _searchDebounce?.cancel();
+
     if (query.trim().isEmpty) {
       if (_currentPlaylist != null) {
         await _loadPlaylistTracks(_currentPlaylist!);
@@ -158,13 +163,27 @@ class _HomeScreenState extends State<HomeScreen> {
       }
       return;
     }
-    final results = _serverConnection
-        ? await widget.serverClient.searchTracks(query)
-        : await widget.mediaHandler.searchTracks(query);
-    setState(() {
-      _currentPlaylist = null;
-      _tracks = results;
-    });
+
+    if (_serverConnection) {
+      _searchDebounce = Timer(const Duration(milliseconds: 1000), () async {
+        if (!mounted) return;
+        final results = await widget.serverClient.searchTracks(query);
+        if (mounted && _searchQuery == query) {
+          setState(() {
+            _currentPlaylist = null;
+            _tracks = results;
+          });
+        }
+      });
+    } else {
+      final results = await widget.mediaHandler.searchTracks(query);
+      if (mounted && _searchQuery == query) {
+        setState(() {
+          _currentPlaylist = null;
+          _tracks = results;
+        });
+      }
+    }
   }
 
   void _onRlsPressed() async {

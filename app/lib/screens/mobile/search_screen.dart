@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/track.dart';
@@ -41,6 +42,7 @@ class _SearchScreenState extends State<SearchScreen> {
   List<Track> _searchResults = [];
   bool _isSearching = false;
   late bool _isServerConnected;
+  Timer? _searchDebounce;
 
   @override
   void initState() {
@@ -50,18 +52,34 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
-  void _performSearch(String query) async {
+  void _performSearch(String query, {bool immediate = false}) {
+    _searchDebounce?.cancel();
+
     if (query.trim().isEmpty) {
       setState(() {
         _searchResults = [];
       });
       return;
     }
-    
+
+    final isServer = _isServerConnected && widget.serverClient != null;
+
+    if (isServer && !immediate) {
+      _searchDebounce = Timer(const Duration(milliseconds: 1000), () {
+        _executeSearch(query);
+      });
+    } else {
+      _executeSearch(query);
+    }
+  }
+
+  Future<void> _executeSearch(String query) async {
+    if (!mounted) return;
     setState(() {
       _isSearching = true;
     });
@@ -70,17 +88,23 @@ class _SearchScreenState extends State<SearchScreen> {
       final results = (_isServerConnected && widget.serverClient != null)
           ? await widget.serverClient.searchTracks(query)
           : await widget.mediaHandler.searchTracks(query);
-      setState(() {
-        _searchResults = results.cast<Track>();
-      });
+      if (mounted) {
+        setState(() {
+          _searchResults = results.cast<Track>();
+        });
+      }
     } catch (e) {
-      setState(() {
-        _searchResults = [];
-      });
+      if (mounted) {
+        setState(() {
+          _searchResults = [];
+        });
+      }
     } finally {
-      setState(() {
-        _isSearching = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isSearching = false;
+        });
+      }
     }
   }
 
@@ -113,9 +137,9 @@ class _SearchScreenState extends State<SearchScreen> {
                       style: const TextStyle(color: Colors.white),
                       decoration: InputDecoration(
                         hintText: 'Search songs...',
-                        hintStyle: const TextStyle(color: Color(0xFF555555)),
+                        hintStyle: const TextStyle(color: Color(0xFF888888)),
                         filled: true,
-                        fillColor: const Color(0xFF1E1E1E),
+                        fillColor: const Color(0xFF1E1E26),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
                           borderSide: BorderSide.none,
@@ -127,13 +151,13 @@ class _SearchScreenState extends State<SearchScreen> {
                                 icon: const Icon(Icons.clear, color: Color(0xFF555555)),
                                 onPressed: () {
                                   _searchController.clear();
-                                  _performSearch('');
+                                  _performSearch('', immediate: true);
                                 },
                               )
                             : null,
                       ),
-                      onSubmitted: _performSearch,
-                      onChanged: _performSearch,
+                      onSubmitted: (q) => _performSearch(q, immediate: true),
+                      onChanged: (q) => _performSearch(q),
                       textInputAction: TextInputAction.search,
                     ),
                   ),
