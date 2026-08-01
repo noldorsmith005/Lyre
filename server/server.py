@@ -11,7 +11,9 @@ import urllib.parse
 import subprocess
 import shutil
 import tempfile
+import threading
 from flask import Flask, send_file, request, jsonify, after_this_request
+from flask_compress import Compress
 
 from utils import Utils
 import resource
@@ -47,13 +49,22 @@ app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 if config.get("secret_key"):
     app.config["SECRET_KEY"] = config["secret_key"]
 
+Compress(app)
+app.config['COMPRESS_ALGORITHM'] = 'gzip'
+app.config['COMPRESS_MIN_SIZE'] = 256
+
 db_path = config.get("database", "data.db")
 DATABASE_URL = db_path if os.path.isabs(db_path) else os.path.join(BASE_DIR, db_path)
 
+_thread_local = threading.local()
+
 def get_db():
-    conn = sqlite3.connect(DATABASE_URL, timeout=15.0)
-    conn.execute("PRAGMA foreign_keys = ON;")
-    conn.execute("PRAGMA busy_timeout = 10000;")
+    conn = getattr(_thread_local, 'conn', None)
+    if conn is None:
+        conn = sqlite3.connect(DATABASE_URL, timeout=15.0)
+        conn.execute("PRAGMA foreign_keys = ON;")
+        conn.execute("PRAGMA busy_timeout = 10000;")
+        _thread_local.conn = conn
     return conn
 
 TRACK_FILE_TYPES = {
@@ -766,6 +777,59 @@ def removeDownloaded(id):
 
     return "Downloads updated", 201
 
+@app.post("/tracks/downloads/update_batch")
+def batchAddDownloaded():
+    auth_token = request.headers.get("AppToken")
+    if auth_token != APP_TOKEN:
+        return "Invalid App Token", 401
+    authorized = authUser(request)
+    if authorized == False:
+        return "Unauthorized", 401
+    userID = int(authorized)
+    payload = request.get_json() or {}
+    track_ids = payload.get("track_ids", [])
+
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            valid_ids = {row[0] for row in cursor.execute("SELECT track_id FROM tracks").fetchall()}
+            for tid in track_ids:
+                if isinstance(tid, int) and tid in valid_ids:
+                    cursor.execute("INSERT OR IGNORE INTO user_downloads (user_id, track_id) VALUES (?, ?)", (userID, tid))
+            conn.commit()
+    except sqlite3.Error as e:
+        print(f"Could not batch update downloads: {e}")
+        return jsonify({"error": "Batch update failed"}), 500
+
+    return jsonify({"status": "success"}), 201
+
+
+@app.post("/tracks/downloads/remove_batch")
+def batchRemoveDownloaded():
+    auth_token = request.headers.get("AppToken")
+    if auth_token != APP_TOKEN:
+        return "Invalid App Token", 401
+    authorized = authUser(request)
+    if authorized == False:
+        return "Unauthorized", 401
+    userID = int(authorized)
+    payload = request.get_json() or {}
+    track_ids = payload.get("track_ids", [])
+
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            for tid in track_ids:
+                if isinstance(tid, int):
+                    cursor.execute("DELETE FROM user_downloads WHERE user_id = ? AND track_id = ?", (userID, tid))
+            conn.commit()
+    except sqlite3.Error as e:
+        print(f"Could not batch remove downloads: {e}")
+        return jsonify({"error": "Batch remove failed"}), 500
+
+    return jsonify({"status": "success"}), 201
+
+
 @app.post("/tracks/downloads/clear_all")
 def clearAllDownloads():
     auth_token = request.headers.get("AppToken")
@@ -1028,7 +1092,6 @@ def calculate_all_user_monthly_stats():
 
         cursor.execute("DELETE FROM history")
         conn.commit()
-import threading
 import datetime
 
 def monthly_stats_scheduler():

@@ -392,20 +392,24 @@ class ServerClient {
         return false;
       }
 
-      // Process pending offline download tracking
+      // Process pending offline download tracking (batch)
       final pendingDownloads = await mediaHandler.getPendingDownloads();
-      for (final trackId in pendingDownloads) {
+      if (pendingDownloads.isNotEmpty) {
         try {
-          await _updateDownloads(trackId);
-          await mediaHandler.clearPendingDownload(trackId);
+          await _batchUpdateDownloads(pendingDownloads);
+          for (final trackId in pendingDownloads) {
+            await mediaHandler.clearPendingDownload(trackId);
+          }
         } catch (_) {}
       }
 
       final pendingRemoves = await mediaHandler.getPendingRemoveDownloads();
-      for (final trackId in pendingRemoves) {
+      if (pendingRemoves.isNotEmpty) {
         try {
-          await _updateRemoveDownloads(trackId);
-          await mediaHandler.clearPendingRemoveDownload(trackId);
+          await _batchRemoveDownloads(pendingRemoves);
+          for (final trackId in pendingRemoves) {
+            await mediaHandler.clearPendingRemoveDownload(trackId);
+          }
         } catch (_) {}
       }
 
@@ -429,7 +433,11 @@ class ServerClient {
         final totalTrackOps = tracksToDownload.length + tracksToRemove.length;
         int completedOps = 0;
 
-        const int concurrency = 1;
+        final syncClient = HttpClient()
+          ..connectionTimeout = const Duration(seconds: 15)
+          ..badCertificateCallback = (cert, host, port) => true;
+
+        const int concurrency = 3;
         for (int i = 0; i < tracksToDownload.length; i += concurrency) {
           final chunk = tracksToDownload.sublist(
             i,
@@ -443,7 +451,7 @@ class ServerClient {
             detail: chunk.map((t) => t.title).join(', '),
             progress: progressVal,
           ));
-          await Future.wait(chunk.map((st) => downloadTrack(st, updateServerTracking: false)));
+          await Future.wait(chunk.map((st) => downloadTrack(st, updateServerTracking: false, sharedClient: syncClient)));
           completedOps += chunk.length;
         }
 
@@ -458,6 +466,8 @@ class ServerClient {
           await removeDownload(lt, updateServerTracking: false);
           completedOps++;
         }
+
+        syncClient.close();
       }
 
       reportProgress(const SyncProgress(status: 'Syncing playlists...', progress: 0.75));
@@ -512,15 +522,16 @@ class ServerClient {
     }
   }
 
-  Future<void> _download(String type, int id) async {
+  Future<void> _download(String type, int id, {HttpClient? sharedClient}) async {
     final targetUrl = '$appUrl/tracks/$id/download/$type';
     final ext = type == 'audio' ? 'flac' : 'jpg';
     final targetLocalFile = File('$_appDataPath/$type/$id.$ext');
     final tmpFile = File('${targetLocalFile.path}.part');
 
-    final client = HttpClient()
+    final isShared = sharedClient != null;
+    final client = sharedClient ?? (HttpClient()
       ..connectionTimeout = const Duration(seconds: 15)
-      ..badCertificateCallback = (cert, host, port) => true;
+      ..badCertificateCallback = (cert, host, port) => true);
 
     IOSink? sink;
     try {
@@ -553,7 +564,7 @@ class ServerClient {
       }
       rethrow;
     } finally {
-      client.close(force: true);
+      if (!isShared) client.close(force: true);
     }
   }
 
@@ -633,6 +644,24 @@ class ServerClient {
     ).timeout(const Duration(seconds: 8));
   }
 
+  Future<void> _batchUpdateDownloads(List<int> trackIds) async {
+    final targetUrl = '$appUrl/tracks/downloads/update_batch';
+    await http.post(
+      Uri.parse(targetUrl),
+      headers: _headers(json: true),
+      body: jsonEncode({'track_ids': trackIds}),
+    ).timeout(const Duration(seconds: 10));
+  }
+
+  Future<void> _batchRemoveDownloads(List<int> trackIds) async {
+    final targetUrl = '$appUrl/tracks/downloads/remove_batch';
+    await http.post(
+      Uri.parse(targetUrl),
+      headers: _headers(json: true),
+      body: jsonEncode({'track_ids': trackIds}),
+    ).timeout(const Duration(seconds: 10));
+  }
+
   Future<void> removeAllTrackedDownloadsServerSide() async {
     if (!registered() || appUrl == null) return;
     try {
@@ -680,17 +709,17 @@ class ServerClient {
     return [];
   }
 
-  Future<bool> downloadTrack(Track track, {bool updateServerTracking = true}) async {
+  Future<bool> downloadTrack(Track track, {bool updateServerTracking = true, HttpClient? sharedClient}) async {
     final current = Set<int>.from(downloadingTrackIdsNotifier.value);
     current.add(track.trackID);
     downloadingTrackIdsNotifier.value = current;
     try {
-      try {
-        await _download('cover', track.trackID);
-      } catch (e) {
-        print('Cover download note for track ${track.trackID}: $e');
-      }
-      await _download('audio', track.trackID);
+      await Future.wait([
+        _download('cover', track.trackID, sharedClient: sharedClient).catchError((e) {
+          print('Cover download note for track ${track.trackID}: $e');
+        }),
+        _download('audio', track.trackID, sharedClient: sharedClient),
+      ]);
 
       if (updateServerTracking) {
         try {
