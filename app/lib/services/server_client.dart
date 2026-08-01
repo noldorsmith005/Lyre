@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:flutter/services.dart' show rootBundle;
-import 'package:flutter/foundation.dart';
 import 'safe_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:just_audio/just_audio.dart';
@@ -437,9 +436,7 @@ class ServerClient {
 
         final syncClient = HttpClient()
           ..connectionTimeout = const Duration(seconds: 15);
-        if (!kReleaseMode) {
-          syncClient.badCertificateCallback = (cert, host, port) => true;
-        }
+        syncClient.badCertificateCallback = (cert, host, port) => true;
 
         const int concurrency = 3;
         try {
@@ -537,7 +534,7 @@ class ServerClient {
     final isShared = sharedClient != null;
     final client = sharedClient ?? (HttpClient()
       ..connectionTimeout = const Duration(seconds: 15));
-    if (!kReleaseMode && sharedClient == null) {
+    if (sharedClient == null) {
       client.badCertificateCallback = (cert, host, port) => true;
     }
 

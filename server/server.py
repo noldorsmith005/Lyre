@@ -603,7 +603,10 @@ def getUserDownloads():
 @app.get("/tracks/search/")
 @app.get("/tracks/search/<path:filter_text>")
 def searchTracks(filter_text=""):
+    if not filter_text:
+        filter_text = request.args.get("filter_text") or request.args.get("filter") or request.args.get("query") or request.args.get("q") or ""
     filter_text = urllib.parse.unquote_plus(filter_text).strip()
+
     auth_token = request.headers.get("AppToken")
     if auth_token != APP_TOKEN:
         return "Invalid App Token", 401
@@ -613,25 +616,36 @@ def searchTracks(filter_text=""):
         return "Unauthorized", 401
 
     userID = int(authorized)
-    if len(filter_text) > 0:
-        normalized_filter = re.sub(r'[^a-zA-Z0-9 ]', '', filter_text).lower().strip()
-        sql = """
-            SELECT t.track_id, t.title, t.artist, t.duration, COALESCE(u.username, t.contributor), ud.user_id
-            FROM tracks_fts fts
-            JOIN tracks t ON fts.rowid = t.track_id
-            LEFT JOIN user_downloads ud ON t.track_id = ud.track_id AND ud.user_id = ?
-            LEFT JOIN users u ON CAST(t.contributor AS INTEGER) = u.id
-            WHERE tracks_fts MATCH ?
-            ORDER BY t.title ASC
-        """
-        tracks = []
-        try:
-            with get_db() as conn:
-                cursor = conn.cursor()
-                escaped_filter = filter_text.replace('"', '""')
-                match_val = f'"{escaped_filter}"*'
-                cursor.execute(sql, (userID, match_val))
+    if len(filter_text) == 0:
+        return jsonify([]), 200
+
+    normalized_filter = re.sub(r'[^a-zA-Z0-9 ]', ' ', filter_text).lower().strip()
+    words = normalized_filter.split()
+    if len(words) == 0:
+        return jsonify([]), 200
+
+    tracks = []
+    track_ids = set()
+
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            
+            # 1. FTS search with prefix matching on tokens
+            match_val = ' '.join([f'"{w}"*' for w in words])
+            fts_sql = """
+                SELECT t.track_id, t.title, t.artist, t.duration, COALESCE(u.username, t.contributor), ud.user_id
+                FROM tracks_fts fts
+                JOIN tracks t ON fts.rowid = t.track_id
+                LEFT JOIN user_downloads ud ON t.track_id = ud.track_id AND ud.user_id = ?
+                LEFT JOIN users u ON CAST(t.contributor AS INTEGER) = u.id
+                WHERE tracks_fts MATCH ?
+                ORDER BY t.title ASC
+            """
+            try:
+                cursor.execute(fts_sql, (userID, match_val))
                 for row in cursor.fetchall():
+                    track_ids.add(row[0])
                     tracks.append({
                         "trackID": row[0],
                         "track_id": row[0],
@@ -641,12 +655,41 @@ def searchTracks(filter_text=""):
                         "contributor": str(row[4] or ""),
                         "downloaded": row[5] is not None
                     })
-        except sqlite3.Error as e:
-            print(f"Could not load tracks: {e}")
+            except sqlite3.Error as e:
+                print(f"FTS search error: {e}")
 
-        return tracks, 200
-    else:
-        return [], 200
+            # 2. LIKE fallback for substring matches
+            like_filter = f"%{normalized_filter}%"
+            like_sql = """
+                SELECT t.track_id, t.title, t.artist, t.duration, COALESCE(u.username, t.contributor), ud.user_id
+                FROM tracks t
+                LEFT JOIN user_downloads ud ON t.track_id = ud.track_id AND ud.user_id = ?
+                LEFT JOIN users u ON CAST(t.contributor AS INTEGER) = u.id
+                WHERE (LOWER(t.title) LIKE ? OR LOWER(t.artist) LIKE ?)
+                ORDER BY t.title ASC
+            """
+            try:
+                cursor.execute(like_sql, (userID, like_filter, like_filter))
+                for row in cursor.fetchall():
+                    if row[0] not in track_ids:
+                        track_ids.add(row[0])
+                        tracks.append({
+                            "trackID": row[0],
+                            "track_id": row[0],
+                            "title": row[1],
+                            "artist": row[2],
+                            "duration": row[3],
+                            "contributor": str(row[4] or ""),
+                            "downloaded": row[5] is not None
+                        })
+            except sqlite3.Error as e:
+                print(f"LIKE search error: {e}")
+
+    except Exception as e:
+        print(f"Could not load tracks: {e}")
+
+    return jsonify(tracks), 200
+
 
 @app.get("/tracks/<int:id>/download/<any(cover, audio):type>")
 def download(id, type):

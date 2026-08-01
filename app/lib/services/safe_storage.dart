@@ -3,7 +3,10 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 class SafeStorage {
   static const FlutterSecureStorage _secureStorage = FlutterSecureStorage(
     iOptions: IOSOptions(accessibility: KeychainAccessibility.first_unlock),
-    mOptions: MacOsOptions(accessibility: KeychainAccessibility.first_unlock),
+    mOptions: MacOsOptions(
+      accessibility: KeychainAccessibility.first_unlock,
+      useDataProtectionKeyChain: false,
+    ),
     aOptions: AndroidOptions(encryptedSharedPreferences: true),
   );
 
