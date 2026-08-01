@@ -4,8 +4,6 @@ import 'package:provider/provider.dart';
 import '../services/server_client.dart';
 import '../services/theme_service.dart';
 
-
-
 class SyncProgressDialog extends StatefulWidget {
   final ServerClient serverClient;
 
@@ -17,7 +15,7 @@ class SyncProgressDialog extends StatefulWidget {
   static Future<bool> show(BuildContext context, ServerClient serverClient) async {
     final result = await showDialog<bool>(
       context: context,
-      barrierDismissible: false,
+      barrierDismissible: true,
       barrierColor: Colors.black.withValues(alpha: 0.75),
       builder: (dialogContext) => BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
@@ -33,11 +31,7 @@ class SyncProgressDialog extends StatefulWidget {
 
 class _SyncProgressDialogState extends State<SyncProgressDialog> with SingleTickerProviderStateMixin {
   late AnimationController _rotationController;
-  bool _canPop = false;
-  SyncProgress _currentProgress = const SyncProgress(
-    status: 'Initializing sync...',
-    progress: 0.0,
-  );
+  late SyncProgress _currentProgress;
 
   @override
   void initState() {
@@ -47,32 +41,35 @@ class _SyncProgressDialogState extends State<SyncProgressDialog> with SingleTick
       duration: const Duration(seconds: 2),
     )..repeat();
 
-    _startSync();
+    _currentProgress = widget.serverClient.syncProgressNotifier.value;
+    widget.serverClient.syncProgressNotifier.addListener(_onProgressChanged);
+    widget.serverClient.isSyncingNotifier.addListener(_onIsSyncingChanged);
+  }
+
+  void _onProgressChanged() {
+    if (mounted) {
+      setState(() {
+        _currentProgress = widget.serverClient.syncProgressNotifier.value;
+      });
+    }
+  }
+
+  void _onIsSyncingChanged() {
+    if (mounted && !widget.serverClient.isSyncingNotifier.value) {
+      Future.delayed(const Duration(milliseconds: 400), () {
+        if (mounted && Navigator.of(context, rootNavigator: true).canPop()) {
+          Navigator.of(context, rootNavigator: true).pop(true);
+        }
+      });
+    }
   }
 
   @override
   void dispose() {
+    widget.serverClient.syncProgressNotifier.removeListener(_onProgressChanged);
+    widget.serverClient.isSyncingNotifier.removeListener(_onIsSyncingChanged);
     _rotationController.dispose();
     super.dispose();
-  }
-
-  Future<void> _startSync() async {
-    final success = await widget.serverClient.performPullSync(
-      onProgress: (progress) {
-        if (mounted) {
-          setState(() {
-            _currentProgress = progress;
-          });
-        }
-      },
-    );
-
-    if (mounted) {
-      setState(() {
-        _canPop = true;
-      });
-      Navigator.of(context, rootNavigator: true).pop(success);
-    }
   }
 
   @override
@@ -81,7 +78,7 @@ class _SyncProgressDialogState extends State<SyncProgressDialog> with SingleTick
     final percentage = (_currentProgress.progress * 100).clamp(0, 100).toInt();
 
     return PopScope(
-      canPop: _canPop,
+      canPop: true,
       child: Dialog(
         backgroundColor: Colors.transparent,
         elevation: 20,
@@ -124,7 +121,7 @@ class _SyncProgressDialogState extends State<SyncProgressDialog> with SingleTick
                       ),
                     ),
                     child: RotationTransition(
-                      turns: _rotationController,
+                      turns: Tween<double>(begin: 1.0, end: 0.0).animate(_rotationController),
                       child: Icon(
                         Icons.sync_rounded,
                         color: themeColor,
@@ -133,28 +130,15 @@ class _SyncProgressDialogState extends State<SyncProgressDialog> with SingleTick
                     ),
                   ),
                   const SizedBox(width: 14),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Synchronizing Library',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.3,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Please wait while your media is updated...',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.6),
-                            fontSize: 12,
-                          ),
-                        ),
-                      ],
+                  const Expanded(
+                    child: Text(
+                      'Syncing',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.3,
+                      ),
                     ),
                   ),
                   Container(
@@ -172,6 +156,14 @@ class _SyncProgressDialogState extends State<SyncProgressDialog> with SingleTick
                         fontSize: 13,
                       ),
                     ),
+                  ),
+                  const SizedBox(width: 8),
+                  IconButton(
+                    icon: Icon(Icons.close_rounded, color: Colors.white.withValues(alpha: 0.7), size: 20),
+                    onPressed: () {
+                      Navigator.of(context, rootNavigator: true).pop(false);
+                    },
+                    tooltip: 'Close',
                   ),
                 ],
               ),
@@ -242,3 +234,4 @@ class _SyncProgressDialogState extends State<SyncProgressDialog> with SingleTick
     );
   }
 }
+

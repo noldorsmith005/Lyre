@@ -49,8 +49,26 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    widget.serverClient.isSyncingNotifier.addListener(_onSyncStatusChanged);
     _loadPlaylists();
     _autoConnectServer();
+  }
+
+  @override
+  void dispose() {
+    widget.serverClient.isSyncingNotifier.removeListener(_onSyncStatusChanged);
+    super.dispose();
+  }
+
+  void _onSyncStatusChanged() {
+    if (!widget.serverClient.isSyncingNotifier.value && mounted) {
+      _loadPlaylists();
+      if (_searchQuery.trim().isNotEmpty) {
+        _onSearch(_searchQuery);
+      } else if (_currentPlaylist != null) {
+        _loadPlaylistTracks(_currentPlaylist!);
+      }
+    }
   }
 
   bool _isAutoConnecting = false;
@@ -67,15 +85,16 @@ class _HomeScreenState extends State<HomeScreen> {
         final canPing = await widget.serverClient.ping();
         if (canPing && mounted) {
           _lastSyncTime = DateTime.now();
-          await SyncProgressDialog.show(context, widget.serverClient);
-          if (mounted) {
-            await _loadPlaylists();
-            if (_searchQuery.trim().isNotEmpty) {
-              await _onSearch(_searchQuery);
-            } else if (_currentPlaylist != null) {
-              await _loadPlaylistTracks(_currentPlaylist!);
+          widget.serverClient.performPullSync().then((success) async {
+            if (mounted) {
+              await _loadPlaylists();
+              if (_searchQuery.trim().isNotEmpty) {
+                await _onSearch(_searchQuery);
+              } else if (_currentPlaylist != null) {
+                await _loadPlaylistTracks(_currentPlaylist!);
+              }
             }
-          }
+          });
         }
       }
     } finally {

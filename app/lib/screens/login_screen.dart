@@ -68,8 +68,7 @@ class _LoginScreenState extends State<LoginScreen> {
           _isLoading = false;
         });
       } else {
-        await SyncProgressDialog.show(context, widget.serverClient);
-        if (!mounted) return;
+        widget.serverClient.performPullSync();
         if (widget.onLoginSuccess != null) {
           widget.onLoginSuccess!();
         }

@@ -37,6 +37,10 @@ class ServerClient {
   String? username;
 
   final ValueNotifier<Set<int>> downloadingTrackIdsNotifier = ValueNotifier<Set<int>>({});
+  final ValueNotifier<bool> isSyncingNotifier = ValueNotifier<bool>(false);
+  final ValueNotifier<SyncProgress> syncProgressNotifier = ValueNotifier<SyncProgress>(
+    const SyncProgress(status: 'Initializing sync...', progress: 0.0),
+  );
 
   bool isTrackDownloading(int trackID) => downloadingTrackIdsNotifier.value.contains(trackID);
 
@@ -323,6 +327,8 @@ class ServerClient {
       await mediaHandler.setPendingPlaylistPush(true);
       return false;
     }
+    _isSyncing = true;
+    isSyncingNotifier.value = true;
     try {
       final isOnline = await ping();
       if (!isOnline) {
@@ -352,6 +358,9 @@ class ServerClient {
       print('Error pushing local playlists: $e');
       await mediaHandler.setPendingPlaylistPush(true);
       return false;
+    } finally {
+      _isSyncing = false;
+      isSyncingNotifier.value = false;
     }
   }
 
@@ -360,18 +369,26 @@ class ServerClient {
 
   Future<bool> performPullSync({void Function(SyncProgress progress)? onProgress}) async {
     if (!registered() || appUrl == null || _isSyncing) {
-      onProgress?.call(const SyncProgress(status: 'Not registered, server missing, or sync in progress', progress: 1.0));
+      final progress = const SyncProgress(status: 'Not registered, server missing, or sync in progress', progress: 1.0);
+      syncProgressNotifier.value = progress;
+      onProgress?.call(progress);
       return false;
     }
 
+    void reportProgress(SyncProgress progress) {
+      syncProgressNotifier.value = progress;
+      onProgress?.call(progress);
+    }
+
     _isSyncing = true;
+    isSyncingNotifier.value = true;
     try {
-      onProgress?.call(const SyncProgress(status: 'Connecting to server...', progress: 0.05));
+      reportProgress(const SyncProgress(status: 'Connecting to server...', progress: 0.05));
 
       final isOnline = await ping();
       if (!isOnline) {
         print('Offline or server unreachable: Skipping startup pull sync.');
-        onProgress?.call(const SyncProgress(status: 'Server unreachable', progress: 1.0));
+        reportProgress(const SyncProgress(status: 'Server unreachable', progress: 1.0));
         return false;
       }
 
@@ -395,11 +412,11 @@ class ServerClient {
       // Process pending offline playlist changes
       final hasPendingPush = await mediaHandler.hasPendingPlaylistPush();
       if (hasPendingPush) {
-        onProgress?.call(const SyncProgress(status: 'Pushing pending playlist updates...', progress: 0.10));
+        reportProgress(const SyncProgress(status: 'Pushing pending playlist updates...', progress: 0.10));
         await pushLocalPlaylists();
       }
 
-      onProgress?.call(const SyncProgress(status: 'Checking remote downloads...', progress: 0.15));
+      reportProgress(const SyncProgress(status: 'Checking remote downloads...', progress: 0.15));
       final serverTracks = await getUserDownloadedTracks();
       if (serverTracks != null) {
         final serverTrackIds = serverTracks.map((t) => t.trackID).toSet();
@@ -419,7 +436,7 @@ class ServerClient {
             (i + concurrency > tracksToDownload.length) ? tracksToDownload.length : i + concurrency,
           );
           final progressVal = 0.20 + (0.50 * (completedOps / (totalTrackOps > 0 ? totalTrackOps : 1)));
-          onProgress?.call(SyncProgress(
+          reportProgress(SyncProgress(
             status: concurrency > 1
                 ? 'Downloading tracks (${i + 1}-${i + chunk.length}/${tracksToDownload.length})'
                 : 'Downloading track (${i + 1}/${tracksToDownload.length})',
@@ -433,7 +450,7 @@ class ServerClient {
         for (int i = 0; i < tracksToRemove.length; i++) {
           final lt = tracksToRemove[i];
           final progressVal = 0.20 + (0.50 * (completedOps / (totalTrackOps > 0 ? totalTrackOps : 1)));
-          onProgress?.call(SyncProgress(
+          reportProgress(SyncProgress(
             status: 'Removing track (${i + 1}/${tracksToRemove.length})',
             detail: '${lt.title} - ${lt.artist}',
             progress: progressVal,
@@ -443,7 +460,7 @@ class ServerClient {
         }
       }
 
-      onProgress?.call(const SyncProgress(status: 'Syncing playlists...', progress: 0.75));
+      reportProgress(const SyncProgress(status: 'Syncing playlists...', progress: 0.75));
       final serverPlaylists = await pullSyncPlaylists();
       if (serverPlaylists != null) {
         final hasUnsyncedLocal = await mediaHandler.syncLocalPlaylists(serverPlaylists);
@@ -452,20 +469,21 @@ class ServerClient {
         }
       }
 
-      onProgress?.call(const SyncProgress(status: 'Syncing listening history...', progress: 0.90));
+      reportProgress(const SyncProgress(status: 'Syncing listening history...', progress: 0.90));
       await ListeningStatsService.instance.syncLocalHistoryToServer(this);
 
-      onProgress?.call(const SyncProgress(status: 'Sync complete!', progress: 1.0));
+      reportProgress(const SyncProgress(status: 'Sync complete!', progress: 1.0));
       await Future.delayed(const Duration(milliseconds: 300));
 
       return true;
     } catch (e) {
       print('Error performing pull sync: $e');
-      onProgress?.call(SyncProgress(status: 'Sync failed: $e', progress: 1.0));
+      reportProgress(SyncProgress(status: 'Sync failed: $e', progress: 1.0));
       await Future.delayed(const Duration(milliseconds: 500));
       return false;
     } finally {
       _isSyncing = false;
+      isSyncingNotifier.value = false;
     }
   }
 

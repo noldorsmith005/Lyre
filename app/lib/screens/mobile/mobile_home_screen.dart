@@ -41,21 +41,20 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> with WidgetsBinding
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
+    widget.serverClient.isSyncingNotifier.addListener(_onSyncStatusChanged);
     _loadPlaylists();
     _autoConnectServer();
   }
 
   @override
   void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
+    widget.serverClient.isSyncingNotifier.removeListener(_onSyncStatusChanged);
     super.dispose();
   }
 
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      _autoConnectServer();
+  void _onSyncStatusChanged() {
+    if (!widget.serverClient.isSyncingNotifier.value && mounted) {
+      _loadPlaylists();
     }
   }
 
@@ -70,10 +69,11 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> with WidgetsBinding
         final canPing = await widget.serverClient.ping();
         if (canPing && mounted) {
           _lastSyncTime = DateTime.now();
-          await SyncProgressDialog.show(context, widget.serverClient);
-          if (mounted) {
-            _loadPlaylists();
-          }
+          widget.serverClient.performPullSync().then((success) {
+            if (mounted) {
+              _loadPlaylists();
+            }
+          });
         }
       }
     } finally {

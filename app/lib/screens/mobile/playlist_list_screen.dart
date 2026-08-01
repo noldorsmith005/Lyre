@@ -6,6 +6,7 @@ import '../../services/theme_service.dart';
 import '../settings_screen.dart';
 import 'playlist_detail_screen.dart';
 import 'search_screen.dart';
+import '../../widgets/sync_icon_button.dart';
 
 
 
@@ -212,6 +213,11 @@ class PlaylistListScreen extends StatelessWidget {
         toolbarHeight: 64,
         automaticallyImplyLeading: false,
         actions: [
+          SyncIconButton(
+            serverClient: serverClient,
+            size: 52,
+            padding: const EdgeInsets.only(right: 12.0),
+          ),
           Padding(
             padding: const EdgeInsets.only(right: 16.0),
             child: Builder(

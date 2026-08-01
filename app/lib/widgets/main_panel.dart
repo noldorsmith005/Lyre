@@ -10,8 +10,7 @@ import '../services/server_client.dart';
 import '../utils/platform_utils.dart';
 import 'track_card.dart';
 import 'track_cover_image.dart';
-
-
+import 'sync_icon_button.dart';
 
 class MainPanel extends StatefulWidget {
   final Playlist? currentPlaylist;
@@ -213,12 +212,19 @@ class _MainPanelState extends State<MainPanel> {
           const Spacer(),
           
           if (showServerFeatures) ...[
+            if (widget.serverClient != null)
+              SyncIconButton(
+                serverClient: widget.serverClient!,
+                size: 54,
+                padding: const EdgeInsets.only(right: 12.0),
+              ),
             _AccountMenuButton(
               onUploadPressed: widget.onUploadPressed,
               onClearConfigPressed: widget.onClearConfigPressed,
               onPlaybackPressed: widget.onPlaybackPressed,
               onVibeQueuePressed: widget.onVibeQueuePressed,
               isServerConnected: widget.isServerConnected,
+              serverClient: widget.serverClient,
             ),
           ],
         ],
@@ -492,6 +498,7 @@ class _AccountMenuButton extends StatefulWidget {
   final VoidCallback? onPlaybackPressed;
   final VoidCallback? onVibeQueuePressed;
   final bool isServerConnected;
+  final ServerClient? serverClient;
 
   const _AccountMenuButton({
     required this.onUploadPressed,
@@ -499,6 +506,7 @@ class _AccountMenuButton extends StatefulWidget {
     this.onPlaybackPressed,
     this.onVibeQueuePressed,
     this.isServerConnected = false,
+    this.serverClient,
   });
 
   @override
@@ -510,6 +518,13 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
 
   @override
   Widget build(BuildContext context) {
+    final serverClient = widget.serverClient;
+    final usernameText = (serverClient != null && serverClient.registered())
+        ? (serverClient.username != null && serverClient.username.toString().isNotEmpty
+            ? serverClient.username.toString()
+            : 'Connected User')
+        : 'Guest Account';
+
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -539,6 +554,24 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
           }
         },
         itemBuilder: (context) => [
+          PopupMenuItem<String>(
+            enabled: false,
+            height: 40,
+            child: Center(
+              child: Text(
+                usernameText,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ),
+          const PopupMenuDivider(height: 1),
           _buildMenuItem('vibe', Icons.tune_rounded, 'Vibe Queue'),
           _buildMenuItem('playback', Icons.graphic_eq_rounded, 'Lyre Playback'),
           _buildMenuItem('upload', Icons.upload_rounded, 'Upload Track'),
