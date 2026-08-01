@@ -116,6 +116,9 @@ class MediaHandler {
                 value TEXT
             )
           ''');
+          await db.execute('''
+            CREATE INDEX IF NOT EXISTS idx_listening_history_ts ON listening_history(timestamp)
+          ''');
         },
         onOpen: (db) async {
           try {
@@ -416,7 +419,7 @@ class MediaHandler {
       // 2. Clear all downloaded audio files
       final audioDir = Directory(p.join(_appDataPath, 'audio'));
       if (await audioDir.exists()) {
-        final files = audioDir.listSync();
+        final files = await audioDir.list().toList();
         for (var file in files) {
           try {
             await file.delete(recursive: true);
@@ -427,7 +430,7 @@ class MediaHandler {
       // 3. Clear all cover image files
       final coverDir = Directory(p.join(_appDataPath, 'cover'));
       if (await coverDir.exists()) {
-        final files = coverDir.listSync();
+        final files = await coverDir.list().toList();
         for (var file in files) {
           try {
             await file.delete(recursive: true);

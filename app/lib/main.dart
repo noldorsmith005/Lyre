@@ -28,7 +28,9 @@ class MyHttpOverrides extends HttpOverrides {
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  HttpOverrides.global = MyHttpOverrides();
+  if (!kReleaseMode) {
+    HttpOverrides.global = MyHttpOverrides();
+  }
 
   // Initialize services
   final mediaHandler = MediaHandler();

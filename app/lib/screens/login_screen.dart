@@ -245,7 +245,7 @@ class _LoginScreenState extends State<LoginScreen> {
                       style: TextStyle(color: Color(0xFF888888), fontSize: 14),
                     ),
                     GestureDetector(
-                      onTap: _navigateToRegister,
+                      onTap: _isLoading ? null : _navigateToRegister,
                       child: Text(
                         'Register',
                         style: TextStyle(

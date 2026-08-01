@@ -62,6 +62,7 @@ def get_db():
     conn = getattr(_thread_local, 'conn', None)
     if conn is None:
         conn = sqlite3.connect(DATABASE_URL, timeout=15.0)
+        conn.execute("PRAGMA journal_mode=WAL;")
         conn.execute("PRAGMA foreign_keys = ON;")
         conn.execute("PRAGMA busy_timeout = 10000;")
         _thread_local.conn = conn
@@ -440,6 +441,37 @@ def init_db():
             conn.execute("CREATE INDEX IF NOT EXISTS idx_user_playlists_uid ON user_playlists(user_id);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_user_downloads_uid ON user_downloads(user_id);")
             conn.execute("CREATE INDEX IF NOT EXISTS idx_history_uid ON history(user_id);")
+            conn.execute("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS tracks_fts USING fts5(
+                    title, artist, content='tracks', content_rowid='track_id'
+                )
+            """)
+            conn.execute("""
+                CREATE TRIGGER IF NOT EXISTS tracks_ai AFTER INSERT ON tracks BEGIN
+                    INSERT INTO tracks_fts(rowid, title, artist) 
+                    VALUES (new.track_id, new.title, new.artist);
+                END;
+            """)
+            conn.execute("""
+                CREATE TRIGGER IF NOT EXISTS tracks_ad AFTER DELETE ON tracks BEGIN
+                    INSERT INTO tracks_fts(tracks_fts, rowid, title, artist) 
+                    VALUES ('delete', old.track_id, old.title, old.artist);
+                END;
+            """)
+            conn.execute("""
+                CREATE TRIGGER IF NOT EXISTS tracks_au AFTER UPDATE ON tracks BEGIN
+                    INSERT INTO tracks_fts(tracks_fts, rowid, title, artist) 
+                    VALUES ('delete', old.track_id, old.title, old.artist);
+                    INSERT INTO tracks_fts(rowid, title, artist) 
+                    VALUES (new.track_id, new.title, new.artist);
+                END;
+            """)
+            
+            cursor = conn.cursor()
+            cursor.execute("SELECT count(*) FROM tracks_fts")
+            if cursor.fetchone()[0] == 0:
+                conn.execute("INSERT INTO tracks_fts(tracks_fts) VALUES('rebuild')")
+
             if os.path.exists('./sessions.json'):
                 try:
                     with open('./sessions.json', 'r') as f:
@@ -585,18 +617,20 @@ def searchTracks(filter_text=""):
         normalized_filter = re.sub(r'[^a-zA-Z0-9 ]', '', filter_text).lower().strip()
         sql = """
             SELECT t.track_id, t.title, t.artist, t.duration, COALESCE(u.username, t.contributor), ud.user_id
-            FROM tracks t
+            FROM tracks_fts fts
+            JOIN tracks t ON fts.rowid = t.track_id
             LEFT JOIN user_downloads ud ON t.track_id = ud.track_id AND ud.user_id = ?
             LEFT JOIN users u ON CAST(t.contributor AS INTEGER) = u.id
-            WHERE lower(t.title) LIKE ? OR lower(t.artist) LIKE ?
+            WHERE tracks_fts MATCH ?
             ORDER BY t.title ASC
         """
         tracks = []
         try:
             with get_db() as conn:
                 cursor = conn.cursor()
-                like_val = f"%{normalized_filter}%"
-                cursor.execute(sql, (userID, like_val, like_val))
+                escaped_filter = filter_text.replace('"', '""')
+                match_val = f'"{escaped_filter}"*'
+                cursor.execute(sql, (userID, match_val))
                 for row in cursor.fetchall():
                     tracks.append({
                         "trackID": row[0],

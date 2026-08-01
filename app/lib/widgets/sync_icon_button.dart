@@ -29,11 +29,22 @@ class _SyncIconButtonState extends State<SyncIconButton> with SingleTickerProvid
     _rotationController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 2),
-    )..repeat();
+    );
+    widget.serverClient.isSyncingNotifier.addListener(_updateAnimation);
+    _updateAnimation();
+  }
+
+  void _updateAnimation() {
+    if (widget.serverClient.isSyncingNotifier.value) {
+      _rotationController.repeat();
+    } else {
+      _rotationController.stop();
+    }
   }
 
   @override
   void dispose() {
+    widget.serverClient.isSyncingNotifier.removeListener(_updateAnimation);
     _rotationController.dispose();
     super.dispose();
   }
@@ -43,48 +54,92 @@ class _SyncIconButtonState extends State<SyncIconButton> with SingleTickerProvid
     final themeColor = context.watch<ThemeService>().themeColor;
 
     return ValueListenableBuilder<bool>(
-      valueListenable: widget.serverClient.isSyncingNotifier,
-      builder: (context, isSyncing, child) {
-        if (!isSyncing) return const SizedBox.shrink();
-
-        return Padding(
-          padding: widget.padding,
-          child: Tooltip(
-            message: 'Syncing Library (Tap for progress)',
-            child: Material(
-              color: Colors.transparent,
-              shape: const CircleBorder(),
-              clipBehavior: Clip.antiAlias,
-              child: InkWell(
-                onTap: () {
-                  SyncProgressDialog.show(context, widget.serverClient);
-                },
-                customBorder: const CircleBorder(),
-                child: Container(
-                  width: widget.size,
-                  height: widget.size,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: const Color(0xFF181818),
-                    border: Border.all(
-                      color: themeColor.withValues(alpha: 0.4),
-                      width: 1.5,
-                    ),
+      valueListenable: widget.serverClient.isOfflineNotifier,
+      builder: (context, isOffline, child) {
+        if (isOffline) {
+          return Padding(
+            padding: widget.padding,
+            child: Tooltip(
+              message: 'Offline Mode',
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: themeColor.withValues(alpha: 0.15),
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: themeColor.withValues(alpha: 0.5),
+                    width: 1.5,
                   ),
-                  child: Center(
-                    child: RotationTransition(
-                      turns: Tween<double>(begin: 1.0, end: 0.0).animate(_rotationController),
-                      child: Icon(
-                        Icons.sync_rounded,
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      Icons.cloud_off_rounded,
+                      color: themeColor,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Offline',
+                      style: TextStyle(
                         color: themeColor,
-                        size: widget.size * 0.55,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }
+
+        return ValueListenableBuilder<bool>(
+          valueListenable: widget.serverClient.isSyncingNotifier,
+          builder: (context, isSyncing, child) {
+            if (!isSyncing) return const SizedBox.shrink();
+
+            return Padding(
+              padding: widget.padding,
+              child: Tooltip(
+                message: 'Syncing Library (Tap for progress)',
+                child: Material(
+                  color: Colors.transparent,
+                  shape: const CircleBorder(),
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () {
+                      SyncProgressDialog.show(context, widget.serverClient);
+                    },
+                    customBorder: const CircleBorder(),
+                    child: Container(
+                      width: widget.size,
+                      height: widget.size,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xFF181818),
+                        border: Border.all(
+                          color: themeColor.withValues(alpha: 0.4),
+                          width: 1.5,
+                        ),
+                      ),
+                      child: Center(
+                        child: RotationTransition(
+                          turns: Tween<double>(begin: 1.0, end: 0.0).animate(_rotationController),
+                          child: Icon(
+                            Icons.sync_rounded,
+                            color: themeColor,
+                            size: widget.size * 0.55,
+                          ),
+                        ),
                       ),
                     ),
                   ),
                 ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );

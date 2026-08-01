@@ -133,6 +133,7 @@ class LyreAudioHandler extends BaseAudioHandler {
       await _player.stop();
     }
     _updatePlaybackState();
+    await super.stop();
   }
 
   @override
@@ -162,6 +163,7 @@ class AudioPlayerService extends ChangeNotifier {
   StreamSubscription? _stateSubscription;
   Track? currentTrack;
   bool isPlaying = false;
+  Timer? _playTimer;
   bool _shuffle = false;
   bool get shuffle => _shuffle;
   set shuffle(bool value) {
@@ -308,7 +310,13 @@ class AudioPlayerService extends ChangeNotifier {
         _audioHandler?.updateTrackMediaItem(track, _appDataPath!);
       }
       await _player.play();
-      ListeningStatsService.instance.logPlay(track);
+      
+      _playTimer?.cancel();
+      _playTimer = Timer(const Duration(seconds: 30), () {
+        if (currentTrack?.trackID == track.trackID && isPlaying) {
+          ListeningStatsService.instance.logPlay(track);
+        }
+      });
     } catch (e) {
       print('Error playing audio: $e');
       if (currentRequestId == _playRequestId) {
@@ -367,14 +375,7 @@ class AudioPlayerService extends ChangeNotifier {
       notifyListeners();
       play(nextTrack);
     } else if (playlist.isNotEmpty) {
-      final Track nextTrack;
-      if (shuffle) {
-        final random = Random();
-        final idx = random.nextInt(playlist.length);
-        nextTrack = playlist.removeAt(idx);
-      } else {
-        nextTrack = playlist.removeAt(0);
-      }
+      final Track nextTrack = playlist.removeAt(0);
       notifyListeners();
       play(nextTrack);
     } else {

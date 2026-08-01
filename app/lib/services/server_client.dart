@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:flutter/services.dart' show rootBundle;
+import 'package:flutter/foundation.dart';
 import 'safe_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:just_audio/just_audio.dart';
@@ -38,6 +39,7 @@ class ServerClient {
 
   final ValueNotifier<Set<int>> downloadingTrackIdsNotifier = ValueNotifier<Set<int>>({});
   final ValueNotifier<bool> isSyncingNotifier = ValueNotifier<bool>(false);
+  final ValueNotifier<bool> isOfflineNotifier = ValueNotifier<bool>(false);
   final ValueNotifier<SyncProgress> syncProgressNotifier = ValueNotifier<SyncProgress>(
     const SyncProgress(status: 'Initializing sync...', progress: 0.0),
   );
@@ -434,11 +436,14 @@ class ServerClient {
         int completedOps = 0;
 
         final syncClient = HttpClient()
-          ..connectionTimeout = const Duration(seconds: 15)
-          ..badCertificateCallback = (cert, host, port) => true;
+          ..connectionTimeout = const Duration(seconds: 15);
+        if (!kReleaseMode) {
+          syncClient.badCertificateCallback = (cert, host, port) => true;
+        }
 
         const int concurrency = 3;
-        for (int i = 0; i < tracksToDownload.length; i += concurrency) {
+        try {
+          for (int i = 0; i < tracksToDownload.length; i += concurrency) {
           final chunk = tracksToDownload.sublist(
             i,
             (i + concurrency > tracksToDownload.length) ? tracksToDownload.length : i + concurrency,
@@ -466,8 +471,9 @@ class ServerClient {
           await removeDownload(lt, updateServerTracking: false);
           completedOps++;
         }
-
-        syncClient.close();
+        } finally {
+          syncClient.close(force: true);
+        }
       }
 
       reportProgress(const SyncProgress(status: 'Syncing playlists...', progress: 0.75));
@@ -530,8 +536,10 @@ class ServerClient {
 
     final isShared = sharedClient != null;
     final client = sharedClient ?? (HttpClient()
-      ..connectionTimeout = const Duration(seconds: 15)
-      ..badCertificateCallback = (cert, host, port) => true);
+      ..connectionTimeout = const Duration(seconds: 15));
+    if (!kReleaseMode && sharedClient == null) {
+      client.badCertificateCallback = (cert, host, port) => true;
+    }
 
     IOSink? sink;
     try {
@@ -676,10 +684,14 @@ class ServerClient {
   }
 
   Future<bool> ping() async {
+    bool online = false;
     if (appUrl != null && await _pingUrl(appUrl!)) {
-      return true;
+      online = true;
+    } else {
+      online = await autoDetectServer();
     }
-    return await autoDetectServer();
+    isOfflineNotifier.value = !online;
+    return online;
   }
 
   Future<List<Track>> searchTracks(String filter) async {

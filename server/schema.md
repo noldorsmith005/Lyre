@@ -107,3 +107,14 @@ Stores monthly listening analytics and theme settings per user.
 | `idx_user_downloads_uid` | `user_downloads` | `user_id` | Fast download mapping lookup by user ID |
 | `idx_history_uid` | `history` | `user_id` | Fast user play history aggregation |
 
+---
+
+### 8. `tracks_fts`
+Virtual table for Full-Text Search (FTS5) on `tracks`.
+
+| Column | Type | Constraints | Description |
+| :--- | :--- | :--- | :--- |
+| `title` | `TEXT` | | Track title for search |
+| `artist` | `TEXT` | | Track artist for search |
+| `content` | `TEXT` | `content='tracks'` | Source table for FTS |
+| `rowid` | `INTEGER` | `content_rowid='track_id'` | Original track ID |
