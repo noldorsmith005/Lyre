@@ -1,2 +1,2 @@
 Features: 
-    
+    -Syncs should run aync in the background with a little icon at the top you can press to view the progress. Modification actions should be blocked until the sync is complete
