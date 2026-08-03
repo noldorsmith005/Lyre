@@ -236,7 +236,9 @@ class _TrackCardState extends State<TrackCard> {
                     Text(
                       widget.track.title,
                       style: TextStyle(
-                        color: widget.isPlaying ? context.watch<ThemeService>().themeColor : Colors.white,
+                        color: widget.isPlaying
+                            ? context.watch<ThemeService>().themeColor
+                            : (widget.isDownloaded ? Colors.white : const Color(0xFF757588)),
                         fontSize: LayoutConstants.titleFontSize,
                         fontWeight: FontWeight.bold,
                       ),

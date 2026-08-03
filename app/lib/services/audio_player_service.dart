@@ -262,28 +262,13 @@ class AudioPlayerService extends ChangeNotifier {
     final currentRequestId = ++_playRequestId;
 
     try {
-      final client = serverClient ?? this.serverClient;
       final file = File('$_appDataPath/audio/${track.trackID}.flac');
       if (!await file.exists()) {
-        if (client != null && client.registered()) {
-          currentTrack = track;
-          isPlaying = true;
-          notifyListeners();
-          final success = await client.downloadTrack(track);
-          if (currentRequestId != _playRequestId) return;
-          if (!success) {
-            currentTrack = null;
-            isPlaying = false;
-            notifyListeners();
-            return;
-          }
-        } else {
-          print('FLAC file not found: ${file.path}');
-          currentTrack = null;
-          isPlaying = false;
-          notifyListeners();
-          return;
-        }
+        print('FLAC file not found: ${file.path}');
+        currentTrack = null;
+        isPlaying = false;
+        notifyListeners();
+        return;
       }
 
       if (currentRequestId != _playRequestId) return;
@@ -328,17 +313,18 @@ class AudioPlayerService extends ChangeNotifier {
 
   void playTrackInContext(Track track, List<Track> contextTracks) {
     clearNextUp();
-    final idx = contextTracks.indexWhere((t) => t.trackID == track.trackID);
+    final downloadedTracks = contextTracks.where((t) => t.downloaded || (_appDataPath != null && File('$_appDataPath/audio/${t.trackID}.flac').existsSync())).toList();
+    final idx = downloadedTracks.indexWhere((t) => t.trackID == track.trackID);
     if (idx != -1) {
       if (shuffle) {
-        final otherTracks = contextTracks.where((t) => t.trackID != track.trackID).toList();
+        final otherTracks = downloadedTracks.where((t) => t.trackID != track.trackID).toList();
         otherTracks.shuffle();
         for (final t in otherTracks) {
           addToNextUp(t);
         }
       } else {
-        for (int i = idx + 1; i < contextTracks.length; i++) {
-          addToNextUp(contextTracks[i]);
+        for (int i = idx + 1; i < downloadedTracks.length; i++) {
+          addToNextUp(downloadedTracks[i]);
         }
       }
     }
@@ -395,6 +381,8 @@ class AudioPlayerService extends ChangeNotifier {
   }
 
   void addToQueue(Track track) {
+    final isDownloaded = track.downloaded || (_appDataPath != null && File('$_appDataPath/audio/${track.trackID}.flac').existsSync());
+    if (!isDownloaded) return;
     queue.add(track);
     notifyListeners();
     if (currentTrack == null && !isPlaying) {

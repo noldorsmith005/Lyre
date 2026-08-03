@@ -75,9 +75,9 @@ class _MobileTrackRowState extends State<MobileTrackRow> {
     return Container(
       margin: const EdgeInsets.only(bottom: 8.0, left: 8.0, right: 8.0),
       child: GestureDetector(
-        onTap: widget.onTap,
-        onHorizontalDragUpdate: _onDragUpdate,
-        onHorizontalDragEnd: _onDragEnd,
+        onTap: widget.track.downloaded ? widget.onTap : null,
+        onHorizontalDragUpdate: widget.track.downloaded ? _onDragUpdate : null,
+        onHorizontalDragEnd: widget.track.downloaded ? _onDragEnd : null,
         behavior: HitTestBehavior.opaque,
         child: Stack(
           children: [
@@ -205,7 +205,9 @@ class _MobileTrackRowState extends State<MobileTrackRow> {
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               fontSize: 14,
-                              color: widget.isPlaying ? themeColor : Colors.white,
+                              color: widget.isPlaying
+                                  ? themeColor
+                                  : (widget.track.downloaded ? Colors.white : const Color(0xFF757588)),
                               fontWeight: widget.isPlaying ? FontWeight.bold : FontWeight.w600,
                             ),
                           ),
