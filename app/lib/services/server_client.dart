@@ -39,6 +39,7 @@ class ServerClient {
   String? userID;
   String? sessionToken;
   String? username;
+  bool hasHiddenAccess = false;
 
   final ValueNotifier<Set<int>> downloadingTrackIdsNotifier = ValueNotifier<Set<int>>({});
   final ValueNotifier<bool> isSyncingNotifier = ValueNotifier<bool>(false);
@@ -79,6 +80,10 @@ class ServerClient {
       userID = await _storage.read(key: 'user_id');
       sessionToken = await _storage.read(key: 'session_token');
       username = await _storage.read(key: 'username');
+      final savedHiddenAccess = await _storage.read(key: 'hidden_access');
+      if (savedHiddenAccess != null) {
+        hasHiddenAccess = savedHiddenAccess == 'true';
+      }
       final savedAppKey = await _storage.read(key: 'app_key');
       if (savedAppKey != null && savedAppKey.isNotEmpty) {
         appKey = savedAppKey;
@@ -93,6 +98,7 @@ class ServerClient {
       if (userID != null) await _storage.write(key: 'user_id', value: userID!);
       if (sessionToken != null) await _storage.write(key: 'session_token', value: sessionToken!);
       if (username != null) await _storage.write(key: 'username', value: username!);
+      await _storage.write(key: 'hidden_access', value: hasHiddenAccess.toString());
       if (appKey != null) await _storage.write(key: 'app_key', value: appKey!);
     } catch (e) {
       print('Error saving secure credentials: $e');
@@ -209,6 +215,9 @@ class ServerClient {
       final Map<String, dynamic> data = jsonDecode(response.body);
       userID = data['userID'] as String?;
       sessionToken = data['sessionToken'] as String?;
+      if (data.containsKey('hiddenAccess')) {
+        hasHiddenAccess = data['hiddenAccess'] == true;
+      }
       username = targetUsername;
       appUrl = baseUrl;
 
@@ -257,6 +266,9 @@ class ServerClient {
       final Map<String, dynamic> data = jsonDecode(response.body);
       userID = data['userID'] as String?;
       sessionToken = data['sessionToken'] as String?;
+      if (data.containsKey('hiddenAccess')) {
+        hasHiddenAccess = data['hiddenAccess'] == true;
+      }
       username = targetUsername;
       appUrl = baseUrl;
 
@@ -289,7 +301,17 @@ class ServerClient {
         headers: _headers(),
       ).timeout(const Duration(seconds: 3));
 
-      return response.statusCode == 200;
+      if (response.statusCode == 200) {
+        try {
+          final Map<String, dynamic> data = jsonDecode(response.body);
+          if (data.containsKey('hiddenAccess')) {
+            hasHiddenAccess = data['hiddenAccess'] == true;
+            await _saveSecureCredentials();
+          }
+        } catch (_) {}
+        return true;
+      }
+      return false;
     } catch (e) {
       return false;
     }
@@ -764,7 +786,7 @@ class ServerClient {
     }
   }
 
-  Future<void> uploadTrack(Track track, String audioPath, String coverPath) async {
+  Future<void> uploadTrack(Track track, String audioPath, String coverPath, {bool hidden = false}) async {
     final player = AudioPlayer();
     try {
       final duration = await player.setFilePath(audioPath);
@@ -781,7 +803,7 @@ class ServerClient {
     }
 
     try {
-      final newId = await _updateUploads(track);
+      final newId = await _updateUploads(track, hidden: hidden);
       await _upload('audio', audioPath, newId);
       await _upload('cover', coverPath, newId);
     } catch (e) {

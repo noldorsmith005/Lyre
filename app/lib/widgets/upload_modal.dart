@@ -7,22 +7,33 @@ import '../services/theme_service.dart';
 
 
 class UploadModal extends StatefulWidget {
-  final Function(String title, String artist, String mediaPath, String coverPath) onUpload;
+  final Function(String title, String artist, String mediaPath, String coverPath, bool hidden) onUpload;
+  final bool hasHiddenAccess;
   final String? errorMessage;
 
   const UploadModal({
     Key? key,
     required this.onUpload,
+    this.hasHiddenAccess = false,
     this.errorMessage,
   }) : super(key: key);
 
-  static void show(BuildContext context, {required Function(String, String, String, String) onUpload, String? errorMessage}) {
+  static void show(
+    BuildContext context, {
+    required Function(String, String, String, String, bool) onUpload,
+    bool hasHiddenAccess = false,
+    String? errorMessage,
+  }) {
     showDialog(
       context: context,
       barrierColor: Colors.black.withValues(alpha: 0.65),
       builder: (context) => BackdropFilter(
         filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-        child: UploadModal(onUpload: onUpload, errorMessage: errorMessage),
+        child: UploadModal(
+          onUpload: onUpload,
+          hasHiddenAccess: hasHiddenAccess,
+          errorMessage: errorMessage,
+        ),
       ),
     );
   }
@@ -36,6 +47,7 @@ class _UploadModalState extends State<UploadModal> {
   final TextEditingController _artistController = TextEditingController();
   String? _mediaPath;
   String? _coverPath;
+  bool _isHidden = false;
 
   @override
   void dispose() {
@@ -202,6 +214,25 @@ class _UploadModalState extends State<UploadModal> {
                   }
                 },
               ),
+              if (widget.hasHiddenAccess) ...[
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text('Hidden Track', style: TextStyle(color: Colors.white70, fontSize: 14)),
+                    const SizedBox(width: 8),
+                    Switch(
+                      value: _isHidden,
+                      activeColor: themeColor,
+                      onChanged: (val) {
+                        setState(() {
+                          _isHidden = val;
+                        });
+                      },
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 12),
               SizedBox(
                 width: 260,
@@ -222,6 +253,7 @@ class _UploadModalState extends State<UploadModal> {
                         _artistController.text,
                         _mediaPath!,
                         _coverPath!,
+                        _isHidden,
                       );
                     }
                   },

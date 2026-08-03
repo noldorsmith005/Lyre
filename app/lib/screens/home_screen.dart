@@ -233,7 +233,8 @@ class _HomeScreenState extends State<HomeScreen> {
   void _onUploadPressed() {
     UploadModal.show(
       context,
-      onUpload: (title, artist, mediaPath, coverPath) async {
+      hasHiddenAccess: widget.serverClient.hasHiddenAccess,
+      onUpload: (title, artist, mediaPath, coverPath, hidden) async {
         try {
           final newTrack = Track(
             trackID: 0,
@@ -241,7 +242,7 @@ class _HomeScreenState extends State<HomeScreen> {
             artist: artist,
             duration: '',
           );
-          await widget.serverClient.uploadTrack(newTrack, mediaPath, coverPath);
+          await widget.serverClient.uploadTrack(newTrack, mediaPath, coverPath, hidden: hidden);
           if (mounted) Navigator.of(context).pop();
         } catch (e) {
           _showAlert('Upload Error', e.toString());

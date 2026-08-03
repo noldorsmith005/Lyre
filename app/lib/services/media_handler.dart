@@ -111,6 +111,13 @@ class MediaHandler {
             )
           ''');
           await db.execute('''
+            CREATE TABLE IF NOT EXISTS users (
+                id            INTEGER PRIMARY KEY,
+                username      TEXT UNIQUE,
+                hidden_access INTEGER DEFAULT 0
+            )
+          ''');
+          await db.execute('''
             CREATE TABLE IF NOT EXISTS sync_queue (
                 key   TEXT PRIMARY KEY,
                 value TEXT

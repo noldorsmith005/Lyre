@@ -281,7 +281,8 @@ def createUser():
 
     return jsonify({
         "userID": str(uid),
-        "sessionToken": session_token
+        "sessionToken": session_token,
+        "hiddenAccess": False
     }), 201
 
 
@@ -297,11 +298,11 @@ def loginUser():
 
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, username, password_hash, salt FROM users WHERE username = ?", (username,))
+        cursor.execute("SELECT id, username, password_hash, salt, COALESCE(hidden_access, 0) FROM users WHERE username = ?", (username,))
         row = cursor.fetchone()
         if not row:
             return "User not found", 404
-        uid, uname, pw_hash, salt = row
+        uid, uname, pw_hash, salt, hidden_access = row
         if not pw_hash:
             return "Invalid credentials", 401
         expected_hash, _ = hashPassword(password, salt)
@@ -316,7 +317,8 @@ def loginUser():
 
         return jsonify({
             "userID": str(uid),
-            "sessionToken": session_token
+            "sessionToken": session_token,
+            "hiddenAccess": bool(hidden_access)
         }), 200
 
 
@@ -327,16 +329,23 @@ def validateSession():
         return "Invalid App Token", 401
     authorized = authUser(request)
     if authorized != False:
+        user_id = int(authorized)
+        hidden_access = 0
         auth_header = request.headers.get("Authorization")
-        if auth_header and auth_header.startswith("Bearer "):
-            token = auth_header.split(" ")[1]
-            with get_db() as conn:
-                conn.execute(
+        with get_db() as conn:
+            cursor = conn.cursor()
+            if auth_header and auth_header.startswith("Bearer "):
+                token = auth_header.split(" ")[1]
+                cursor.execute(
                     "UPDATE sessions SET last_seen = ?, client_ip = ? WHERE token = ?",
                     (int(time.time()), request.remote_addr, token)
                 )
-                conn.commit()
-        return jsonify({"status": "authenticated", "userID": authorized}), 200
+            cursor.execute("SELECT COALESCE(hidden_access, 0) FROM users WHERE id = ?", (user_id,))
+            h_row = cursor.fetchone()
+            if h_row:
+                hidden_access = h_row[0]
+            conn.commit()
+        return jsonify({"status": "authenticated", "userID": authorized, "hiddenAccess": bool(hidden_access)}), 200
     else:
         return "Unauthorized", 401
 
@@ -355,158 +364,6 @@ def logoutUser():
         cursor.execute("DELETE FROM sessions WHERE token = ?", (token,))
         conn.commit()
     return jsonify({"status": "logged_out"}), 200
-
-
-def init_db():
-    try:
-        with get_db() as conn:
-            conn.execute("PRAGMA journal_mode=WAL;")
-            conn.execute("PRAGMA busy_timeout=5000;")
-            
-            # Auto-migrate legacy table names to snake_case
-            cursor = conn.cursor()
-            existing_tables = [r[0] for r in cursor.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()]
-            legacy_renames = [
-                ('Users', 'users'),
-                ('ActiveSessions', 'sessions'),
-                ('active_sessions', 'sessions'),
-                ('Tracks', 'tracks'),
-                ('History', 'history'),
-                ('Stats', 'stats')
-            ]
-            for old_t, new_t in legacy_renames:
-                if old_t in existing_tables and old_t != new_t:
-                    temp_t = f'{new_t}_temp'
-                    if temp_t in existing_tables:
-                        cursor.execute(f'DROP TABLE "{temp_t}"')
-                    if new_t in existing_tables:
-                        cursor.execute(f'DROP TABLE "{new_t}"')
-                    cursor.execute(f'ALTER TABLE "{old_t}" RENAME TO "{temp_t}"')
-                    cursor.execute(f'ALTER TABLE "{temp_t}" RENAME TO "{new_t}"')
-
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY,
-                    username TEXT UNIQUE,
-                    password_hash TEXT,
-                    salt TEXT
-                )
-            """)
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS sessions (
-                    token TEXT PRIMARY KEY,
-                    user_id INTEGER,
-                    username TEXT,
-                    last_seen INTEGER,
-                    client_ip TEXT,
-                    device TEXT
-                )
-            """)
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS tracks (
-                    track_id INTEGER PRIMARY KEY,
-                    title TEXT,
-                    artist TEXT,
-                    duration TEXT,
-                    contributor TEXT
-                )
-            """)
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS user_downloads (
-                    user_id INTEGER,
-                    track_id INTEGER,
-                    PRIMARY KEY (user_id, track_id)
-                )
-            """)
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS user_playlists (
-                    id          INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id     INTEGER,
-                    playlist_id INTEGER,
-                    name        TEXT,
-                    tracks      TEXT
-                )
-            """)
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS history (
-                    user_id     INTEGER,
-                    track_id    INTEGER,
-                    play_count  INTEGER DEFAULT 1,
-                    PRIMARY KEY (user_id, track_id)
-                )
-            """)
-            conn.execute("""
-                CREATE TABLE IF NOT EXISTS stats (
-                    user_id              INTEGER PRIMARY KEY,
-                    month_year           TEXT,
-                    total_minutes        INTEGER,
-                    total_plays          INTEGER,
-                    daily_avg_minutes    INTEGER,
-                    percentile_text      TEXT,
-                    top_tracks_json      TEXT,
-                    top_artists_json     TEXT,
-                    top_percentages_json TEXT,
-                    theme_color          TEXT,
-                    new_release          INTEGER DEFAULT 1
-                )
-            """)
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_user_playlists_uid ON user_playlists(user_id);")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_user_downloads_uid ON user_downloads(user_id);")
-            conn.execute("CREATE INDEX IF NOT EXISTS idx_history_uid ON history(user_id);")
-            conn.execute("""
-                CREATE VIRTUAL TABLE IF NOT EXISTS tracks_fts USING fts5(
-                    title, artist, content='tracks', content_rowid='track_id'
-                )
-            """)
-            conn.execute("""
-                CREATE TRIGGER IF NOT EXISTS tracks_ai AFTER INSERT ON tracks BEGIN
-                    INSERT INTO tracks_fts(rowid, title, artist) 
-                    VALUES (new.track_id, new.title, new.artist);
-                END;
-            """)
-            conn.execute("""
-                CREATE TRIGGER IF NOT EXISTS tracks_ad AFTER DELETE ON tracks BEGIN
-                    INSERT INTO tracks_fts(tracks_fts, rowid, title, artist) 
-                    VALUES ('delete', old.track_id, old.title, old.artist);
-                END;
-            """)
-            conn.execute("""
-                CREATE TRIGGER IF NOT EXISTS tracks_au AFTER UPDATE ON tracks BEGIN
-                    INSERT INTO tracks_fts(tracks_fts, rowid, title, artist) 
-                    VALUES ('delete', old.track_id, old.title, old.artist);
-                    INSERT INTO tracks_fts(rowid, title, artist) 
-                    VALUES (new.track_id, new.title, new.artist);
-                END;
-            """)
-            
-            cursor = conn.cursor()
-            cursor.execute("SELECT count(*) FROM tracks_fts")
-            if cursor.fetchone()[0] == 0:
-                conn.execute("INSERT INTO tracks_fts(tracks_fts) VALUES('rebuild')")
-
-            if os.path.exists('./sessions.json'):
-                try:
-                    with open('./sessions.json', 'r') as f:
-                        data = json.load(f)
-                        for u in data.get('Users', []):
-                            conn.execute(
-                                "INSERT OR IGNORE INTO users (id, username, password_hash, salt) VALUES (?, ?, ?, ?)",
-                                (u.get('id'), u.get('username'), u.get('password_hash', ''), u.get('salt', ''))
-                            )
-                        for uid, sess in data.get('ActiveSessions', {}).items():
-                            if isinstance(sess, dict) and sess.get('token'):
-                                conn.execute(
-                                    "INSERT OR IGNORE INTO sessions (token, user_id, username, last_seen, client_ip, device) VALUES (?, ?, ?, ?, ?, ?)",
-                                    (sess.get('token'), int(uid), sess.get('username'), sess.get('last_seen', int(time.time())), sess.get('client_ip', ''), sess.get('device'))
-                                )
-                except Exception as e:
-                    print(f"Migration from sessions.json note: {e}")
-            conn.commit()
-    except Exception as e:
-        print(f"Error initializing DB: {e}")
-
-init_db()
 
 
 # API methods
@@ -652,16 +509,20 @@ def searchTracks(filter_text=""):
     try:
         with get_db() as conn:
             cursor = conn.cursor()
+            cursor.execute("SELECT COALESCE(hidden_access, 0) FROM users WHERE id = ?", (userID,))
+            h_row = cursor.fetchone()
+            has_hidden_access = bool(h_row[0]) if h_row else False
+            hidden_clause = "" if has_hidden_access else "AND COALESCE(t.hidden, 0) = 0"
             
             # 1. FTS search with prefix matching on tokens
             match_val = ' '.join([f'"{w}"*' for w in words])
-            fts_sql = """
+            fts_sql = f"""
                 SELECT t.track_id, t.title, t.artist, t.duration, COALESCE(u.username, t.contributor), ud.user_id
                 FROM tracks_fts fts
                 JOIN tracks t ON fts.rowid = t.track_id
                 LEFT JOIN user_downloads ud ON t.track_id = ud.track_id AND ud.user_id = ?
                 LEFT JOIN users u ON CAST(t.contributor AS INTEGER) = u.id
-                WHERE tracks_fts MATCH ?
+                WHERE tracks_fts MATCH ? {hidden_clause}
                 ORDER BY t.title ASC
             """
             try:
@@ -682,12 +543,12 @@ def searchTracks(filter_text=""):
 
             # 2. LIKE fallback for substring matches
             like_filter = f"%{normalized_filter}%"
-            like_sql = """
+            like_sql = f"""
                 SELECT t.track_id, t.title, t.artist, t.duration, COALESCE(u.username, t.contributor), ud.user_id
                 FROM tracks t
                 LEFT JOIN user_downloads ud ON t.track_id = ud.track_id AND ud.user_id = ?
                 LEFT JOIN users u ON CAST(t.contributor AS INTEGER) = u.id
-                WHERE (LOWER(t.title) LIKE ? OR LOWER(t.artist) LIKE ?)
+                WHERE (LOWER(t.title) LIKE ? OR LOWER(t.artist) LIKE ?) {hidden_clause}
                 ORDER BY t.title ASC
             """
             try:
@@ -841,15 +702,21 @@ def addUpload():
     title_val = user_data.get('title', '')
     artist_val = user_data.get('artist', '')
     duration_val = user_data.get('duration', '')
+    req_hidden = user_data.get('hidden')
 
-    sql = "INSERT INTO tracks (track_id, title, artist, duration, contributor) VALUES (?, ?, ?, ?, ?)"
+    sql = "INSERT INTO tracks (track_id, title, artist, duration, contributor, hidden) VALUES (?, ?, ?, ?, ?, ?)"
     try:
         with get_db() as conn:
             cursor = conn.cursor()
+            cursor.execute("SELECT COALESCE(hidden_access, 0) FROM users WHERE id = ?", (userID,))
+            h_row = cursor.fetchone()
+            has_hidden_access = bool(h_row[0]) if h_row else False
+            hidden_val = 1 if (has_hidden_access and req_hidden in (True, 1, 'true', '1')) else 0
+
             while True:
                 new_id = genTrackID()
                 try:
-                    cursor.execute(sql, (new_id, title_val, artist_val, duration_val, str(userID)))
+                    cursor.execute(sql, (new_id, title_val, artist_val, duration_val, str(userID), hidden_val))
                     conn.commit()
                     break
                 except sqlite3.IntegrityError as err:

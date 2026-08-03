@@ -15,6 +15,7 @@ Stores registered user accounts and credentials.
 | `username` | `TEXT` | `UNIQUE` | User login handle |
 | `password_hash` | `TEXT` | | Hex-encoded PBKDF2-HMAC-SHA256 hash |
 | `salt` | `TEXT` | | Hex-encoded random salt (16 bytes) |
+| `hidden_access` | `INTEGER` | `DEFAULT 0` | Flag indicating access to hidden tracks (0 or 1) |
 
 ---
 
@@ -42,6 +43,7 @@ Stores metadata for uploaded audio tracks.
 | `artist` | `TEXT` | | Track artist name |
 | `duration` | `TEXT` | | Formatted track duration (`MM:SS`) |
 | `contributor` | `TEXT` | | User ID or name of uploader |
+| `hidden` | `INTEGER` | `DEFAULT 0` | Flag indicating if track is hidden (0 or 1) |
 
 ---
 
