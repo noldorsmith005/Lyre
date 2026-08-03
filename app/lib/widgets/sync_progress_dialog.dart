@@ -185,6 +185,41 @@ class _SyncProgressDialogState extends State<SyncProgressDialog> with SingleTick
                   },
                 ),
               ),
+              if (_currentProgress.trackProgress != null) ...[
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: TweenAnimationBuilder<double>(
+                          duration: const Duration(milliseconds: 200),
+                          curve: Curves.easeInOut,
+                          tween: Tween<double>(begin: 0.0, end: _currentProgress.trackProgress!.clamp(0.0, 1.0)),
+                          builder: (context, value, child) {
+                            return LinearProgressIndicator(
+                              value: value,
+                              minHeight: 4,
+                              backgroundColor: const Color(0xFF242432),
+                              valueColor: AlwaysStoppedAnimation<Color>(themeColor.withValues(alpha: 0.6)),
+                            );
+                          },
+                        ),
+                      ),
+                    ),
+                    if (_currentProgress.trackProgressLabel != null) ...[
+                      const SizedBox(width: 10),
+                      Text(
+                        _currentProgress.trackProgressLabel!,
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.5),
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ],
               const SizedBox(height: 16),
               // Status and details
               Row(

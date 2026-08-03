@@ -13,7 +13,6 @@ import shutil
 import tempfile
 import threading
 from flask import Flask, send_file, request, jsonify, after_this_request
-from flask_compress import Compress
 
 from utils import Utils
 import resource
@@ -48,10 +47,6 @@ app.config['DEBUG'] = False
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
 if config.get("secret_key"):
     app.config["SECRET_KEY"] = config["secret_key"]
-
-Compress(app)
-app.config['COMPRESS_ALGORITHM'] = 'gzip'
-app.config['COMPRESS_MIN_SIZE'] = 256
 
 db_path = config.get("database", "data.db")
 DATABASE_URL = db_path if os.path.isabs(db_path) else os.path.join(BASE_DIR, db_path)

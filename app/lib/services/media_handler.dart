@@ -320,7 +320,7 @@ class MediaHandler {
     }
   }
 
-  Future<void> newTrack(Track track) async {
+  Future<void> newTrack(Track track, {bool reloadCache = true}) async {
     try {
       await _db.insert(
         'tracks',
@@ -332,7 +332,7 @@ class MediaHandler {
         },
         conflictAlgorithm: ConflictAlgorithm.ignore,
       );
-      await loadAllIntoMemory();
+      if (reloadCache) await loadAllIntoMemory();
     } catch (e) {
       print('Could not add track: $e');
     }
@@ -507,6 +507,18 @@ class MediaHandler {
   Future<void> clearPendingRemoveDownload(int trackId) async {
     try {
       await _db.delete('sync_queue', where: 'key = ?', whereArgs: ['rm_dl_$trackId']);
+    } catch (_) {}
+  }
+
+  Future<void> clearAllPendingDownloads() async {
+    try {
+      await _db.delete('sync_queue', where: "key LIKE 'dl_%'");
+    } catch (_) {}
+  }
+
+  Future<void> clearAllPendingRemoveDownloads() async {
+    try {
+      await _db.delete('sync_queue', where: "key LIKE 'rm_dl_%'");
     } catch (_) {}
   }
 }

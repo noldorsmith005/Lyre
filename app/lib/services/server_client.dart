@@ -15,11 +15,15 @@ class SyncProgress {
   final String status;
   final double progress;
   final String? detail;
+  final double? trackProgress;
+  final String? trackProgressLabel;
 
   const SyncProgress({
     required this.status,
     required this.progress,
     this.detail,
+    this.trackProgress,
+    this.trackProgressLabel,
   });
 }
 
@@ -393,14 +397,15 @@ class ServerClient {
         return false;
       }
 
+      reportProgress(const SyncProgress(status: 'Processing pending changes...', progress: 0.10));
+      final manifestFuture = getUserDownloadedTracks();
+
       // Process pending offline download tracking (batch)
       final pendingDownloads = await mediaHandler.getPendingDownloads();
       if (pendingDownloads.isNotEmpty) {
         try {
           await _batchUpdateDownloads(pendingDownloads);
-          for (final trackId in pendingDownloads) {
-            await mediaHandler.clearPendingDownload(trackId);
-          }
+          await mediaHandler.clearAllPendingDownloads();
         } catch (_) {}
       }
 
@@ -408,21 +413,18 @@ class ServerClient {
       if (pendingRemoves.isNotEmpty) {
         try {
           await _batchRemoveDownloads(pendingRemoves);
-          for (final trackId in pendingRemoves) {
-            await mediaHandler.clearPendingRemoveDownload(trackId);
-          }
+          await mediaHandler.clearAllPendingRemoveDownloads();
         } catch (_) {}
       }
 
       // Process pending offline playlist changes
       final hasPendingPush = await mediaHandler.hasPendingPlaylistPush();
       if (hasPendingPush) {
-        reportProgress(const SyncProgress(status: 'Pushing pending playlist updates...', progress: 0.10));
         await pushLocalPlaylists();
       }
 
-      reportProgress(const SyncProgress(status: 'Checking remote downloads...', progress: 0.15));
-      final serverTracks = await getUserDownloadedTracks();
+      reportProgress(const SyncProgress(status: 'Preparing downloads...', progress: 0.15));
+      final serverTracks = await manifestFuture;
       if (serverTracks != null) {
         final serverTrackIds = serverTracks.map((t) => t.trackID).toSet();
         final localTracks = await mediaHandler.getAllTracks();
@@ -438,7 +440,7 @@ class ServerClient {
           ..connectionTimeout = const Duration(seconds: 15);
         syncClient.badCertificateCallback = (cert, host, port) => true;
 
-        const int concurrency = 3;
+        const int concurrency = 6;
         try {
           for (int i = 0; i < tracksToDownload.length; i += concurrency) {
           final chunk = tracksToDownload.sublist(
@@ -452,6 +454,8 @@ class ServerClient {
                 : 'Downloading track (${i + 1}/${tracksToDownload.length})',
             detail: chunk.map((t) => t.title).join(', '),
             progress: progressVal,
+            trackProgress: completedOps / (totalTrackOps > 0 ? totalTrackOps : 1),
+            trackProgressLabel: '$completedOps of $totalTrackOps tracks',
           ));
           await Future.wait(chunk.map((st) => downloadTrack(st, updateServerTracking: false, sharedClient: syncClient)));
           completedOps += chunk.length;
@@ -464,6 +468,8 @@ class ServerClient {
             status: 'Removing track (${i + 1}/${tracksToRemove.length})',
             detail: '${lt.title} - ${lt.artist}',
             progress: progressVal,
+            trackProgress: completedOps / (totalTrackOps > 0 ? totalTrackOps : 1),
+            trackProgressLabel: '$completedOps of $totalTrackOps tracks',
           ));
           await removeDownload(lt, updateServerTracking: false);
           completedOps++;
@@ -471,19 +477,24 @@ class ServerClient {
         } finally {
           syncClient.close(force: true);
         }
+        
+        reportProgress(const SyncProgress(status: 'Updating local library...', progress: 0.75));
+        await mediaHandler.loadAllIntoMemory();
       }
 
-      reportProgress(const SyncProgress(status: 'Syncing playlists...', progress: 0.75));
-      final serverPlaylists = await pullSyncPlaylists();
-      if (serverPlaylists != null) {
-        final hasUnsyncedLocal = await mediaHandler.syncLocalPlaylists(serverPlaylists);
-        if (hasUnsyncedLocal) {
-          await pushLocalPlaylists();
-        }
-      }
-
-      reportProgress(const SyncProgress(status: 'Syncing listening history...', progress: 0.90));
-      await ListeningStatsService.instance.syncLocalHistoryToServer(this);
+      reportProgress(const SyncProgress(status: 'Syncing playlists & history...', progress: 0.85));
+      await Future.wait([
+        () async {
+          final serverPlaylists = await pullSyncPlaylists();
+          if (serverPlaylists != null) {
+            final hasUnsyncedLocal = await mediaHandler.syncLocalPlaylists(serverPlaylists);
+            if (hasUnsyncedLocal) {
+              await pushLocalPlaylists();
+            }
+          }
+        }(),
+        ListeningStatsService.instance.syncLocalHistoryToServer(this),
+      ]);
 
       reportProgress(const SyncProgress(status: 'Sync complete!', progress: 1.0));
       await Future.delayed(const Duration(milliseconds: 300));
@@ -737,7 +748,7 @@ class ServerClient {
           await mediaHandler.addPendingDownload(track.trackID);
         }
       }
-      await mediaHandler.newTrack(track);
+      await mediaHandler.newTrack(track, reloadCache: updateServerTracking);
       PaintingBinding.instance.imageCache.evict(FileImage(File('$_appDataPath/cover/${track.trackID}.jpg')));
       return true;
     } catch (e) {
