@@ -16,19 +16,8 @@ import 'utils/platform_utils.dart';
 
 
 
-class MyHttpOverrides extends HttpOverrides {
-  @override
-  HttpClient createHttpClient(SecurityContext? context) {
-    final client = super.createHttpClient(context);
-    client.badCertificateCallback =
-        (X509Certificate cert, String host, int port) => true;
-    return client;
-  }
-}
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  HttpOverrides.global = MyHttpOverrides();
 
   // Initialize services
   final mediaHandler = MediaHandler();
@@ -149,44 +138,22 @@ class _DesktopWrapperState extends State<DesktopWrapper> {
     super.dispose();
   }
 
-  bool _isEditingText() {
+  bool _isInteractiveFocused() {
     final focus = FocusManager.instance.primaryFocus;
-    if (focus == null || focus.context == null) return false;
-    final context = focus.context!;
-
-    final widget = context.widget;
-    if (widget is EditableText ||
-        widget is TextField ||
-        widget is TextFormField) {
+    if (focus == null) return false;
+    
+    // If a specific interactive element (button, checkbox, text field) has focus,
+    // its focus node is typically a standard FocusNode, whereas the root or 
+    // container scopes are FocusScopeNodes.
+    if (focus is! FocusScopeNode) {
       return true;
     }
-
-    if (context.findAncestorStateOfType<EditableTextState>() != null ||
-        context.findAncestorWidgetOfExactType<EditableText>() != null ||
-        context.findAncestorWidgetOfExactType<TextField>() != null ||
-        context.findAncestorWidgetOfExactType<TextFormField>() != null) {
-      return true;
-    }
-
-    bool isEditing = false;
-    if (context is Element) {
-      context.visitAncestorElements((ancestor) {
-        final w = ancestor.widget;
-        if (w is EditableText ||
-            w is TextField ||
-            w is TextFormField) {
-          isEditing = true;
-          return false;
-        }
-        return true;
-      });
-    }
-    return isEditing;
+    return false;
   }
 
   bool _handleKeyEvent(KeyEvent event) {
     if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.space) {
-      if (!mounted || _isEditingText()) {
+      if (!mounted || _isInteractiveFocused()) {
         return false;
       }
       final audioService = Provider.of<AudioPlayerService>(context, listen: false);

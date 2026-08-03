@@ -41,8 +41,6 @@ class VibeQueueService {
     int count = 20,
   }) async {
     final db = mediaHandler.db;
-    final allTracks = await mediaHandler.getAllTracks();
-    if (allTracks.isEmpty) return [];
 
     List<Track> selectedTracks = [];
 
@@ -64,12 +62,28 @@ class VibeQueueService {
     if (selectedTracks.length > count) {
       selectedTracks = selectedTracks.sublist(0, count);
     } else if (selectedTracks.length < count) {
-      // Fill remaining with random tracks from all available local tracks
-      final existingIds = selectedTracks.map((t) => t.trackID).toSet();
-      final remaining = allTracks.where((t) => !existingIds.contains(t.trackID)).toList();
-      remaining.shuffle(random);
+      final existingIds = selectedTracks.map((t) => t.trackID).toList();
       final needed = count - selectedTracks.length;
-      selectedTracks.addAll(remaining.take(needed));
+      
+      try {
+        final placeholders = List.filled(existingIds.length, '?').join(',');
+        final query = existingIds.isNotEmpty 
+            ? 'SELECT track_id, title, artist, duration FROM tracks WHERE track_id NOT IN ($placeholders) ORDER BY RANDOM() LIMIT $needed'
+            : 'SELECT track_id, title, artist, duration FROM tracks ORDER BY RANDOM() LIMIT $needed';
+            
+        final rows = await db.rawQuery(query, existingIds);
+        final randomTracks = rows.map<Track>((row) => Track(
+            trackID: row['track_id'] as int,
+            title: row['title'] as String,
+            artist: row['artist'] as String,
+            duration: row['duration'] as String,
+            downloaded: true,
+            contributor: '',
+          )).toList();
+        selectedTracks.addAll(randomTracks);
+      } catch (e) {
+        print('Error fetching random tracks: $e');
+      }
     }
 
     return selectedTracks;
@@ -101,7 +115,7 @@ class VibeQueueService {
     } catch (e) {
       print('Error querying most played tracks: $e');
     }
-    return await mediaHandler.getAllTracks();
+    return [];
   }
 
   static Future<List<Track>> _getLeastPlayedTracks(dynamic db, MediaHandler mediaHandler) async {
@@ -128,7 +142,7 @@ class VibeQueueService {
     } catch (e) {
       print('Error querying least played tracks: $e');
     }
-    return await mediaHandler.getAllTracks();
+    return [];
   }
 
   static Future<List<Track>> _getMixItUpTracks(dynamic db, MediaHandler mediaHandler) async {
@@ -162,6 +176,6 @@ class VibeQueueService {
     } catch (e) {
       print('Error querying mix it up tracks: $e');
     }
-    return await mediaHandler.getAllTracks();
+    return [];
   }
 }

@@ -12,7 +12,7 @@ import subprocess
 import shutil
 import tempfile
 import threading
-from flask import Flask, send_file, request, jsonify, after_this_request
+from flask import Flask, send_file, request, jsonify, after_this_request, g, has_app_context
 
 from utils import Utils
 import resource
@@ -54,14 +54,29 @@ DATABASE_URL = db_path if os.path.isabs(db_path) else os.path.join(BASE_DIR, db_
 _thread_local = threading.local()
 
 def get_db():
-    conn = getattr(_thread_local, 'conn', None)
-    if conn is None:
-        conn = sqlite3.connect(DATABASE_URL, timeout=15.0)
-        conn.execute("PRAGMA journal_mode=WAL;")
-        conn.execute("PRAGMA foreign_keys = ON;")
-        conn.execute("PRAGMA busy_timeout = 10000;")
-        _thread_local.conn = conn
-    return conn
+    if has_app_context():
+        conn = getattr(g, '_database', None)
+        if conn is None:
+            conn = g._database = sqlite3.connect(DATABASE_URL, timeout=15.0)
+            conn.execute("PRAGMA journal_mode=WAL;")
+            conn.execute("PRAGMA foreign_keys = ON;")
+            conn.execute("PRAGMA busy_timeout = 10000;")
+        return conn
+    else:
+        conn = getattr(_thread_local, 'conn', None)
+        if conn is None:
+            conn = sqlite3.connect(DATABASE_URL, timeout=15.0)
+            conn.execute("PRAGMA journal_mode=WAL;")
+            conn.execute("PRAGMA foreign_keys = ON;")
+            conn.execute("PRAGMA busy_timeout = 10000;")
+            _thread_local.conn = conn
+        return conn
+
+@app.teardown_appcontext
+def close_connection(exception):
+    conn = getattr(g, '_database', None)
+    if conn is not None:
+        conn.close()
 
 TRACK_FILE_TYPES = {
     "cover": {"ext": "jpg", "mimetype": "image/jpeg"},
@@ -77,7 +92,7 @@ SUPPORTED_TYPES = {
 
 
 # Helpers
-APP_TOKEN = os.environ.get("APP_TOKEN") or config.get("app_token") or "n8cQiw4z6oSHFixnEFK7"
+APP_TOKEN = os.environ.get("APP_TOKEN") or config.get("app_token")
 if os.path.exists('./sessions.json'):
     try:
         with open('./sessions.json', 'r') as file:
@@ -86,6 +101,9 @@ if os.path.exists('./sessions.json'):
                 APP_TOKEN = data.get('AppToken')
     except Exception:
         pass
+
+if not APP_TOKEN:
+    raise RuntimeError("CRITICAL ERROR: No APP_TOKEN configured. You must set 'app_token' in config.json or APP_TOKEN in the environment.")
 
 def genID():
     with get_db() as conn:
@@ -508,15 +526,24 @@ def pushSyncPlaylists():
 
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT track_id FROM tracks")
-        valid_track_ids = {row[0] for row in cursor.fetchall()}
         try:
             cursor.execute("DELETE FROM user_playlists WHERE user_id = ?", (user_id,))
             for pl in playlists:
                 playlist_id = pl.get("playlist_id")
                 name = pl.get("name")
                 raw_tracks = pl.get("tracks", [])
-                sanitized_tracks = [tid for tid in raw_tracks if isinstance(tid, int) and tid in valid_track_ids]
+                
+                valid_ids_in_playlist = set()
+                if isinstance(raw_tracks, list) and raw_tracks:
+                    int_tracks = [tid for tid in raw_tracks if isinstance(tid, int)]
+                    if int_tracks:
+                        for i in range(0, len(int_tracks), 500):
+                            chunk = int_tracks[i:i+500]
+                            placeholders = ",".join("?" * len(chunk))
+                            cursor.execute(f"SELECT track_id FROM tracks WHERE track_id IN ({placeholders})", chunk)
+                            valid_ids_in_playlist.update(row[0] for row in cursor.fetchall())
+                
+                sanitized_tracks = [tid for tid in raw_tracks if isinstance(tid, int) and tid in valid_ids_in_playlist]
                 tracks_json = json.dumps(sanitized_tracks)
                 cursor.execute(
                     "INSERT INTO user_playlists (user_id, playlist_id, name, tracks) VALUES (?, ?, ?, ?)",
@@ -734,11 +761,16 @@ def uploadFile(id, ext):
     final_path = os.path.join(dest_dir, f"{id}.flac" if type == "audio" else f"{id}.jpg")
 
     try:
+        total_size = 0
+        max_size = app.config.get('MAX_CONTENT_LENGTH', 100 * 1024 * 1024)
         with open(upload_path, "wb") as f:
             while True:
                 chunk = request.stream.read(8192)
                 if not chunk:
                     break
+                total_size += len(chunk)
+                if total_size > max_size:
+                    raise Exception("File size exceeds upload limit")
                 f.write(chunk)
 
         if type == "audio":
@@ -860,15 +892,17 @@ def batchAddDownloaded():
     userID = int(authorized)
     payload = request.get_json() or {}
     track_ids = payload.get("track_ids", [])
+    if not isinstance(track_ids, list):
+        return jsonify({"error": "Invalid payload"}), 400
+
+    int_tracks = [tid for tid in track_ids if isinstance(tid, int)]
 
     try:
-        with get_db() as conn:
-            cursor = conn.cursor()
-            valid_ids = {row[0] for row in cursor.execute("SELECT track_id FROM tracks").fetchall()}
-            for tid in track_ids:
-                if isinstance(tid, int) and tid in valid_ids:
-                    cursor.execute("INSERT OR IGNORE INTO user_downloads (user_id, track_id) VALUES (?, ?)", (userID, tid))
-            conn.commit()
+        if int_tracks:
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.executemany("INSERT OR IGNORE INTO user_downloads (user_id, track_id) SELECT ?, track_id FROM tracks WHERE track_id = ?", [(userID, tid) for tid in int_tracks])
+                conn.commit()
     except sqlite3.Error as e:
         print(f"Could not batch update downloads: {e}")
         return jsonify({"error": "Batch update failed"}), 500
@@ -887,14 +921,17 @@ def batchRemoveDownloaded():
     userID = int(authorized)
     payload = request.get_json() or {}
     track_ids = payload.get("track_ids", [])
+    if not isinstance(track_ids, list):
+        return jsonify({"error": "Invalid payload"}), 400
+
+    int_tracks = [tid for tid in track_ids if isinstance(tid, int)]
 
     try:
-        with get_db() as conn:
-            cursor = conn.cursor()
-            for tid in track_ids:
-                if isinstance(tid, int):
-                    cursor.execute("DELETE FROM user_downloads WHERE user_id = ? AND track_id = ?", (userID, tid))
-            conn.commit()
+        if int_tracks:
+            with get_db() as conn:
+                cursor = conn.cursor()
+                cursor.executemany("DELETE FROM user_downloads WHERE user_id = ? AND track_id = ?", [(userID, tid) for tid in int_tracks])
+                conn.commit()
     except sqlite3.Error as e:
         print(f"Could not batch remove downloads: {e}")
         return jsonify({"error": "Batch remove failed"}), 500
@@ -1091,92 +1128,100 @@ def calculate_all_user_monthly_stats():
             user_track_plays.setdefault(uid, {})[tid] = count
 
         for uid in users:
-            u_history = user_track_plays.get(uid, {})
-            total_plays = sum(u_history.values())
-            
-            user_tracks_list = []
-            total_sec = 0
-            for tid, count in u_history.items():
-                t_info = tracks_db.get(tid, {"title": f"Track {tid}", "artist": "Unknown Artist", "duration": "3:30"})
-                try:
-                    dur_parts = str(t_info["duration"]).split(":")
-                    dur_sec = (int(dur_parts[0]) * 60 + int(dur_parts[1])) if len(dur_parts) == 2 else 210
-                except Exception:
-                    dur_sec = 210
-                total_sec += dur_sec * count
-                user_tracks_list.append({
-                    "trackID": tid,
-                    "title": t_info["title"],
-                    "artist": t_info["artist"],
-                    "duration": t_info["duration"],
-                    "playCount": count
-                })
+            try:
+                u_history = user_track_plays.get(uid, {})
+                total_plays = sum(u_history.values())
+                
+                user_tracks_list = []
+                total_sec = 0
+                for tid, count in u_history.items():
+                    t_info = tracks_db.get(tid, {"title": f"Track {tid}", "artist": "Unknown Artist", "duration": "3:30"})
+                    try:
+                        dur_parts = str(t_info["duration"]).split(":")
+                        if len(dur_parts) == 3:
+                            dur_sec = int(dur_parts[0]) * 3600 + int(dur_parts[1]) * 60 + int(dur_parts[2])
+                        elif len(dur_parts) == 2:
+                            dur_sec = int(dur_parts[0]) * 60 + int(dur_parts[1])
+                        else:
+                            dur_sec = 210
+                    except Exception:
+                        dur_sec = 210
+                    total_sec += dur_sec * count
+                    user_tracks_list.append({
+                        "trackID": tid,
+                        "title": t_info["title"],
+                        "artist": t_info["artist"],
+                        "duration": t_info["duration"],
+                        "playCount": count
+                    })
 
-            user_tracks_list.sort(key=lambda x: x["playCount"], reverse=True)
-            top_5_tracks = user_tracks_list[:5]
+                user_tracks_list.sort(key=lambda x: x["playCount"], reverse=True)
+                top_5_tracks = user_tracks_list[:5]
 
-            by_artist = {}
-            for t in user_tracks_list:
-                art = t["artist"] or "Unknown Artist"
-                by_artist[art] = by_artist.get(art, 0) + t["playCount"]
-            
-            user_artists_list = [{"artistName": a, "playCount": c, "totalMinutes": max(1, round(c * 3.5)), "topTrackTitle": "Top Track"} for a, c in by_artist.items()]
-            user_artists_list.sort(key=lambda x: x["playCount"], reverse=True)
-            top_5_artists = user_artists_list[:5]
+                by_artist = {}
+                for t in user_tracks_list:
+                    art = t["artist"] or "Unknown Artist"
+                    by_artist[art] = by_artist.get(art, 0) + t["playCount"]
+                
+                user_artists_list = [{"artistName": a, "playCount": c, "totalMinutes": max(1, round(c * 3.5)), "topTrackTitle": "Top Track"} for a, c in by_artist.items()]
+                user_artists_list.sort(key=lambda x: x["playCount"], reverse=True)
+                top_5_artists = user_artists_list[:5]
 
-            # Track listener percentiles
-            track_percentiles = []
-            for tid, count in u_history.items():
-                all_listeners = track_user_plays.get(tid, {})
-                N = len(all_listeners)
-                higher_count = sum(1 for other_uid, p in all_listeners.items() if p > count)
-                pct = max(1, round((higher_count / max(1, N)) * 100))
-                t_title = tracks_db.get(tid, {}).get("title", f"Track {tid}")
-                track_percentiles.append({"track_id": tid, "title": t_title, "percentile_val": pct, "percentile": f"Top {pct}%"})
+                # Track listener percentiles
+                track_percentiles = []
+                for tid, count in u_history.items():
+                    all_listeners = track_user_plays.get(tid, {})
+                    N = len(all_listeners)
+                    higher_count = sum(1 for other_uid, p in all_listeners.items() if p > count)
+                    pct = max(1, round((higher_count / max(1, N)) * 100))
+                    t_title = tracks_db.get(tid, {}).get("title", f"Track {tid}")
+                    track_percentiles.append({"track_id": tid, "title": t_title, "percentile_val": pct, "percentile": f"Top {pct}%"})
 
-            track_percentiles.sort(key=lambda x: x["percentile_val"])
-            top_2_tracks_pct = [{"title": x["title"], "percentile": x["percentile"]} for x in track_percentiles[:2]]
+                track_percentiles.sort(key=lambda x: x["percentile_val"])
+                top_2_tracks_pct = [{"title": x["title"], "percentile": x["percentile"]} for x in track_percentiles[:2]]
 
-            # Artist listener percentiles
-            artist_percentiles = []
-            for art, count in by_artist.items():
-                all_art_listeners = artist_user_plays.get(art, {})
-                N = len(all_art_listeners)
-                higher_count = sum(1 for other_uid, p in all_art_listeners.items() if p > count)
-                pct = max(1, round((higher_count / max(1, N)) * 100))
-                artist_percentiles.append({"artist": art, "percentile_val": pct, "percentile": f"Top {pct}%"})
+                # Artist listener percentiles
+                artist_percentiles = []
+                for art, count in by_artist.items():
+                    all_art_listeners = artist_user_plays.get(art, {})
+                    N = len(all_art_listeners)
+                    higher_count = sum(1 for other_uid, p in all_art_listeners.items() if p > count)
+                    pct = max(1, round((higher_count / max(1, N)) * 100))
+                    artist_percentiles.append({"artist": art, "percentile_val": pct, "percentile": f"Top {pct}%"})
 
-            artist_percentiles.sort(key=lambda x: x["percentile_val"])
-            top_2_artists_pct = [{"artist": x["artist"], "percentile": x["percentile"]} for x in artist_percentiles[:2]]
+                artist_percentiles.sort(key=lambda x: x["percentile_val"])
+                top_2_artists_pct = [{"artist": x["artist"], "percentile": x["percentile"]} for x in artist_percentiles[:2]]
 
-            total_minutes = max(1, round(total_sec / 60))
-            num_days = calendar.monthrange(prev_year, prev_month)[1]
-            daily_avg = max(1, round(total_minutes / num_days))
+                total_minutes = max(1, round(total_sec / 60))
+                num_days = calendar.monthrange(prev_year, prev_month)[1]
+                daily_avg = max(1, round(total_minutes / num_days))
 
-            top_percentages = {
-                "top_tracks": top_2_tracks_pct,
-                "top_artists": top_2_artists_pct
-            }
+                top_percentages = {
+                    "top_tracks": top_2_tracks_pct,
+                    "top_artists": top_2_artists_pct
+                }
 
-            cursor.execute("""
-                INSERT INTO stats (user_id, month_year, total_minutes, total_plays, daily_avg_minutes, percentile_text, top_tracks_json, top_artists_json, top_percentages_json, theme_color, new_release)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
-                ON CONFLICT(user_id) DO UPDATE SET
-                    month_year = excluded.month_year,
-                    total_minutes = excluded.total_minutes,
-                    total_plays = excluded.total_plays,
-                    daily_avg_minutes = excluded.daily_avg_minutes,
-                    percentile_text = excluded.percentile_text,
-                    top_tracks_json = excluded.top_tracks_json,
-                    top_artists_json = excluded.top_artists_json,
-                    top_percentages_json = excluded.top_percentages_json,
-                    theme_color = excluded.theme_color,
-                    new_release = 1
-            """, (
-                uid, month_label, total_minutes, total_plays, daily_avg,
-                "Top Music Listener", json.dumps(top_5_tracks), json.dumps(top_5_artists),
-                json.dumps(top_percentages), month_theme
-            ))
+                cursor.execute("""
+                    INSERT INTO stats (user_id, month_year, total_minutes, total_plays, daily_avg_minutes, percentile_text, top_tracks_json, top_artists_json, top_percentages_json, theme_color, new_release)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)
+                    ON CONFLICT(user_id) DO UPDATE SET
+                        month_year = excluded.month_year,
+                        total_minutes = excluded.total_minutes,
+                        total_plays = excluded.total_plays,
+                        daily_avg_minutes = excluded.daily_avg_minutes,
+                        percentile_text = excluded.percentile_text,
+                        top_tracks_json = excluded.top_tracks_json,
+                        top_artists_json = excluded.top_artists_json,
+                        top_percentages_json = excluded.top_percentages_json,
+                        theme_color = excluded.theme_color,
+                        new_release = 1
+                """, (
+                    uid, month_label, total_minutes, total_plays, daily_avg,
+                    "Top Music Listener", json.dumps(top_5_tracks), json.dumps(top_5_artists),
+                    json.dumps(top_percentages), month_theme
+                ))
+            except Exception as e:
+                print(f"[Stats Scheduler] Failed processing stats for user {uid}: {e}")
 
         cursor.execute("DELETE FROM history")
         conn.commit()

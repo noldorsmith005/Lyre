@@ -235,7 +235,12 @@ class ListeningStatsService {
   int _parseDurationSeconds(String durationStr) {
     if (durationStr.isEmpty) return 180;
     final parts = durationStr.split(':');
-    if (parts.length == 2) {
+    if (parts.length == 3) {
+      final h = int.tryParse(parts[0]) ?? 0;
+      final m = int.tryParse(parts[1]) ?? 0;
+      final s = int.tryParse(parts[2]) ?? 0;
+      return h * 3600 + m * 60 + s;
+    } else if (parts.length == 2) {
       final m = int.tryParse(parts[0]) ?? 3;
       final s = int.tryParse(parts[1]) ?? 0;
       return m * 60 + s;

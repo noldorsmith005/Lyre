@@ -129,24 +129,36 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _loadPlaylists() async {
-    final playlists = await widget.mediaHandler.loadPlaylists();
-    final Map<int, List<int>> map = {};
-    for (final pl in playlists) {
-      final tracks = await widget.mediaHandler.loadPlaylistTracks(pl.playlistID);
-      map[pl.playlistID] = tracks.map((t) => t.trackID).toList();
+    try {
+      final playlists = await widget.mediaHandler.loadPlaylists();
+      final Map<int, List<int>> map = {};
+      for (final pl in playlists) {
+        final tracks = await widget.mediaHandler.loadPlaylistTracks(pl.playlistID);
+        map[pl.playlistID] = tracks.map((t) => t.trackID).toList();
+      }
+      if (mounted) {
+        setState(() {
+          _playlists = playlists;
+          _playlistTracksMap = map;
+        });
+      }
+    } catch (e) {
+      print('Error loading playlists: $e');
     }
-    setState(() {
-      _playlists = playlists;
-      _playlistTracksMap = map;
-    });
   }
 
   Future<void> _loadPlaylistTracks(Playlist playlist) async {
-    final tracks = await widget.mediaHandler.loadPlaylistTracks(playlist.playlistID);
-    setState(() {
-      _currentPlaylist = playlist;
-      _tracks = tracks;
-    });
+    try {
+      final tracks = await widget.mediaHandler.loadPlaylistTracks(playlist.playlistID);
+      if (mounted) {
+        setState(() {
+          _currentPlaylist = playlist;
+          _tracks = tracks;
+        });
+      }
+    } catch (e) {
+      print('Error loading playlist tracks: $e');
+    }
   }
 
   Future<void> _onSearch(String query) async {

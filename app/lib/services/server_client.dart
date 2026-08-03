@@ -438,7 +438,6 @@ class ServerClient {
 
         final syncClient = HttpClient()
           ..connectionTimeout = const Duration(seconds: 15);
-        syncClient.badCertificateCallback = (cert, host, port) => true;
 
         const int concurrency = 6;
         try {
@@ -545,9 +544,6 @@ class ServerClient {
     final isShared = sharedClient != null;
     final client = sharedClient ?? (HttpClient()
       ..connectionTimeout = const Duration(seconds: 15));
-    if (sharedClient == null) {
-      client.badCertificateCallback = (cert, host, port) => true;
-    }
 
     IOSink? sink;
     try {
