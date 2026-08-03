@@ -3,14 +3,13 @@ import 'package:provider/provider.dart';
 import '../../models/playlist.dart';
 import '../../models/track.dart';
 import '../../services/theme_service.dart';
+import '../../widgets/sync_icon_button.dart';
+import '../../widgets/track_cover_image.dart';
 import '../settings_screen.dart';
 import 'playlist_detail_screen.dart';
 import 'search_screen.dart';
-import '../../widgets/sync_icon_button.dart';
 
-
-
-class PlaylistListScreen extends StatelessWidget {
+class PlaylistListScreen extends StatefulWidget {
   final List<Playlist> playlists;
   final String appDataPath;
   final dynamic mediaHandler;
@@ -28,7 +27,7 @@ class PlaylistListScreen extends StatelessWidget {
   final Function(Playlist, String)? onRenamePlaylist;
 
   const PlaylistListScreen({
-    Key? key,
+    super.key,
     required this.playlists,
     required this.appDataPath,
     required this.mediaHandler,
@@ -44,7 +43,41 @@ class PlaylistListScreen extends StatelessWidget {
     this.onCreatePlaylist,
     this.onDeletePlaylist,
     this.onRenamePlaylist,
-  }) : super(key: key);
+  });
+
+  @override
+  State<PlaylistListScreen> createState() => _PlaylistListScreenState();
+}
+
+class _PlaylistListScreenState extends State<PlaylistListScreen> {
+  final Map<int, int?> _firstTrackMap = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadFirstTracks();
+  }
+
+  @override
+  void didUpdateWidget(covariant PlaylistListScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.playlists != widget.playlists) {
+      _loadFirstTracks();
+    }
+  }
+
+  Future<void> _loadFirstTracks() async {
+    for (final playlist in widget.playlists) {
+      try {
+        final tracks = await widget.mediaHandler.loadPlaylistTracks(playlist.playlistID);
+        if (mounted) {
+          setState(() {
+            _firstTrackMap[playlist.playlistID] = tracks.isNotEmpty ? tracks.first.trackID : null;
+          });
+        }
+      } catch (_) {}
+    }
+  }
 
   Widget _buildMobileDrawer(BuildContext context) {
     return Drawer(
@@ -77,9 +110,9 @@ class PlaylistListScreen extends StatelessWidget {
                   const SizedBox(width: 16),
                   Expanded(
                     child: Text(
-                      serverClient.registered()
-                          ? (serverClient.username != null && serverClient.username.toString().isNotEmpty
-                              ? serverClient.username.toString()
+                      widget.serverClient.registered()
+                          ? (widget.serverClient.username != null && widget.serverClient.username.toString().isNotEmpty
+                              ? widget.serverClient.username.toString()
                               : 'Connected User')
                           : 'Guest Account',
                       style: const TextStyle(
@@ -108,7 +141,7 @@ class PlaylistListScreen extends StatelessWidget {
                     title: 'Vibe Queue',
                     onTap: () {
                       Navigator.pop(context);
-                      if (onVibeQueuePressed != null) onVibeQueuePressed!();
+                      if (widget.onVibeQueuePressed != null) widget.onVibeQueuePressed!();
                     },
                   ),
                   const SizedBox(height: 6),
@@ -118,7 +151,7 @@ class PlaylistListScreen extends StatelessWidget {
                     title: 'Lyre Playback',
                     onTap: () {
                       Navigator.pop(context);
-                      if (onPlaybackPressed != null) onPlaybackPressed!();
+                      if (widget.onPlaybackPressed != null) widget.onPlaybackPressed!();
                     },
                   ),
                   const SizedBox(height: 6),
@@ -138,7 +171,7 @@ class PlaylistListScreen extends StatelessWidget {
                     padding: EdgeInsets.symmetric(vertical: 12.0),
                     child: Divider(color: Color(0xFF262626), height: 1),
                   ),
-                  if (serverClient.registered())
+                  if (widget.serverClient.registered())
                     _buildDrawerItem(
                       context,
                       icon: Icons.logout_rounded,
@@ -147,7 +180,7 @@ class PlaylistListScreen extends StatelessWidget {
                       titleColor: const Color(0xFFFF4444),
                       onTap: () {
                         Navigator.pop(context);
-                        onLogoutPressed();
+                        widget.onLogoutPressed();
                       },
                     )
                   else
@@ -159,7 +192,7 @@ class PlaylistListScreen extends StatelessWidget {
                       titleColor: context.watch<ThemeService>().themeColor,
                       onTap: () {
                         Navigator.pop(context);
-                        onOpenLogin();
+                        widget.onOpenLogin();
                       },
                     ),
                 ],
@@ -214,7 +247,7 @@ class PlaylistListScreen extends StatelessWidget {
         automaticallyImplyLeading: false,
         actions: [
           SyncIconButton(
-            serverClient: serverClient,
+            serverClient: widget.serverClient,
             size: 52,
             padding: const EdgeInsets.only(right: 12.0),
           ),
@@ -240,11 +273,11 @@ class PlaylistListScreen extends StatelessWidget {
           ),
         ],
       ),
-      floatingActionButton: onCreatePlaylist != null
+      floatingActionButton: widget.onCreatePlaylist != null
           ? Padding(
               padding: const EdgeInsets.only(bottom: 72.0),
               child: FloatingActionButton(
-                onPressed: onCreatePlaylist,
+                onPressed: widget.onCreatePlaylist,
                 backgroundColor: context.watch<ThemeService>().themeColorDark,
                 child: const Icon(Icons.add, color: Colors.white),
               ),
@@ -264,14 +297,14 @@ class PlaylistListScreen extends StatelessWidget {
                         context,
                         MaterialPageRoute(
                           builder: (context) => SearchScreen(
-                            mediaHandler: mediaHandler,
-                            serverClient: serverClient,
-                            isServerConnected: isServerConnected,
-                            onRlsPressed: onRlsPressed,
-                            onDownloadTrack: onDownloadTrack,
-                            onRemoveDownloadTrack: onRemoveDownloadTrack,
-                            appDataPath: appDataPath,
-                            allPlaylists: playlists,
+                            mediaHandler: widget.mediaHandler,
+                            serverClient: widget.serverClient,
+                            isServerConnected: widget.isServerConnected,
+                            onRlsPressed: widget.onRlsPressed,
+                            onDownloadTrack: widget.onDownloadTrack,
+                            onRemoveDownloadTrack: widget.onRemoveDownloadTrack,
+                            appDataPath: widget.appDataPath,
+                            allPlaylists: widget.playlists,
                           ),
                         ),
                       );
@@ -295,19 +328,19 @@ class PlaylistListScreen extends StatelessWidget {
                 IconButton(
                   icon: Icon(
                     Icons.cloud_outlined,
-                    color: isServerConnected
+                    color: widget.isServerConnected
                         ? context.watch<ThemeService>().themeColor
                         : const Color(0xFF888888),
                     size: 28,
                   ),
-                  onPressed: onRlsPressed,
+                  onPressed: widget.onRlsPressed,
                   tooltip: 'Connect to RLS',
                 ),
               ],
             ),
           ),
           Expanded(
-            child: playlists.isEmpty
+            child: widget.playlists.isEmpty
                 ? const Center(
                     child: Padding(
                       padding: EdgeInsets.symmetric(horizontal: 32.0),
@@ -318,10 +351,19 @@ class PlaylistListScreen extends StatelessWidget {
                       ),
                     ),
                   )
-                : ListView.builder(
-                    itemCount: playlists.length,
+                : GridView.builder(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      crossAxisSpacing: 16,
+                      mainAxisSpacing: 16,
+                      childAspectRatio: 0.82,
+                    ),
+                    itemCount: widget.playlists.length,
                     itemBuilder: (context, index) {
-                      final playlist = playlists[index];
+                      final playlist = widget.playlists[index];
+                      final firstTrackID = _firstTrackMap[playlist.playlistID];
+
                       return GestureDetector(
                         onTap: () {
                           Navigator.push(
@@ -329,104 +371,142 @@ class PlaylistListScreen extends StatelessWidget {
                             MaterialPageRoute(
                               builder: (context) => PlaylistDetailScreen(
                                 playlist: playlist,
-                                appDataPath: appDataPath,
-                                mediaHandler: mediaHandler,
-                                serverClient: serverClient,
-                                isServerConnected: isServerConnected,
-                                onDownloadTrack: onDownloadTrack,
-                                onRemoveDownloadTrack: onRemoveDownloadTrack,
-                                allPlaylists: playlists,
+                                appDataPath: widget.appDataPath,
+                                mediaHandler: widget.mediaHandler,
+                                serverClient: widget.serverClient,
+                                isServerConnected: widget.isServerConnected,
+                                onDownloadTrack: widget.onDownloadTrack,
+                                onRemoveDownloadTrack: widget.onRemoveDownloadTrack,
+                                allPlaylists: widget.playlists,
                               ),
                             ),
                           );
                         },
-                        child: Container(
-                          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFF0F0F0F),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: const Color(0xFF1A1A1A)),
-                          ),
-
-                          child: Row(
-                            children: [
-                              const Icon(Icons.queue_music, color: Color(0xFF888888), size: 22),
-                              const SizedBox(width: 14),
-                              Expanded(
-                                child: Text(
-                                  playlist.title,
-                                  style: const TextStyle(fontSize: 16, color: Color(0xFFE8E8E8)),
-                                ),
-                              ),
-                              PopupMenuButton<String>(
-                                icon: const Icon(Icons.more_vert, color: Color(0xFF555555), size: 20),
-                                color: const Color(0xFF1E1E1E),
-                                onSelected: (value) async {
-                                  if (value == 'rename' && onRenamePlaylist != null) {
-                                    final controller = TextEditingController(text: playlist.title);
-                                    try {
-                                      final newName = await showDialog<String>(
-                                        context: context,
-                                        builder: (context) => AlertDialog(
-                                          backgroundColor: const Color(0xFF1E1E1E),
-                                          title: const Text('Rename Playlist', style: TextStyle(color: Colors.white)),
-                                          content: TextField(
-                                            controller: controller,
-                                            autofocus: true,
-                                            style: const TextStyle(color: Colors.white),
-                                            decoration: const InputDecoration(
-                                              labelText: 'Playlist Name',
-                                              labelStyle: TextStyle(color: Colors.grey),
-                                            ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Stack(
+                                children: [
+                                  Container(
+                                    width: double.infinity,
+                                    height: double.infinity,
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFF1E1E1E),
+                                      borderRadius: BorderRadius.circular(12),
+                                      border: Border.all(color: const Color(0xFF2A2A2A)),
+                                    ),
+                                    clipBehavior: Clip.antiAlias,
+                                    child: TrackCoverImage(
+                                      trackID: firstTrackID,
+                                      appDataPath: widget.appDataPath,
+                                      width: double.infinity,
+                                      height: double.infinity,
+                                      fit: BoxFit.cover,
+                                      fallback: Container(
+                                        color: const Color(0xFF1E1E1E),
+                                        child: const Center(
+                                          child: Icon(
+                                            Icons.music_note,
+                                            size: 48,
+                                            color: Color(0xFF555555),
                                           ),
-                                          actions: [
-                                            TextButton(
-                                              onPressed: () => Navigator.pop(context),
-                                              child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
-                                            ),
-                                            TextButton(
-                                              onPressed: () => Navigator.pop(context, controller.text.trim()),
-                                              child: const Text('Save', style: TextStyle(color: Colors.white)),
-                                            ),
-                                          ],
                                         ),
-                                      );
-                                      if (newName != null && newName.isNotEmpty) {
-                                        onRenamePlaylist!(playlist, newName);
-                                      }
-                                    } finally {
-                                      controller.dispose();
-                                    }
-                                  } else if (value == 'delete' && onDeletePlaylist != null) {
-                                    onDeletePlaylist!(playlist);
-                                  }
-                                },
-                                itemBuilder: (context) => [
-                                  const PopupMenuItem(
-                                    value: 'rename',
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.edit, color: Colors.white, size: 18),
-                                        SizedBox(width: 10),
-                                        Text('Rename', style: TextStyle(color: Colors.white)),
-                                      ],
+                                      ),
                                     ),
                                   ),
-                                  const PopupMenuItem(
-                                    value: 'delete',
-                                    child: Row(
-                                      children: [
-                                        Icon(Icons.delete, color: Colors.redAccent, size: 18),
-                                        SizedBox(width: 10),
-                                        Text('Delete', style: TextStyle(color: Colors.redAccent)),
-                                      ],
+                                  Positioned(
+                                    top: 4,
+                                    right: 4,
+                                    child: Material(
+                                      color: Colors.black.withValues(alpha: 0.4),
+                                      shape: const CircleBorder(),
+                                      child: PopupMenuButton<String>(
+                                        icon: const Icon(Icons.more_vert, color: Colors.white, size: 18),
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                        color: const Color(0xFF1E1E1E),
+                                        onSelected: (value) async {
+                                          if (value == 'rename' && widget.onRenamePlaylist != null) {
+                                            final controller = TextEditingController(text: playlist.title);
+                                            try {
+                                              final newName = await showDialog<String>(
+                                                context: context,
+                                                builder: (context) => AlertDialog(
+                                                  backgroundColor: const Color(0xFF1E1E1E),
+                                                  title: const Text('Rename Playlist', style: TextStyle(color: Colors.white)),
+                                                  content: TextField(
+                                                    controller: controller,
+                                                    autofocus: true,
+                                                    style: const TextStyle(color: Colors.white),
+                                                    decoration: const InputDecoration(
+                                                      labelText: 'Playlist Name',
+                                                      labelStyle: TextStyle(color: Colors.grey),
+                                                    ),
+                                                  ),
+                                                  actions: [
+                                                    TextButton(
+                                                      onPressed: () => Navigator.pop(context),
+                                                      child: const Text('Cancel', style: TextStyle(color: Colors.grey)),
+                                                    ),
+                                                    TextButton(
+                                                      onPressed: () => Navigator.pop(context, controller.text.trim()),
+                                                      child: const Text('Save', style: TextStyle(color: Colors.white)),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                              if (newName != null && newName.isNotEmpty) {
+                                                widget.onRenamePlaylist!(playlist, newName);
+                                              }
+                                            } finally {
+                                              controller.dispose();
+                                            }
+                                          } else if (value == 'delete' && widget.onDeletePlaylist != null) {
+                                            widget.onDeletePlaylist!(playlist);
+                                          }
+                                        },
+                                        itemBuilder: (context) => [
+                                          const PopupMenuItem(
+                                            value: 'rename',
+                                            child: Row(
+                                              children: [
+                                                Icon(Icons.edit, color: Colors.white, size: 18),
+                                                SizedBox(width: 10),
+                                                Text('Rename', style: TextStyle(color: Colors.white)),
+                                              ],
+                                            ),
+                                          ),
+                                          const PopupMenuItem(
+                                            value: 'delete',
+                                            child: Row(
+                                              children: [
+                                                Icon(Icons.delete, color: Colors.redAccent, size: 18),
+                                                SizedBox(width: 10),
+                                                Text('Delete', style: TextStyle(color: Colors.redAccent)),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ),
                                 ],
                               ),
-                            ],
-                          ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              playlist.title,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFFE8E8E8),
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 4),
+                          ],
                         ),
                       );
                     },
@@ -437,4 +517,5 @@ class PlaylistListScreen extends StatelessWidget {
     );
   }
 }
+
 

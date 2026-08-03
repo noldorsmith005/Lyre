@@ -157,14 +157,14 @@ class _MobilePlaylistActionsSheetState extends State<MobilePlaylistActionsSheet>
                                 style: const TextStyle(color: Colors.white, fontSize: 15),
                               ),
                               trailing: Container(
-                                width: 14,
-                                height: 14,
+                                width: 18,
+                                height: 18,
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   color: inPlaylist ? themeColor : Colors.transparent,
                                   border: Border.all(
                                     color: inPlaylist ? themeColor : const Color(0xFF555555),
-                                    width: 1.5,
+                                    width: 2.0,
                                   ),
                                 ),
                               ),

@@ -8,6 +8,7 @@ import '../services/theme_service.dart';
 import '../services/audio_player_service.dart';
 import '../services/server_client.dart';
 import '../utils/platform_utils.dart';
+import '../utils/layout_constants.dart';
 import 'track_card.dart';
 import 'track_cover_image.dart';
 import 'sync_icon_button.dart';
@@ -335,16 +336,35 @@ class _MainPanelState extends State<MainPanel> {
                       isServerConnected: widget.isServerConnected,
                     );
 
-                    if (isDesktop && widget.onReorderTrack != null) {
-                      return _DraggableTrackItem(
-                        index: index,
-                        track: track,
-                        onReorder: widget.onReorderTrack!,
-                        appDataPath: appDataPath,
-                        child: card,
-                      );
-                    }
-                    return card;
+                    final trackWidget = (isDesktop && widget.onReorderTrack != null)
+                        ? _DraggableTrackItem(
+                            index: index,
+                            track: track,
+                            onReorder: widget.onReorderTrack!,
+                            appDataPath: appDataPath,
+                            child: card,
+                          )
+                        : card;
+
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 36,
+                          height: LayoutConstants.cellSize,
+                          alignment: Alignment.center,
+                          child: Text(
+                            '${index + 1}',
+                            style: const TextStyle(
+                              color: Color(0xFF757588),
+                              fontSize: 14,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ),
+                        Expanded(child: trackWidget),
+                      ],
+                    );
                   },
                 );
               },
