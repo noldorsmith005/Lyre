@@ -179,7 +179,7 @@ class AudioPlayerService extends ChangeNotifier {
   }
 
   List<Track> queue = [];
-  List<Track> playlist = [];
+  List<Track> nextUp = [];
   String? _appDataPath;
 
   String? get appDataPath => _appDataPath;
@@ -327,11 +327,19 @@ class AudioPlayerService extends ChangeNotifier {
   }
 
   void playTrackInContext(Track track, List<Track> contextTracks) {
-    clearPlaylistQueue();
+    clearNextUp();
     final idx = contextTracks.indexWhere((t) => t.trackID == track.trackID);
     if (idx != -1) {
-      for (int i = idx + 1; i < contextTracks.length; i++) {
-        addToPlaylistQueue(contextTracks[i]);
+      if (shuffle) {
+        final otherTracks = contextTracks.where((t) => t.trackID != track.trackID).toList();
+        otherTracks.shuffle();
+        for (final t in otherTracks) {
+          addToNextUp(t);
+        }
+      } else {
+        for (int i = idx + 1; i < contextTracks.length; i++) {
+          addToNextUp(contextTracks[i]);
+        }
       }
     }
     play(track);
@@ -374,8 +382,8 @@ class AudioPlayerService extends ChangeNotifier {
       final nextTrack = queue.removeAt(0);
       notifyListeners();
       play(nextTrack);
-    } else if (playlist.isNotEmpty) {
-      final Track nextTrack = playlist.removeAt(0);
+    } else if (nextUp.isNotEmpty) {
+      final Track nextTrack = nextUp.removeAt(0);
       notifyListeners();
       play(nextTrack);
     } else {
@@ -394,8 +402,8 @@ class AudioPlayerService extends ChangeNotifier {
     }
   }
 
-  void addToPlaylistQueue(Track track) {
-    playlist.add(track);
+  void addToNextUp(Track track) {
+    nextUp.add(track);
     notifyListeners();
   }
 
@@ -409,8 +417,8 @@ class AudioPlayerService extends ChangeNotifier {
     notifyListeners();
   }
 
-  void clearPlaylistQueue() {
-    playlist.clear();
+  void clearNextUp() {
+    nextUp.clear();
     notifyListeners();
   }
 
@@ -421,15 +429,15 @@ class AudioPlayerService extends ChangeNotifier {
     currentTrack = null;
     isPlaying = false;
     queue.clear();
-    playlist.clear();
+    nextUp.clear();
     _audioHandler?.clearMediaItem();
     notifyListeners();
   }
 
   void setShuffle([bool? value]) {
     _shuffle = value ?? !_shuffle;
-    if (_shuffle && playlist.isNotEmpty) {
-      playlist.shuffle();
+    if (_shuffle && nextUp.isNotEmpty) {
+      nextUp.shuffle();
     }
     notifyListeners();
   }
