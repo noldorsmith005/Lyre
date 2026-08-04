@@ -2,10 +2,12 @@ import os
 from PIL import Image
 from pydub import AudioSegment
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 class Utils:
     @staticmethod
     def toWav(id, output_path=None):
-        input_path = f"./tmp/{id}.mp3"
+        input_path = os.path.join(BASE_DIR, "tmp", f"{id}.mp3")
 
         if not os.path.exists(input_path):
             raise FileNotFoundError(f"Input MP3 file not found: {input_path}")
@@ -18,8 +20,8 @@ class Utils:
 
     @staticmethod
     def toJpg(id):
-        png_path = f"./tmp/{id}.png"
-        jpg_path = f"./tmp/{id}.jpg"
+        png_path = os.path.join(BASE_DIR, "tmp", f"{id}.png")
+        jpg_path = os.path.join(BASE_DIR, "tmp", f"{id}.jpg")
         
         if not os.path.exists(png_path):
             raise FileNotFoundError(f"Input PNG file not found: {png_path}")

@@ -258,73 +258,7 @@ class _MediaPanelState extends State<MediaPanel> {
                   const SizedBox(height: 4),
 
                   // Seek Bar
-                  StreamBuilder<Duration>(
-                    stream: audioService.positionStream,
-                    builder: (context, posSnapshot) {
-                      return StreamBuilder<Duration?>(
-                        stream: audioService.durationStream,
-                        builder: (context, durSnapshot) {
-                          final position = posSnapshot.data ?? Duration.zero;
-                          final duration = durSnapshot.data ?? Duration.zero;
-                          
-                          double progress = 0.0;
-                          if (duration.inMilliseconds > 0) {
-                            progress = position.inMilliseconds / duration.inMilliseconds;
-                          }
-
-                          final themeColor = context.watch<ThemeService>().themeColor;
-
-                          return Row(
-                            children: [
-                              Text(
-                                _formatDuration(position),
-                                style: const TextStyle(
-                                  color: Color(0xFF9E9E9E),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  fontFeatures: [FontFeature.tabularFigures()],
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: SliderTheme(
-                                  data: SliderTheme.of(context).copyWith(
-                                    activeTrackColor: themeColor,
-                                    inactiveTrackColor: const Color(0xFF262626),
-                                    thumbColor: Colors.white,
-                                    trackHeight: 4,
-                                    thumbShape: const RoundSliderThumbShape(
-                                      enabledThumbRadius: 6,
-                                      elevation: 3,
-                                      pressedElevation: 6,
-                                    ),
-                                    overlayColor: themeColor.withOpacity(0.2),
-                                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-                                  ),
-                                  child: Slider(
-                                    value: progress.clamp(0.0, 1.0),
-                                    onChanged: (val) {
-                                      audioService.seek(val);
-                                    },
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 8),
-                              Text(
-                                _formatDuration(duration),
-                                style: const TextStyle(
-                                  color: Color(0xFF9E9E9E),
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w600,
-                                  fontFeatures: [FontFeature.tabularFigures()],
-                                ),
-                              ),
-                            ],
-                          );
-                        }
-                      );
-                    }
-                  ),
+                  _MediaPanelSeekBar(audioService: audioService),
                   const SizedBox(height: 8),
                   
                   // Controls: Play button aligned strictly in the horizontal center
@@ -612,6 +546,107 @@ class __HoverIconButtonState extends State<_HoverIconButton> {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _MediaPanelSeekBar extends StatefulWidget {
+  final AudioPlayerService audioService;
+  const _MediaPanelSeekBar({required this.audioService});
+
+  @override
+  _MediaPanelSeekBarState createState() => _MediaPanelSeekBarState();
+}
+
+class _MediaPanelSeekBarState extends State<_MediaPanelSeekBar> {
+  double? _dragValue;
+
+  String _formatDuration(Duration duration) {
+    String twoDigits(int n) => n.toString().padLeft(2, '0');
+    final minutes = twoDigits(duration.inMinutes.remainder(60));
+    final seconds = twoDigits(duration.inSeconds.remainder(60));
+    return '$minutes:$seconds';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<Duration>(
+      stream: widget.audioService.positionStream,
+      builder: (context, posSnapshot) {
+        final position = posSnapshot.data ?? Duration.zero;
+        final duration = widget.audioService.currentTrackDuration;
+        final durationMs = duration.inMilliseconds > 0 ? duration.inMilliseconds : 1;
+        
+        double currentPercent = (position.inMilliseconds / durationMs).clamp(0.0, 1.0);
+        double displayPercent = _dragValue ?? currentPercent;
+        
+        Duration displayPosition = _dragValue != null 
+          ? Duration(milliseconds: (_dragValue! * durationMs).round())
+          : position;
+
+        final themeColor = context.watch<ThemeService>().themeColor;
+
+        return Row(
+          children: [
+            Text(
+              _formatDuration(displayPosition),
+              style: const TextStyle(
+                color: Color(0xFF9E9E9E),
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                fontFeatures: [FontFeature.tabularFigures()],
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: SliderTheme(
+                data: SliderTheme.of(context).copyWith(
+                  activeTrackColor: themeColor,
+                  inactiveTrackColor: const Color(0xFF262626),
+                  thumbColor: Colors.white,
+                  trackHeight: 4,
+                  thumbShape: const RoundSliderThumbShape(
+                    enabledThumbRadius: 6,
+                    elevation: 3,
+                    pressedElevation: 6,
+                  ),
+                  overlayColor: themeColor.withOpacity(0.2),
+                  overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+                ),
+                child: Slider(
+                  value: displayPercent,
+                  onChangeStart: (val) {
+                    setState(() {
+                      _dragValue = val;
+                    });
+                  },
+                  onChanged: (val) {
+                    setState(() {
+                      _dragValue = val;
+                    });
+                  },
+                  onChangeEnd: (val) {
+                    widget.audioService.seek(val);
+                    setState(() {
+                      _dragValue = null;
+                    });
+                  },
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              _formatDuration(duration),
+              style: const TextStyle(
+                color: Color(0xFF9E9E9E),
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                fontFeatures: [FontFeature.tabularFigures()],
+              ),
+            ),
+          ],
+        );
+      }
     );
   }
 }

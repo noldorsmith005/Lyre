@@ -106,49 +106,7 @@ class FullPlayerScreen extends StatelessWidget {
             const SizedBox(height: 16),
             
             // Seek bar
-            StreamBuilder<Duration>(
-              stream: audioService.positionStream,
-              builder: (context, posSnapshot) {
-                return StreamBuilder<Duration?>(
-                  stream: audioService.durationStream,
-                  builder: (context, durSnapshot) {
-                    final position = posSnapshot.data ?? Duration.zero;
-                    final duration = durSnapshot.data ?? const Duration(seconds: 1);
-                    final durationMs = duration.inMilliseconds > 0 ? duration.inMilliseconds : 1;
-                    final themeColor = context.watch<ThemeService>().themeColor;
-
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
-                      child: Row(
-                        children: [
-                          Text(_formatDuration(position), style: const TextStyle(fontSize: 13, color: Color(0xFF888888), fontFeatures: [FontFeature.tabularFigures()])),
-                          Expanded(
-                            child: SliderTheme(
-                              data: SliderTheme.of(context).copyWith(
-                                trackHeight: 4,
-                                activeTrackColor: themeColor,
-                                inactiveTrackColor: const Color(0xFF333333),
-                                thumbColor: Colors.white,
-                                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6, elevation: 3),
-                                overlayColor: themeColor.withOpacity(0.2),
-                                overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-                              ),
-                              child: Slider(
-                                value: (position.inMilliseconds / durationMs).clamp(0.0, 1.0),
-                                onChanged: (val) {
-                                  audioService.seek(val);
-                                },
-                              ),
-                            ),
-                          ),
-                          Text(_formatDuration(duration), style: const TextStyle(fontSize: 13, color: Color(0xFF888888), fontFeatures: [FontFeature.tabularFigures()])),
-                        ],
-                      ),
-                    );
-                  },
-                );
-              },
-            ),
+            _SeekBar(audioService: audioService),
             const SizedBox(height: 16),
             
             // Controls
@@ -251,6 +209,86 @@ class FullPlayerScreen extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _SeekBar extends StatefulWidget {
+  final AudioPlayerService audioService;
+  const _SeekBar({required this.audioService});
+
+  @override
+  _SeekBarState createState() => _SeekBarState();
+}
+
+class _SeekBarState extends State<_SeekBar> {
+  double? _dragValue;
+
+  String _formatDuration(Duration d) {
+    final minutes = d.inMinutes;
+    final remainingSeconds = (d.inSeconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$remainingSeconds';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<Duration>(
+      stream: widget.audioService.positionStream,
+      builder: (context, posSnapshot) {
+        final position = posSnapshot.data ?? Duration.zero;
+        final duration = widget.audioService.currentTrackDuration;
+        final durationMs = duration.inMilliseconds > 0 ? duration.inMilliseconds : 1;
+        final themeColor = context.watch<ThemeService>().themeColor;
+
+        double currentPercent = (position.inMilliseconds / durationMs).clamp(0.0, 1.0);
+        double displayPercent = _dragValue ?? currentPercent;
+        
+        Duration displayPosition = _dragValue != null 
+          ? Duration(milliseconds: (_dragValue! * durationMs).round())
+          : position;
+
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: Row(
+            children: [
+              Text(_formatDuration(displayPosition), style: const TextStyle(fontSize: 13, color: Color(0xFF888888), fontFeatures: [FontFeature.tabularFigures()])),
+              Expanded(
+                child: SliderTheme(
+                  data: SliderTheme.of(context).copyWith(
+                    trackHeight: 4,
+                    activeTrackColor: themeColor,
+                    inactiveTrackColor: const Color(0xFF333333),
+                    thumbColor: Colors.white,
+                    thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6, elevation: 3),
+                    overlayColor: themeColor.withOpacity(0.2),
+                    overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
+                  ),
+                  child: Slider(
+                    value: displayPercent,
+                    onChangeStart: (val) {
+                      setState(() {
+                        _dragValue = val;
+                      });
+                    },
+                    onChanged: (val) {
+                      setState(() {
+                        _dragValue = val;
+                      });
+                    },
+                    onChangeEnd: (val) {
+                      widget.audioService.seek(val);
+                      setState(() {
+                        _dragValue = null;
+                      });
+                    },
+                  ),
+                ),
+              ),
+              Text(_formatDuration(duration), style: const TextStyle(fontSize: 13, color: Color(0xFF888888), fontFeatures: [FontFeature.tabularFigures()])),
+            ],
+          ),
+        );
+      },
     );
   }
 }

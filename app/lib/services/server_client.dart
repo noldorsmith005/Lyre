@@ -61,16 +61,24 @@ class ServerClient {
     await autoDetectServer();
   }
 
+  String _normalizeUrl(String? url) {
+    if (url == null) return '';
+    if (url.startsWith('https://')) {
+      return url.replaceFirst('https://', 'http://');
+    }
+    return url;
+  }
+
   Future<void> _loadBundledConfig() async {
     try {
       final jsonString = await rootBundle.loadString('assets/server_config.json');
       final Map<String, dynamic> config = jsonDecode(jsonString);
-      primaryUrl = config['primary_url'] as String?;
-      fallbackUrl = config['fallback_url'] as String?;
+      primaryUrl = _normalizeUrl(config['primary_url'] as String?);
+      fallbackUrl = _normalizeUrl(config['fallback_url'] as String?);
       appKey = config['app_key'] as String?;
     } catch (e) {
-      primaryUrl = 'https://127.0.0.1:57967';
-      fallbackUrl = 'https://localhost:57967';
+      primaryUrl = 'http://127.0.0.1:57967';
+      fallbackUrl = 'http://localhost:57967';
       appKey = '';
     }
   }
@@ -584,12 +592,13 @@ class ServerClient {
         sink = null;
         await tmpFile.rename(targetLocalFile.path);
       } else {
-        print('Download failed for $type/$id: HTTP ${response.statusCode}');
         if (await tmpFile.exists()) await tmpFile.delete();
         throw Exception('Download failed for $type/$id: HTTP ${response.statusCode}');
       }
     } catch (e) {
-      print('An error occurred during transmission: $e');
+      if (e is! Exception || !e.toString().contains('Download failed for')) {
+        print('An error occurred during transmission: $e');
+      }
       if (sink != null) {
         try { await sink.close(); } catch (_) {}
       }

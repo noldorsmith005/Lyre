@@ -93,9 +93,10 @@ SUPPORTED_TYPES = {
 
 # Helpers
 APP_TOKEN = os.environ.get("APP_TOKEN") or config.get("app_token")
-if os.path.exists('./sessions.json'):
+sessions_path = os.path.join(BASE_DIR, 'sessions.json')
+if os.path.exists(sessions_path):
     try:
-        with open('./sessions.json', 'r') as file:
+        with open(sessions_path, 'r') as file:
             data = json.load(file)
             if data.get('AppToken'):
                 APP_TOKEN = data.get('AppToken')
@@ -583,7 +584,7 @@ def download(id, type):
         return "Unauthorized", 401
 
     file_info = TRACK_FILE_TYPES[type]
-    file_path = f"./{type}/{id}.{file_info['ext']}"
+    file_path = os.path.join(BASE_DIR, type, f"{id}.{file_info['ext']}")
 
     if not os.path.exists(file_path):
         return {"error": f"{type.capitalize()} file not found"}, 404
@@ -614,11 +615,12 @@ def uploadFile(id, ext):
         return "Invalid file type", 415
 
     type = SUPPORTED_TYPES[ext]['type']
-    dest_dir = f"./{type}"
+    dest_dir = os.path.join(BASE_DIR, type)
+    tmp_dir = os.path.join(BASE_DIR, "tmp")
     os.makedirs(dest_dir, exist_ok=True)
-    os.makedirs("./tmp", exist_ok=True)
+    os.makedirs(tmp_dir, exist_ok=True)
 
-    upload_path = f"./tmp/{id}.{ext}"
+    upload_path = os.path.join(tmp_dir, f"{id}.{ext}")
     final_path = os.path.join(dest_dir, f"{id}.flac" if type == "audio" else f"{id}.jpg")
 
     try:
@@ -639,9 +641,9 @@ def uploadFile(id, ext):
                 Utils.toWav(id)
             
             if ext in ["wav", "mp3"]:
-                wav_path = f"./tmp/{id}.wav"
+                wav_path = os.path.join(tmp_dir, f"{id}.wav")
                 stripWAV(wav_path)
-                flac_path = f"./tmp/{id}.flac"
+                flac_path = os.path.join(tmp_dir, f"{id}.flac")
                 compressFLAC(wav_path, flac_path)
                 os.replace(flac_path, final_path)
             elif ext == "flac":
@@ -649,14 +651,14 @@ def uploadFile(id, ext):
         else:
             if ext == "png":
                 Utils.toJpg(id)
-            jpg_path = f"./tmp/{id}.jpg"
+            jpg_path = os.path.join(tmp_dir, f"{id}.jpg")
             os.replace(jpg_path, final_path)
 
     except Exception as e:
         print(f"[ERROR] Upload failed for track {id} ({ext}): {e}")
         return {"error": "Upload failed"}, 500
     finally:
-        for p in [f"./tmp/{id}.{ext}", f"./tmp/{id}.wav", f"./tmp/{id}.png", f"./tmp/{id}.jpg", f"./tmp/{id}.flac"]:
+        for p in [os.path.join(tmp_dir, f"{id}.{ext}"), os.path.join(tmp_dir, f"{id}.wav"), os.path.join(tmp_dir, f"{id}.png"), os.path.join(tmp_dir, f"{id}.jpg"), os.path.join(tmp_dir, f"{id}.flac")]:
             try:
                 if os.path.exists(p):
                     os.remove(p)
@@ -1128,27 +1130,19 @@ threading.Thread(target=monthly_stats_scheduler, daemon=True).start()
 if __name__ == "__main__":
     import sys
     import signal
-    import ssl
     from gevent.pywsgi import WSGIServer
 
     class CustomWSGIServer(WSGIServer):
         def wrap_socket_and_handle(self, client_socket, address):
             try:
                 super().wrap_socket_and_handle(client_socket, address)
-            except (ssl.SSLEOFError, ConnectionResetError, BrokenPipeError):
+            except (ConnectionResetError, BrokenPipeError):
                 pass
-            except ssl.SSLError as exc:
-                if "UNEXPECTED_EOF_WHILE_READING" in str(exc) or "EOF" in str(exc):
-                    pass
-                else:
-                    raise
 
         def handle_error(self, context, type_value_tb):
             if type_value_tb and len(type_value_tb) >= 2:
                 exc_val = type_value_tb[1]
-                if isinstance(exc_val, (ConnectionResetError, BrokenPipeError, ssl.SSLEOFError)):
-                    return
-                if isinstance(exc_val, ssl.SSLError) and ("UNEXPECTED_EOF_WHILE_READING" in str(exc_val) or "EOF" in str(exc_val)):
+                if isinstance(exc_val, (ConnectionResetError, BrokenPipeError)):
                     return
             super().handle_error(context, type_value_tb)
 
@@ -1160,22 +1154,13 @@ if __name__ == "__main__":
 
     host = config.get("host", "0.0.0.0")
     port = int(config.get("port", 57967))
-    ssl_cert = config.get("ssl_cert", "cert.pem")
-    if not os.path.isabs(ssl_cert):
-        ssl_cert = os.path.join(BASE_DIR, ssl_cert)
-    ssl_key = config.get("ssl_key", "key.pem")
-    if not os.path.isabs(ssl_key):
-        ssl_key = os.path.join(BASE_DIR, ssl_key)
 
     kwargs = {
         "log": sys.stdout,
         "error_log": sys.stderr
     }
-    if os.path.exists(ssl_cert) and os.path.exists(ssl_key):
-        kwargs["certfile"] = ssl_cert
-        kwargs["keyfile"] = ssl_key
 
-    print(f"Starting gevent WSGI server on https://{host}:{port}", file=sys.stdout)
+    print(f"Starting gevent WSGI server on http://{host}:{port}", file=sys.stdout)
     server = CustomWSGIServer((host, port), app, **kwargs)
     try:
         server.serve_forever()

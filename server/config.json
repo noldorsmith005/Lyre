@@ -2,7 +2,5 @@
   "host": "0.0.0.0",
   "port": 57967,
   "app_token": "n8cQiw4z6oSHFixnEFK7",
-  "database": "data.db",
-  "ssl_cert": "cert.pem",
-  "ssl_key": "key.pem"
+  "database": "data.db"
 }

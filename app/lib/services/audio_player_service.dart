@@ -89,13 +89,23 @@ class LyreAudioHandler extends BaseAudioHandler {
       artUri = Uri.file(artFile.path);
     }
 
+    Duration parsedDuration = Duration.zero;
+    try {
+      final parts = track.duration.split(':');
+      if (parts.length == 2) {
+        parsedDuration = Duration(minutes: int.parse(parts[0]), seconds: int.parse(parts[1]));
+      } else if (parts.length == 3) {
+        parsedDuration = Duration(hours: int.parse(parts[0]), minutes: int.parse(parts[1]), seconds: int.parse(parts[2]));
+      }
+    } catch (_) {}
+
     mediaItem.add(MediaItem(
       id: track.trackID.toString(),
       album: track.artist,
       title: track.title,
       artist: track.artist,
       artUri: artUri,
-      duration: _player.duration,
+      duration: parsedDuration.inMilliseconds > 0 ? parsedDuration : _player.duration,
     ));
     _updatePlaybackState();
   }
@@ -181,6 +191,7 @@ class AudioPlayerService extends ChangeNotifier {
   List<Track> queue = [];
   List<Track> nextUp = [];
   String? _appDataPath;
+  int? _lastCompletedTrackId;
 
   String? get appDataPath => _appDataPath;
 
@@ -228,7 +239,10 @@ class AudioPlayerService extends ChangeNotifier {
 
       _stateSubscription = _player.playerStateStream.listen((state) {
         if (state.processingState == ProcessingState.completed) {
-          next();
+          if (currentTrack != null && currentTrack!.trackID != _lastCompletedTrackId) {
+            _lastCompletedTrackId = currentTrack!.trackID;
+            next();
+          }
         }
         isPlaying = state.playing;
         notifyListeners();
@@ -243,6 +257,20 @@ class AudioPlayerService extends ChangeNotifier {
 
   Stream<Duration> get positionStream => _player.positionStream;
   Stream<Duration?> get durationStream => _player.durationStream;
+
+  Duration get currentTrackDuration {
+    if (currentTrack != null && currentTrack!.duration.isNotEmpty) {
+      try {
+        final parts = currentTrack!.duration.split(':');
+        if (parts.length == 2) {
+          return Duration(minutes: int.parse(parts[0]), seconds: int.parse(parts[1]));
+        } else if (parts.length == 3) {
+          return Duration(hours: int.parse(parts[0]), minutes: int.parse(parts[1]), seconds: int.parse(parts[2]));
+        }
+      } catch (_) {}
+    }
+    return _player.duration ?? Duration.zero;
+  }
 
   @override
   void dispose() {
@@ -349,8 +377,8 @@ class AudioPlayerService extends ChangeNotifier {
   }
 
   Future<void> seek(double percent) async {
-    final duration = _player.duration;
-    if (duration != null) {
+    final duration = currentTrackDuration;
+    if (duration.inMilliseconds > 0) {
       final position = duration * percent;
       await _player.seek(position);
     }

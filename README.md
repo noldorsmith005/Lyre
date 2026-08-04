@@ -9,7 +9,7 @@ Lyre is a full-stack, cross-platform media streaming and sync platform designed 
   - **Desktop UI**: Dedicated `HomeScreen` layout featuring responsive sidebars, custom window management (`window_manager`), and global keyboard hotkeys (e.g., Spacebar play/pause).
   - **Mobile UI**: Native `MobileHomeScreen`, `FullPlayerScreen`, `PlaylistListScreen`, `PlaylistDetailScreen`, and `SearchScreen`.
   - **Services**: `AudioPlayerService` (`just_audio`), `ServerClient`, `MediaHandler` (`sqflite`/`sqflite_common_ffi`), `ThemeService`, `ListeningStatsService`, and `VibeQueueService`.
-- [server/](file:///Users/nate/Desktop/Dev/temp/Lyre/server): Python Flask backend service running a HTTPS `gevent` WSGI server.
+- [server/](file:///Users/nate/Desktop/Dev/temp/Lyre/server): Python Flask backend service running a HTTP `gevent` WSGI server.
   - Handles authentication, catalog search, audio processing (MP3/WAV/FLAC) and artwork conversions (PNG/JPG), bidirectional playlist/download sync, listening history tracking, and automated monthly analytics generation.
 - [server/schema.md](file:///Users/nate/Desktop/Dev/temp/Lyre/server/schema.md): Detailed database schema documentation for `data.db`.
 
@@ -49,9 +49,7 @@ Server configuration is defined in [server/config.json](file:///Users/nate/Deskt
   "host": "0.0.0.0",
   "port": 57967,
   "secret_key": "lyre-dev-secret-key-change-me",
-  "database": "data.db",
-  "ssl_cert": "cert.pem",
-  "ssl_key": "key.pem"
+  "database": "data.db"
 }
 ```
 
@@ -62,7 +60,7 @@ Run the Flask server script:
 python3 server/server.py
 ```
 
-On execution, `server.py` automatically initializes the SQLite database schema (`data.db`) if it does not exist, starts the background monthly statistics scheduler, and listens on the configured host, port, and SSL certificate.
+On execution, `server.py` automatically initializes the SQLite database schema (`data.db`) if it does not exist, starts the background monthly statistics scheduler, and listens on the configured host and port.
 
 ---
 
