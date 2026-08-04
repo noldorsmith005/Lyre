@@ -14,10 +14,30 @@ import 'screens/login_screen.dart';
 import 'screens/splash_screen.dart';
 import 'utils/platform_utils.dart';
 
+class PinnedCertificateHttpOverrides extends HttpOverrides {
+  final List<int> trustedCertificateBytes;
+
+  PinnedCertificateHttpOverrides(this.trustedCertificateBytes);
+
+  @override
+  HttpClient createHttpClient(SecurityContext? context) {
+    return super.createHttpClient(context)
+      ..badCertificateCallback = (X509Certificate cert, String host, int port) {
+        return listEquals(cert.der, trustedCertificateBytes);
+      };
+  }
+}
 
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  try {
+    final certData = await rootBundle.load('assets/server.crt');
+    HttpOverrides.global = PinnedCertificateHttpOverrides(certData.buffer.asUint8List());
+  } catch (e) {
+    debugPrint('Could not load pinned certificate: $e');
+  }
 
   // Initialize services
   final mediaHandler = MediaHandler();

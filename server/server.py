@@ -1158,8 +1158,17 @@ if __name__ == "__main__":
         "log": sys.stdout,
         "error_log": sys.stderr
     }
+    
+    ssl_key = config.get("ssl_key")
+    ssl_cert = config.get("ssl_cert")
+    if ssl_key and ssl_cert and os.path.exists(ssl_key) and os.path.exists(ssl_cert):
+        kwargs["keyfile"] = ssl_key
+        kwargs["certfile"] = ssl_cert
+        proto = "https"
+    else:
+        proto = "http"
 
-    print(f"Starting gevent WSGI server on http://{host}:{port}", file=sys.stdout)
+    print(f"Starting gevent WSGI server on {proto}://{host}:{port}", file=sys.stdout)
     server = CustomWSGIServer((host, port), app, **kwargs)
     try:
         server.serve_forever()

@@ -63,9 +63,6 @@ class ServerClient {
 
   String _normalizeUrl(String? url) {
     if (url == null) return '';
-    if (url.startsWith('https://')) {
-      return url.replaceFirst('https://', 'http://');
-    }
     return url;
   }
 
