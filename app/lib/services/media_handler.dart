@@ -205,6 +205,15 @@ class MediaHandler {
     return List<Playlist>.from(_cachedPlaylists);
   }
 
+  void bringPlaylistToFront(int playlistID) {
+    final index = _cachedPlaylists.indexWhere((p) => p.playlistID == playlistID);
+    if (index > 0) {
+      final playlist = _cachedPlaylists.removeAt(index);
+      _cachedPlaylists.insert(0, playlist);
+      onPlaylistChanged?.call();
+    }
+  }
+
   Future<List<Track>> loadPlaylistTracks(int playlistID) async {
     if (!_isCacheLoaded) {
       await loadAllIntoMemory();

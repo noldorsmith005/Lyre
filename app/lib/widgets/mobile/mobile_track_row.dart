@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../models/track.dart';
 import '../../services/theme_service.dart';
@@ -51,6 +52,7 @@ class _MobileTrackRowState extends State<MobileTrackRow> {
 
   void _onDragEnd(DragEndDetails details) {
     if (_dragOffset >= 40.0) {
+      HapticFeedback.mediumImpact();
       widget.onQueue();
       ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(

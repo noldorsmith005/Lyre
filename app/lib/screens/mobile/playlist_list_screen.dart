@@ -366,6 +366,7 @@ class _PlaylistListScreenState extends State<PlaylistListScreen> {
 
                       return GestureDetector(
                         onTap: () {
+                          widget.mediaHandler.bringPlaylistToFront(playlist.playlistID);
                           Navigator.push(
                             context,
                             MaterialPageRoute(

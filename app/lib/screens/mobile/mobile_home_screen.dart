@@ -42,6 +42,9 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> with WidgetsBinding
   void initState() {
     super.initState();
     widget.serverClient.isSyncingNotifier.addListener(_onSyncStatusChanged);
+    widget.mediaHandler.onPlaylistChanged = () {
+      if (mounted) _loadPlaylists();
+    };
     _loadPlaylists();
     _autoConnectServer();
   }

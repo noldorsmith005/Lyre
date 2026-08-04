@@ -52,6 +52,9 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     widget.serverClient.isSyncingNotifier.addListener(_onSyncStatusChanged);
+    widget.mediaHandler.onPlaylistChanged = () {
+      if (mounted) _loadPlaylists();
+    };
     _loadPlaylists();
     _autoConnectServer();
   }
@@ -88,14 +91,9 @@ class _HomeScreenState extends State<HomeScreen> {
         final canPing = await widget.serverClient.ping();
         if (canPing && mounted) {
           _lastSyncTime = DateTime.now();
-          widget.serverClient.performPullSync().then((success) async {
+          widget.serverClient.performPullSync().then((success) {
             if (mounted) {
-              await _loadPlaylists();
-              if (_searchQuery.trim().isNotEmpty) {
-                await _onSearch(_searchQuery);
-              } else if (_currentPlaylist != null) {
-                await _loadPlaylistTracks(_currentPlaylist!);
-              }
+              _loadPlaylists();
             }
           });
         }
@@ -149,6 +147,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadPlaylistTracks(Playlist playlist) async {
     try {
+      widget.mediaHandler.bringPlaylistToFront(playlist.playlistID);
       final tracks = await widget.mediaHandler.loadPlaylistTracks(playlist.playlistID);
       if (mounted) {
         setState(() {

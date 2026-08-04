@@ -174,7 +174,7 @@ class ServerClient {
     return sessionToken != null && sessionToken!.isNotEmpty && userID != null && userID!.isNotEmpty;
   }
 
-  String get defaultDeviceName => '${Platform.operatingSystem} (${Platform.localHostname})';
+  String get defaultDeviceName => Platform.operatingSystem;
 
   Map<String, String> _headers({bool json = false}) {
     final map = <String, String>{
@@ -651,7 +651,7 @@ class ServerClient {
     ).timeout(const Duration(seconds: 8));
   }
 
-  Future<String> _updateUploads(Track track) async {
+  Future<String> _updateUploads(Track track, {bool hidden = false}) async {
     final targetUrl = '$appUrl/tracks/new';
     final jsonString = jsonEncode({
       'track_id': track.trackID,
@@ -660,6 +660,7 @@ class ServerClient {
       'duration': track.duration,
       'downloaded': track.downloaded,
       'contributor': track.contributor,
+      'hidden': hidden,
     });
 
     final response = await http.post(
