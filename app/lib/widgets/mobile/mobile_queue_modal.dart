@@ -9,7 +9,7 @@ import '../track_cover_image.dart';
 class MobileQueueModal extends StatelessWidget {
   final String appDataPath;
 
-  const MobileQueueModal({Key? key, required this.appDataPath}) : super(key: key);
+  const MobileQueueModal({super.key, required this.appDataPath});
 
   static Future<void> show(BuildContext context, {required String appDataPath}) {
     return showModalBottomSheet(

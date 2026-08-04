@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:math';
 import '../models/track.dart';
 import 'media_handler.dart';
@@ -82,7 +83,7 @@ class VibeQueueService {
           )).toList();
         selectedTracks.addAll(randomTracks);
       } catch (e) {
-        print('Error fetching random tracks: $e');
+        debugPrint('Error fetching random tracks: $e');
       }
     }
 
@@ -113,7 +114,7 @@ class VibeQueueService {
         )).toList();
       }
     } catch (e) {
-      print('Error querying most played tracks: $e');
+      debugPrint('Error querying most played tracks: $e');
     }
     return [];
   }
@@ -140,7 +141,7 @@ class VibeQueueService {
         )).toList();
       }
     } catch (e) {
-      print('Error querying least played tracks: $e');
+      debugPrint('Error querying least played tracks: $e');
     }
     return [];
   }
@@ -174,7 +175,7 @@ class VibeQueueService {
         }
       }
     } catch (e) {
-      print('Error querying mix it up tracks: $e');
+      debugPrint('Error querying mix it up tracks: $e');
     }
     return [];
   }

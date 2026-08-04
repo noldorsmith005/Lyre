@@ -10,7 +10,7 @@ import '../track_cover_image.dart';
 class BottomPlayerBar extends StatelessWidget {
   final String appDataPath;
 
-  const BottomPlayerBar({Key? key, required this.appDataPath}) : super(key: key);
+  const BottomPlayerBar({super.key, required this.appDataPath});
 
   @override
   Widget build(BuildContext context) {

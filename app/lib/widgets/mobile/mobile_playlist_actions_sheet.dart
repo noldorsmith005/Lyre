@@ -12,11 +12,11 @@ class MobilePlaylistActionsSheet extends StatefulWidget {
   final dynamic mediaHandler;
 
   const MobilePlaylistActionsSheet({
-    Key? key,
+    super.key,
     required this.track,
     required this.allPlaylists,
     required this.mediaHandler,
-  }) : super(key: key);
+  });
 
   @override
   State<MobilePlaylistActionsSheet> createState() => _MobilePlaylistActionsSheetState();

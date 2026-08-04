@@ -24,6 +24,7 @@ dependencies:
   flutter_secure_storage: ^9.2.4
   audio_service: ^0.18.15
 
+  audio_session: any
 dev_dependencies:
   flutter_test:
     sdk: flutter

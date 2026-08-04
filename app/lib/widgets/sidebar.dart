@@ -12,12 +12,12 @@ class Sidebar extends StatefulWidget {
   final String? selectedPlaylistId;
 
   const Sidebar({
-    Key? key,
+    super.key,
     required this.playlists,
     required this.onPlaylistSelected,
     required this.onCreatePlaylist,
     this.selectedPlaylistId,
-  }) : super(key: key);
+  });
 
   @override
   _SidebarState createState() => _SidebarState();

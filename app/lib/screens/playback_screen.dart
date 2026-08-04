@@ -1,4 +1,3 @@
-import 'dart:math';
 import 'package:flutter/material.dart';
 import '../models/track.dart';
 import '../services/listening_stats_service.dart';
@@ -28,11 +27,11 @@ class PlaybackScreen extends StatefulWidget {
   final ServerClient? serverClient;
 
   const PlaybackScreen({
-    Key? key,
+    super.key,
     this.stats,
     required this.allTracks,
     this.serverClient,
-  }) : super(key: key);
+  });
 
   static void showNoStatsModal(BuildContext context) {
     showDialog(
@@ -352,7 +351,7 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
                             borderRadius: BorderRadius.circular(2),
                             child: LinearProgressIndicator(
                               value: progress,
-                              backgroundColor: Colors.white.withOpacity(0.2),
+                              backgroundColor: Colors.white.withValues(alpha: 0.2),
                               valueColor: AlwaysStoppedAnimation<Color>(_theme.accent),
                             ),
                           ),
@@ -369,7 +368,7 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
                           Container(
                             padding: const EdgeInsets.all(6),
                             decoration: BoxDecoration(
-                              color: _theme.primary.withOpacity(0.3),
+                              color: _theme.primary.withValues(alpha: 0.3),
                               shape: BoxShape.circle,
                             ),
                             child: Icon(Icons.graphic_eq_rounded, color: _theme.accent, size: 18),
@@ -378,7 +377,7 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
                           Text(
                             'LYRE PLAYBACK',
                             style: TextStyle(
-                              color: Colors.white.withOpacity(0.9),
+                              color: Colors.white.withValues(alpha: 0.9),
                               fontSize: 13,
                               fontWeight: FontWeight.bold,
                               letterSpacing: 1.2,
@@ -412,9 +411,9 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.12),
+                color: Colors.white.withValues(alpha: 0.12),
                 borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: _theme.accent.withOpacity(0.4)),
+                border: Border.all(color: _theme.accent.withValues(alpha: 0.4)),
               ),
               child: Text(
                 _stats!.monthYearLabel.toUpperCase(),
@@ -430,7 +429,7 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
             Text(
               'YOU LISTENED TO',
               style: TextStyle(
-                color: Colors.white.withOpacity(0.7),
+                color: Colors.white.withValues(alpha: 0.7),
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
                 letterSpacing: 2,
@@ -457,7 +456,7 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
               'MINUTES OF MUSIC THIS MONTH',
               textAlign: TextAlign.center,
               style: TextStyle(
-                color: Colors.white.withOpacity(0.85),
+                color: Colors.white.withValues(alpha: 0.85),
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 1.5,
@@ -467,9 +466,9 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
             Container(
               padding: const EdgeInsets.all(20),
               decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.4),
+                color: Colors.black.withValues(alpha: 0.4),
                 borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: Colors.white.withOpacity(0.15)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.15)),
               ),
               child: Column(
                 children: [
@@ -486,7 +485,7 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
                     decoration: BoxDecoration(
-                      color: _theme.primary.withOpacity(0.25),
+                      color: _theme.primary.withValues(alpha: 0.25),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Row(
@@ -529,7 +528,7 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
         Text(
           label,
           style: TextStyle(
-            color: Colors.white.withOpacity(0.6),
+            color: Colors.white.withValues(alpha: 0.6),
             fontSize: 11,
             fontWeight: FontWeight.w600,
             letterSpacing: 1.0,
@@ -574,13 +573,13 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     color: index == 0
-                        ? _theme.primary.withOpacity(0.35)
-                        : Colors.white.withOpacity(0.08),
+                        ? _theme.primary.withValues(alpha: 0.35)
+                        : Colors.white.withValues(alpha: 0.08),
                     borderRadius: BorderRadius.circular(14),
                     border: Border.all(
                       color: index == 0
-                          ? _theme.accent.withOpacity(0.6)
-                          : Colors.white.withOpacity(0.1),
+                          ? _theme.accent.withValues(alpha: 0.6)
+                          : Colors.white.withValues(alpha: 0.1),
                     ),
                   ),
                   child: Row(
@@ -623,7 +622,7 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                color: Colors.white.withOpacity(0.65),
+                                color: Colors.white.withValues(alpha: 0.65),
                                 fontSize: 13,
                               ),
                             ),
@@ -693,15 +692,15 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
                 margin: const EdgeInsets.only(bottom: 20),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [_theme.primary.withOpacity(0.5), _theme.secondary.withOpacity(0.3)],
+                    colors: [_theme.primary.withValues(alpha: 0.5), _theme.secondary.withValues(alpha: 0.3)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: _theme.accent.withOpacity(0.6), width: 1.5),
+                  border: Border.all(color: _theme.accent.withValues(alpha: 0.6), width: 1.5),
                   boxShadow: [
                     BoxShadow(
-                      color: _theme.primary.withOpacity(0.3),
+                      color: _theme.primary.withValues(alpha: 0.3),
                       blurRadius: 20,
                       spreadRadius: 2,
                     ),
@@ -739,7 +738,7 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
                     Text(
                       '${topArtist.totalMinutes} minutes listened',
                       style: TextStyle(
-                        color: Colors.white.withOpacity(0.8),
+                        color: Colors.white.withValues(alpha: 0.8),
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
                       ),
@@ -755,9 +754,9 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
                   margin: const EdgeInsets.only(bottom: 10),
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
-                    color: Colors.white.withOpacity(0.07),
+                    color: Colors.white.withValues(alpha: 0.07),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.white.withOpacity(0.08)),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
                   ),
                   child: Row(
                     children: [
@@ -836,7 +835,7 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
               child: Text(
                 'TOP TRACK PERCENTILES',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.7),
+                  color: Colors.white.withValues(alpha: 0.7),
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.5,
@@ -845,7 +844,7 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
             ),
             const SizedBox(height: 10),
             if (topTracksPct.isEmpty)
-              Text('No track percentile data yet', style: TextStyle(color: Colors.white.withOpacity(0.5)))
+              Text('No track percentile data yet', style: TextStyle(color: Colors.white.withValues(alpha: 0.5)))
             else
               Column(
                 children: topTracksPct.map((item) {
@@ -853,9 +852,9 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
                     margin: const EdgeInsets.only(bottom: 10),
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.08),
+                      color: Colors.white.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: _theme.accent.withOpacity(0.4)),
+                      border: Border.all(color: _theme.accent.withValues(alpha: 0.4)),
                     ),
                     child: Row(
                       children: [
@@ -876,7 +875,7 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: _theme.primary.withOpacity(0.4),
+                            color: _theme.primary.withValues(alpha: 0.4),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: _theme.accent),
                           ),
@@ -903,7 +902,7 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
               child: Text(
                 'TOP ARTIST PERCENTILES',
                 style: TextStyle(
-                  color: Colors.white.withOpacity(0.7),
+                  color: Colors.white.withValues(alpha: 0.7),
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 1.5,
@@ -912,7 +911,7 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
             ),
             const SizedBox(height: 10),
             if (topArtistsPct.isEmpty)
-              Text('No artist percentile data yet', style: TextStyle(color: Colors.white.withOpacity(0.5)))
+              Text('No artist percentile data yet', style: TextStyle(color: Colors.white.withValues(alpha: 0.5)))
             else
               Column(
                 children: topArtistsPct.map((item) {
@@ -920,9 +919,9 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
                     margin: const EdgeInsets.only(bottom: 10),
                     padding: const EdgeInsets.all(14),
                     decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.08),
+                      color: Colors.white.withValues(alpha: 0.08),
                       borderRadius: BorderRadius.circular(14),
-                      border: Border.all(color: _theme.secondary.withOpacity(0.5)),
+                      border: Border.all(color: _theme.secondary.withValues(alpha: 0.5)),
                     ),
                     child: Row(
                       children: [
@@ -943,7 +942,7 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: _theme.secondary.withOpacity(0.4),
+                            color: _theme.secondary.withValues(alpha: 0.4),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(color: _theme.accent),
                           ),

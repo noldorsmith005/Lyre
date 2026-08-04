@@ -6,20 +6,16 @@ import '../models/track.dart';
 import '../services/media_handler.dart';
 import '../services/server_client.dart';
 import '../services/audio_player_service.dart';
-import '../services/theme_service.dart';
 import '../utils/layout_constants.dart';
 import '../widgets/sidebar.dart';
 import '../widgets/main_panel.dart';
 import '../widgets/media_panel.dart';
 import 'login_screen.dart';
 import 'playback_screen.dart';
-import 'settings_screen.dart';
 import '../widgets/upload_modal.dart';
 import '../widgets/confirmation_dialog.dart';
-import '../widgets/sync_progress_dialog.dart';
 import '../widgets/vibe_queue_modal.dart';
 import '../services/vibe_queue_service.dart';
-import 'register_screen.dart';
 import '../services/listening_stats_service.dart';
 
 
@@ -29,10 +25,10 @@ class HomeScreen extends StatefulWidget {
   final ServerClient serverClient;
 
   const HomeScreen({
-    Key? key,
+    super.key,
     required this.mediaHandler,
     required this.serverClient,
-  }) : super(key: key);
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -141,7 +137,7 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     } catch (e) {
-      print('Error loading playlists: $e');
+      debugPrint('Error loading playlists: $e');
     }
   }
 
@@ -156,7 +152,7 @@ class _HomeScreenState extends State<HomeScreen> {
         });
       }
     } catch (e) {
-      print('Error loading playlist tracks: $e');
+      debugPrint('Error loading playlist tracks: $e');
     }
   }
 

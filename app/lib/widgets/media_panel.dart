@@ -9,7 +9,7 @@ import 'track_cover_image.dart';
 
 
 class MediaPanel extends StatefulWidget {
-  const MediaPanel({Key? key}) : super(key: key);
+  const MediaPanel({super.key});
 
   @override
   State<MediaPanel> createState() => _MediaPanelState();
@@ -610,7 +610,7 @@ class _MediaPanelSeekBarState extends State<_MediaPanelSeekBar> {
                     elevation: 3,
                     pressedElevation: 6,
                   ),
-                  overlayColor: themeColor.withOpacity(0.2),
+                  overlayColor: themeColor.withValues(alpha: 0.2),
                   overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
                 ),
                 child: Slider(

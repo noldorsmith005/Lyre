@@ -39,7 +39,7 @@ class MainPanel extends StatefulWidget {
   final Function(int oldIndex, int newIndex)? onReorderTrack;
 
   const MainPanel({
-    Key? key,
+    super.key,
     this.currentPlaylist,
     required this.tracks,
     required this.onSearch,
@@ -63,7 +63,7 @@ class MainPanel extends StatefulWidget {
     required this.isServerConnected,
     this.serverClient,
     this.onReorderTrack,
-  }) : super(key: key);
+  });
 
   @override
   _MainPanelState createState() => _MainPanelState();
@@ -639,13 +639,12 @@ class _DraggableTrackItem extends StatefulWidget {
   final String appDataPath;
 
   const _DraggableTrackItem({
-    Key? key,
     required this.index,
     required this.track,
     required this.child,
     required this.onReorder,
     required this.appDataPath,
-  }) : super(key: key);
+  });
 
   @override
   State<_DraggableTrackItem> createState() => _DraggableTrackItemState();

@@ -5,7 +5,6 @@ import '../services/media_handler.dart';
 import '../services/server_client.dart';
 import '../services/theme_service.dart';
 import '../utils/platform_utils.dart';
-import 'home_screen.dart';
 import 'login_screen.dart';
 import 'mobile/mobile_home_screen.dart';
 
@@ -17,11 +16,11 @@ class RegisterScreen extends StatefulWidget {
   final VoidCallback? onRegisterSuccess;
 
   const RegisterScreen({
-    Key? key,
+    super.key,
     this.mediaHandler,
     required this.serverClient,
     this.onRegisterSuccess,
-  }) : super(key: key);
+  });
 
   @override
   State<RegisterScreen> createState() => _RegisterScreenState();

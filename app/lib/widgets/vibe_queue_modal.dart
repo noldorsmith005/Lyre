@@ -13,10 +13,10 @@ class VibeQueueModal extends StatefulWidget {
   final Function(List<Track> tracks, VibeType vibe) onQueueVibe;
 
   const VibeQueueModal({
-    Key? key,
+    super.key,
     required this.mediaHandler,
     required this.onQueueVibe,
-  }) : super(key: key);
+  });
 
   static Future<void> show(
     BuildContext context, {

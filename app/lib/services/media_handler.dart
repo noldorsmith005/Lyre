@@ -177,7 +177,7 @@ class MediaHandler {
       _cachedPlaylistTracks = playlistTracks;
       _isCacheLoaded = true;
     } catch (e) {
-      print('Error preloading playlists and tracks into memory: $e');
+      debugPrint('Error preloading playlists and tracks into memory: $e');
     }
   }
 
@@ -231,7 +231,7 @@ class MediaHandler {
       await setPendingPlaylistPush(true);
       onPlaylistChanged?.call();
     } catch (e) {
-      print('Could not add track to playlist: $e');
+      debugPrint('Could not add track to playlist: $e');
     }
   }
 
@@ -242,7 +242,7 @@ class MediaHandler {
       await setPendingPlaylistPush(true);
       onPlaylistChanged?.call();
     } catch (e) {
-      print('Could not remove track from playlist: $e');
+      debugPrint('Could not remove track from playlist: $e');
     }
   }
 
@@ -253,7 +253,7 @@ class MediaHandler {
       await setPendingPlaylistPush(true);
       onPlaylistChanged?.call();
     } catch (e) {
-      print('Could not change track order: $e');
+      debugPrint('Could not change track order: $e');
     }
   }
 
@@ -271,7 +271,7 @@ class MediaHandler {
       await setPendingPlaylistPush(true);
       onPlaylistChanged?.call();
     } catch (e) {
-      print('Could not reorder playlist tracks: $e');
+      debugPrint('Could not reorder playlist tracks: $e');
     }
   }
 
@@ -308,7 +308,7 @@ class MediaHandler {
       await setPendingPlaylistPush(true);
       onPlaylistChanged?.call();
     } catch (e) {
-      print('Could not create playlist: $e');
+      debugPrint('Could not create playlist: $e');
     }
   }
 
@@ -321,7 +321,7 @@ class MediaHandler {
       await setPendingPlaylistPush(true);
       onPlaylistChanged?.call();
     } catch (e) {
-      print('Could not delete playlist: $e');
+      debugPrint('Could not delete playlist: $e');
     }
   }
 
@@ -332,7 +332,7 @@ class MediaHandler {
       await setPendingPlaylistPush(true);
       onPlaylistChanged?.call();
     } catch (e) {
-      print('Could not edit playlist title: $e');
+      debugPrint('Could not edit playlist title: $e');
     }
   }
 
@@ -350,7 +350,7 @@ class MediaHandler {
       );
       if (reloadCache) await loadAllIntoMemory();
     } catch (e) {
-      print('Could not add track: $e');
+      debugPrint('Could not add track: $e');
     }
   }
 
@@ -360,7 +360,7 @@ class MediaHandler {
       await _db.delete('tracks', where: 'track_id = ?', whereArgs: [track.trackID]);
       await loadAllIntoMemory();
     } catch (e) {
-      print('Could not delete track: $e');
+      debugPrint('Could not delete track: $e');
     }
   }
 
@@ -416,7 +416,7 @@ class MediaHandler {
 
       return hasUnsyncedLocal;
     } catch (e) {
-      print('Error syncing local playlists: $e');
+      debugPrint('Error syncing local playlists: $e');
       return false;
     }
   }
@@ -456,7 +456,7 @@ class MediaHandler {
 
       await loadAllIntoMemory();
     } catch (e) {
-      print('Error clearing all local data: $e');
+      debugPrint('Error clearing all local data: $e');
     }
   }
 
@@ -468,7 +468,7 @@ class MediaHandler {
         conflictAlgorithm: ConflictAlgorithm.replace,
       );
     } catch (e) {
-      print('Error setting pending playlist push: $e');
+      debugPrint('Error setting pending playlist push: $e');
     }
   }
 
@@ -479,7 +479,7 @@ class MediaHandler {
         return rows.first['value'] == '1';
       }
     } catch (e) {
-      print('Error checking pending playlist push: $e');
+      debugPrint('Error checking pending playlist push: $e');
     }
     return false;
   }

@@ -21,7 +21,7 @@ class PlaylistDetailScreen extends StatefulWidget {
   final List<Playlist> allPlaylists;
 
   const PlaylistDetailScreen({
-    Key? key,
+    super.key,
     required this.playlist,
     required this.appDataPath,
     required this.mediaHandler,
@@ -30,7 +30,7 @@ class PlaylistDetailScreen extends StatefulWidget {
     this.onDownloadTrack,
     this.onRemoveDownloadTrack,
     required this.allPlaylists,
-  }) : super(key: key);
+  });
 
   @override
   State<PlaylistDetailScreen> createState() => _PlaylistDetailScreenState();

@@ -8,7 +8,6 @@ import 'playlist_list_screen.dart';
 import '../playback_screen.dart';
 import '../../services/listening_stats_service.dart';
 import '../../widgets/confirmation_dialog.dart';
-import '../../widgets/sync_progress_dialog.dart';
 import '../../widgets/vibe_queue_modal.dart';
 import '../../services/vibe_queue_service.dart';
 import '../../widgets/mobile/bottom_player_bar.dart';
@@ -22,11 +21,11 @@ class MobileHomeScreen extends StatefulWidget {
   final String appDataPath;
   
   const MobileHomeScreen({
-    Key? key,
+    super.key,
     required this.mediaHandler,
     required this.serverClient,
     required this.appDataPath,
-  }) : super(key: key);
+  });
 
   @override
   State<MobileHomeScreen> createState() => _MobileHomeScreenState();

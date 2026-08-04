@@ -10,7 +10,7 @@ import '../../widgets/mobile/mobile_queue_modal.dart';
 class FullPlayerScreen extends StatelessWidget {
   final String appDataPath;
 
-  const FullPlayerScreen({Key? key, required this.appDataPath}) : super(key: key);
+  const FullPlayerScreen({super.key, required this.appDataPath});
 
   String _formatDuration(Duration d) {
     final minutes = d.inMinutes;
@@ -260,7 +260,7 @@ class _SeekBarState extends State<_SeekBar> {
                     inactiveTrackColor: const Color(0xFF333333),
                     thumbColor: Colors.white,
                     thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6, elevation: 3),
-                    overlayColor: themeColor.withOpacity(0.2),
+                    overlayColor: themeColor.withValues(alpha: 0.2),
                     overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
                   ),
                   child: Slider(

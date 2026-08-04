@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'dart:convert';
 import 'dart:math';
 import 'package:sqflite/sqflite.dart';
@@ -152,7 +153,7 @@ class ListeningStatsService {
         whereArgs: [cutoffDate],
       );
     } catch (e) {
-      print('Error pruning old history: $e');
+      debugPrint('Error pruning old history: $e');
     }
   }
 
@@ -183,7 +184,7 @@ class ListeningStatsService {
         }
       }
     } catch (e) {
-      print('Error loading cached stats from DB: $e');
+      debugPrint('Error loading cached stats from DB: $e');
     }
   }
 
@@ -199,7 +200,7 @@ class ListeningStatsService {
         'timestamp': now,
       });
     } catch (e) {
-      print('Error logging track play: $e');
+      debugPrint('Error logging track play: $e');
     }
   }
 
@@ -228,7 +229,7 @@ class ListeningStatsService {
         ''');
       }
     } catch (e) {
-      print('Error syncing history to server: $e');
+      debugPrint('Error syncing history to server: $e');
     }
   }
 
@@ -323,7 +324,7 @@ class ListeningStatsService {
           }
         }
       } catch (e) {
-        print('Error checking server stats update: $e');
+        debugPrint('Error checking server stats update: $e');
       }
     }
 
@@ -357,7 +358,7 @@ class ListeningStatsService {
           whereArgs: [startOfPrevMonth, startOfCurrentMonth],
         );
       } catch (e) {
-        print('Error fetching history: $e');
+        debugPrint('Error fetching history: $e');
       }
     }
 

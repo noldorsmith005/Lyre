@@ -22,7 +22,7 @@ class SearchScreen extends StatefulWidget {
   final List<Playlist> allPlaylists;
 
   const SearchScreen({
-    Key? key,
+    super.key,
     required this.mediaHandler,
     this.serverClient,
     this.isServerConnected = false,
@@ -31,7 +31,7 @@ class SearchScreen extends StatefulWidget {
     this.onRemoveDownloadTrack,
     required this.appDataPath,
     required this.allPlaylists,
-  }) : super(key: key);
+  });
 
   @override
   State<SearchScreen> createState() => _SearchScreenState();

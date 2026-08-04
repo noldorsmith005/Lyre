@@ -3,3 +3,4 @@ Features:
 
 General:
     -Untrack sensitive files
+    -Copy server.crt to app/assets

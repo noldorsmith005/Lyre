@@ -21,7 +21,7 @@ class MobileTrackRow extends StatefulWidget {
   final String appDataPath;
 
   const MobileTrackRow({
-    Key? key,
+    super.key,
     required this.track,
     required this.isPlaying,
     this.isDownloading = false,
@@ -32,7 +32,7 @@ class MobileTrackRow extends StatefulWidget {
     this.onDownloadTrack,
     this.onRemoveDownloadTrack,
     required this.appDataPath,
-  }) : super(key: key);
+  });
 
   @override
   State<MobileTrackRow> createState() => _MobileTrackRowState();

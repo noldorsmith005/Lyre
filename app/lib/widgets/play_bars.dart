@@ -15,7 +15,7 @@ class PlayBars extends StatefulWidget {
   final Color? color;
 
   const PlayBars({
-    Key? key,
+    super.key,
     this.barCount = 12,
     this.maxHeight = 20.0,
     this.minHeight = 4.0,
@@ -23,7 +23,7 @@ class PlayBars extends StatefulWidget {
     this.barSpacing = 3.0,
     this.isPlaying = true,
     this.color,
-  }) : super(key: key);
+  });
 
   @override
   _PlayBarsState createState() => _PlayBarsState();
@@ -166,7 +166,7 @@ class __AnimatedBarState extends State<_AnimatedBar>
             boxShadow: [
               if (widget.isPlaying)
                 BoxShadow(
-                  color: widget.color.withOpacity(0.35),
+                  color: widget.color.withValues(alpha: 0.35),
                   blurRadius: 4,
                   spreadRadius: 0.5,
                 ),

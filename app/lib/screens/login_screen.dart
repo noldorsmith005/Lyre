@@ -5,10 +5,8 @@ import '../services/media_handler.dart';
 import '../services/server_client.dart';
 import '../services/theme_service.dart';
 import '../utils/platform_utils.dart';
-import 'home_screen.dart';
 import 'mobile/mobile_home_screen.dart';
 import 'register_screen.dart';
-import '../widgets/sync_progress_dialog.dart';
 
 
 
@@ -18,11 +16,11 @@ class LoginScreen extends StatefulWidget {
   final VoidCallback? onLoginSuccess;
 
   const LoginScreen({
-    Key? key,
+    super.key,
     this.mediaHandler,
     required this.serverClient,
     this.onLoginSuccess,
-  }) : super(key: key);
+  });
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();

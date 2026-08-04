@@ -5,7 +5,7 @@ import '../services/theme_service.dart';
 
 
 class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({Key? key}) : super(key: key);
+  const SettingsScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +49,7 @@ class SettingsScreen extends StatelessWidget {
               decoration: BoxDecoration(
                 color: const Color(0xFF14141E),
                 borderRadius: BorderRadius.circular(16.0),
-                border: Border.all(color: Colors.white.withOpacity(0.08)),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
               ),
               padding: const EdgeInsets.all(20.0),
               child: Column(
@@ -87,10 +87,10 @@ class SettingsScreen extends StatelessWidget {
                           duration: const Duration(milliseconds: 200),
                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                           decoration: BoxDecoration(
-                            color: isSelected ? color.withOpacity(0.25) : const Color(0xFF0E0E14),
+                            color: isSelected ? color.withValues(alpha: 0.25) : const Color(0xFF0E0E14),
                             borderRadius: BorderRadius.circular(12),
                             border: Border.all(
-                              color: isSelected ? color : Colors.white.withOpacity(0.08),
+                              color: isSelected ? color : Colors.white.withValues(alpha: 0.08),
                               width: isSelected ? 2 : 1,
                             ),
                           ),
@@ -105,7 +105,7 @@ class SettingsScreen extends StatelessWidget {
                                   shape: BoxShape.circle,
                                   boxShadow: [
                                     BoxShadow(
-                                      color: color.withOpacity(0.4),
+                                      color: color.withValues(alpha: 0.4),
                                       blurRadius: 6,
                                     ),
                                   ],

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io';
-import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:audio_service/audio_service.dart';
@@ -235,7 +234,7 @@ class AudioPlayerService extends ChangeNotifier {
         );
         _audioHandler?.attachService(this);
       } catch (e) {
-        print('AudioService init error: $e');
+        debugPrint('AudioService init error: $e');
       }
 
       _stateSubscription = _player.playerStateStream.listen((state) {
@@ -297,7 +296,7 @@ class AudioPlayerService extends ChangeNotifier {
     try {
       final file = File('$_appDataPath/audio/${track.trackID}.flac');
       if (!await file.exists()) {
-        print('FLAC file not found: ${file.path}');
+        debugPrint('FLAC file not found: ${file.path}');
         currentTrack = null;
         isPlaying = false;
         notifyListeners();
@@ -338,7 +337,7 @@ class AudioPlayerService extends ChangeNotifier {
         }
       });
     } catch (e) {
-      print('Error playing audio: $e');
+      debugPrint('Error playing audio: $e');
       if (currentRequestId == _playRequestId) {
         isPlaying = false;
         notifyListeners();

@@ -85,10 +85,10 @@ class LyreApp extends StatelessWidget {
   final ServerClient serverClient;
 
   const LyreApp({
-    Key? key,
+    super.key,
     required this.mediaHandler,
     required this.serverClient,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -136,10 +136,10 @@ class DesktopWrapper extends StatefulWidget {
   final ServerClient serverClient;
 
   const DesktopWrapper({
-    Key? key,
+    super.key,
     required this.mediaHandler,
     required this.serverClient,
-  }) : super(key: key);
+  });
 
   @override
   State<DesktopWrapper> createState() => _DesktopWrapperState();

@@ -12,11 +12,11 @@ class UploadModal extends StatefulWidget {
   final String? errorMessage;
 
   const UploadModal({
-    Key? key,
+    super.key,
     required this.onUpload,
     this.hasHiddenAccess = false,
     this.errorMessage,
-  }) : super(key: key);
+  });
 
   static void show(
     BuildContext context, {
@@ -223,7 +223,7 @@ class _UploadModalState extends State<UploadModal> {
                     const SizedBox(width: 8),
                     Switch(
                       value: _isHidden,
-                      activeColor: themeColor,
+                      activeThumbColor: themeColor,
                       onChanged: (val) {
                         setState(() {
                           _isHidden = val;

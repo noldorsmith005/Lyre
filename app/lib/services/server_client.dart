@@ -94,7 +94,7 @@ class ServerClient {
         appKey = savedAppKey;
       }
     } catch (e) {
-      print('Error loading secure credentials: $e');
+      debugPrint('Error loading secure credentials: $e');
     }
   }
 
@@ -106,7 +106,7 @@ class ServerClient {
       await _storage.write(key: 'hidden_access', value: hasHiddenAccess.toString());
       if (appKey != null) await _storage.write(key: 'app_key', value: appKey!);
     } catch (e) {
-      print('Error saving secure credentials: $e');
+      debugPrint('Error saving secure credentials: $e');
     }
   }
 
@@ -119,7 +119,7 @@ class ServerClient {
           headers: _headers(),
         ).timeout(const Duration(seconds: 5));
       } catch (e) {
-        print('Error notifying server of logout: $e');
+        debugPrint('Error notifying server of logout: $e');
       }
     }
     await clearRLSConfig();
@@ -134,7 +134,7 @@ class ServerClient {
       await _storage.delete(key: 'session_token');
       await _storage.delete(key: 'username');
     } catch (e) {
-      print('Error clearing secure storage: $e');
+      debugPrint('Error clearing secure storage: $e');
     }
     await mediaHandler.clearAllLocalData();
   }
@@ -163,14 +163,14 @@ class ServerClient {
       return await _pingUrl(primaryUrl!, timeoutMs: timeoutMs);
     }
 
-    print('[ServerClient] Probing primary server: $primaryUrl');
+    debugPrint('[ServerClient] Probing primary server: $primaryUrl');
     if (await _pingUrl(primaryUrl!, timeoutMs: timeoutMs)) {
-      print('[ServerClient] Primary server is reachable. Using: $primaryUrl');
+      debugPrint('[ServerClient] Primary server is reachable. Using: $primaryUrl');
       appUrl = primaryUrl;
       return true;
     }
 
-    print('[ServerClient] Primary server check failed. Falling back to: $fallbackUrl');
+    debugPrint('[ServerClient] Primary server check failed. Falling back to: $fallbackUrl');
     appUrl = fallbackUrl;
     return await _pingUrl(fallbackUrl!, timeoutMs: timeoutMs);
   }
@@ -387,7 +387,7 @@ class ServerClient {
       }
       return success;
     } catch (e) {
-      print('Error pushing local playlists: $e');
+      debugPrint('Error pushing local playlists: $e');
       await mediaHandler.setPendingPlaylistPush(true);
       return false;
     } finally {
@@ -419,7 +419,7 @@ class ServerClient {
 
       final isOnline = await ping();
       if (!isOnline) {
-        print('Offline or server unreachable: Skipping startup pull sync.');
+        debugPrint('Offline or server unreachable: Skipping startup pull sync.');
         reportProgress(const SyncProgress(status: 'Server unreachable', progress: 1.0));
         return false;
       }
@@ -527,7 +527,7 @@ class ServerClient {
 
       return true;
     } catch (e) {
-      print('Error performing pull sync: $e');
+      debugPrint('Error performing pull sync: $e');
       reportProgress(SyncProgress(status: 'Sync failed: $e', progress: 1.0));
       await Future.delayed(const Duration(milliseconds: 500));
       return false;
@@ -594,7 +594,7 @@ class ServerClient {
       }
     } catch (e) {
       if (e is! Exception || !e.toString().contains('Download failed for')) {
-        print('An error occurred during transmission: $e');
+        debugPrint('An error occurred during transmission: $e');
       }
       if (sink != null) {
         try { await sink.close(); } catch (_) {}
@@ -621,8 +621,9 @@ class ServerClient {
     final localFile = File(path);
     
     String contentType;
-    if (ext == 'wav') contentType = 'audio/wav';
-    else if (ext == 'mp3') contentType = 'audio/mpeg';
+    if (ext == 'wav') {
+      contentType = 'audio/wav';
+    } else if (ext == 'mp3') contentType = 'audio/mpeg';
     else if (ext == 'png') contentType = 'image/png';
     else contentType = 'image/jpeg';
 
@@ -638,13 +639,13 @@ class ServerClient {
       final response = await rawRequest.send().timeout(const Duration(seconds: 60));
       final responseBody = await response.stream.bytesToString().timeout(const Duration(seconds: 60));
       if (response.statusCode == 201) {
-        print('Upload succeeded for $type/$id');
+        debugPrint('Upload succeeded for $type/$id');
       } else {
-        print('Upload failed for $type/$id: HTTP ${response.statusCode} - $responseBody');
+        debugPrint('Upload failed for $type/$id: HTTP ${response.statusCode} - $responseBody');
         throw Exception('Upload failed for $type/$id: HTTP ${response.statusCode}');
       }
     } catch (e) {
-      print('An error occurred during upload transmission: $e');
+      debugPrint('An error occurred during upload transmission: $e');
       rethrow;
     }
   }
@@ -712,7 +713,7 @@ class ServerClient {
         headers: _headers(),
       ).timeout(const Duration(seconds: 8));
     } catch (e) {
-      print('Clear all tracked downloads server-side failed: $e');
+      debugPrint('Clear all tracked downloads server-side failed: $e');
     }
   }
 
@@ -749,7 +750,7 @@ class ServerClient {
         )).toList();
       }
     } catch (e) {
-      print('Error searching tracks: $e');
+      debugPrint('Error searching tracks: $e');
     }
     return [];
   }
@@ -761,7 +762,7 @@ class ServerClient {
     try {
       await Future.wait([
         _download('cover', track.trackID, sharedClient: sharedClient).catchError((e) {
-          print('Cover download note for track ${track.trackID}: $e');
+          debugPrint('Cover download note for track ${track.trackID}: $e');
         }),
         _download('audio', track.trackID, sharedClient: sharedClient),
       ]);
@@ -777,7 +778,7 @@ class ServerClient {
       PaintingBinding.instance.imageCache.evict(FileImage(File('$_appDataPath/cover/${track.trackID}.jpg')));
       return true;
     } catch (e) {
-      print('Track download failed: $e');
+      debugPrint('Track download failed: $e');
       // Cleanup any partial files if download failed midway
       try {
         final flacFile = File('$_appDataPath/audio/${track.trackID}.flac');
@@ -804,7 +805,7 @@ class ServerClient {
         track.duration = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
       }
     } catch (e) {
-      print('Error calculating audio duration: $e');
+      debugPrint('Error calculating audio duration: $e');
     } finally {
       await player.dispose();
     }
@@ -814,7 +815,7 @@ class ServerClient {
       await _upload('audio', audioPath, newId);
       await _upload('cover', coverPath, newId);
     } catch (e) {
-      print('Track upload failed: $e');
+      debugPrint('Track upload failed: $e');
     }
   }
 
@@ -830,7 +831,7 @@ class ServerClient {
       if (await flacFile.exists()) await flacFile.delete();
       if (await coverFile.exists()) await coverFile.delete();
     } catch (e) {
-      print('Error deleting track asset files: $e');
+      debugPrint('Error deleting track asset files: $e');
       filesDeleted = false;
     }
     
@@ -840,7 +841,7 @@ class ServerClient {
       try {
         await _updateRemoveDownloads(track.trackID);
       } catch (e) {
-        print('Remove track from downloads failed: $e');
+        debugPrint('Remove track from downloads failed: $e');
         await mediaHandler.addPendingRemoveDownload(track.trackID);
       }
     }
@@ -873,7 +874,7 @@ class ServerClient {
         return jsonDecode(response.body) as Map<String, dynamic>;
       }
     } catch (e) {
-      print('Error fetching server stats: $e');
+      debugPrint('Error fetching server stats: $e');
     }
     return null;
   }

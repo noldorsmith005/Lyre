@@ -26,7 +26,7 @@ class TrackCard extends StatefulWidget {
   final bool isServerConnected;
 
   const TrackCard({
-    Key? key,
+    super.key,
     required this.track,
     required this.isDownloaded,
     this.isDownloading = false,
@@ -40,7 +40,7 @@ class TrackCard extends StatefulWidget {
     required this.isTrackInPlaylist,
     required this.appDataPath,
     this.isServerConnected = true,
-  }) : super(key: key);
+  });
 
   @override
   _TrackCardState createState() => _TrackCardState();
@@ -371,12 +371,11 @@ class _HoverIconButton extends StatefulWidget {
   final VoidCallback onTap;
 
   const _HoverIconButton({
-    Key? key,
     required this.icon,
     required this.size,
     this.color,
     required this.onTap,
-  }) : super(key: key);
+  });
 
   @override
   _HoverIconButtonState createState() => _HoverIconButtonState();
