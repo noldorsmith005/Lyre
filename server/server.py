@@ -1,4 +1,4 @@
-from gevent import monkey
+from gevent import monkey, Timeout
 monkey.patch_all()
 
 import os
@@ -9,12 +9,10 @@ import random
 import hashlib
 import urllib.parse
 import subprocess
-import shutil
 import tempfile
 import threading
 from flask import Flask, send_file, request, jsonify, after_this_request, g, has_app_context
 
-from utils import Utils
 import resource
 import time
 import secrets
@@ -144,49 +142,32 @@ def userExists(username):
         cursor.execute("SELECT 1 FROM users WHERE username = ?", (username,))
         return cursor.fetchone() is not None
 
-def compressFLAC(wav_path, flac_path):
+def convertToFLAC(input_path, flac_path):
     os.makedirs(os.path.dirname(flac_path), exist_ok=True)
-    flac_bin = shutil.which("flac")
-    if not flac_bin:
-        if os.path.exists("/opt/homebrew/bin/flac"):
-            flac_bin = "/opt/homebrew/bin/flac"
-        else:
-            raise FileNotFoundError("flac command-line tool not found on the system.")
-    result = subprocess.run(
-        [flac_bin, "-6", "-f", "--silent", wav_path, "-o", flac_path],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.PIPE
-    )
+    cmd = [
+        'ffmpeg', '-y',
+        '-i', input_path,
+        '-map_metadata', '-1',
+        '-c:a', 'flac',
+        '-compression_level', '6',
+        flac_path
+    ]
+    result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
     if result.returncode != 0:
-        raise Exception(f"FLAC conversion failed with exit code {result.returncode}: {result.stderr.decode('utf-8')}")
+        raise Exception(f"FLAC conversion failed: {result.stderr.decode('utf-8')}")
 
-def stripWAV(file_path):
-    if not os.path.isfile(file_path):
-        raise FileNotFoundError(f"The file '{file_path}' does not exist.")
-
-    file_dir = os.path.dirname(os.path.abspath(file_path))
-    
-    with tempfile.NamedTemporaryFile(dir=file_dir, suffix='.wav', delete=False) as temp_file:
-        temp_path = temp_file.name
-
-    try:
-        cmd = [
-            'ffmpeg', '-y',
-            '-i', file_path,
-            '-map_metadata', '-1',
-            '-c:a', 'copy',
-            temp_path
-        ]
-        
-        subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-        
-        os.replace(temp_path, file_path)
-        return True
-
-    except (subprocess.CalledProcessError, Exception) as e:
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
-        raise RuntimeError(f"Failed to strip metadata for {file_path}. Error: {e}")
+def convertToJPG(png_path, jpg_path):
+    os.makedirs(os.path.dirname(jpg_path), exist_ok=True)
+    cmd = [
+        'ffmpeg', '-y',
+        '-i', png_path,
+        '-vcodec', 'mjpeg',
+        '-q:v', '2',
+        jpg_path
+    ]
+    result = subprocess.run(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.PIPE)
+    if result.returncode != 0:
+        raise Exception(f"JPG conversion failed: {result.stderr.decode('utf-8')}")
 
 def hashPassword(password, salt=None):
     if not password:
@@ -219,6 +200,8 @@ def authUser(req):
                     uid = row[0]
                     now = int(time.time())
                     if now - _session_last_seen.get(token, 0) > 60:
+                        if len(_session_last_seen) > 1000:
+                            _session_last_seen.clear()
                         _session_last_seen[token] = now
                         device = req.headers.get("X-Device")
                         if device:
@@ -382,6 +365,9 @@ def pushSyncPlaylists():
     payload = request.get_json() or {}
     playlists = payload.get("playlists", [])
 
+    if len(playlists) > 100:
+        return jsonify({"error": "Too many playlists"}), 400
+
     with get_db() as conn:
         cursor = conn.cursor()
         try:
@@ -389,7 +375,14 @@ def pushSyncPlaylists():
             for pl in playlists:
                 playlist_id = pl.get("playlist_id")
                 name = pl.get("name")
+                
+                if name and len(str(name)) > 150:
+                    return jsonify({"error": "Playlist name too long"}), 400
+
                 raw_tracks = pl.get("tracks", [])
+                
+                if len(raw_tracks) > 5000:
+                    return jsonify({"error": "Too many tracks in playlist"}), 400
                 
                 valid_ids_in_playlist = set()
                 if isinstance(raw_tracks, list) and raw_tracks:
@@ -628,7 +621,12 @@ def uploadFile(id, ext):
         max_size = app.config.get('MAX_CONTENT_LENGTH', 100 * 1024 * 1024)
         with open(upload_path, "wb") as f:
             while True:
-                chunk = request.stream.read(8192)
+                try:
+                    with Timeout(10):
+                        chunk = request.stream.read(8192)
+                except Timeout:
+                    raise Exception("Upload timed out")
+                
                 if not chunk:
                     break
                 total_size += len(chunk)
@@ -637,22 +635,19 @@ def uploadFile(id, ext):
                 f.write(chunk)
 
         if type == "audio":
-            if ext == "mp3":
-                Utils.toWav(id)
-            
             if ext in ["wav", "mp3"]:
-                wav_path = os.path.join(tmp_dir, f"{id}.wav")
-                stripWAV(wav_path)
                 flac_path = os.path.join(tmp_dir, f"{id}.flac")
-                compressFLAC(wav_path, flac_path)
+                convertToFLAC(upload_path, flac_path)
                 os.replace(flac_path, final_path)
             elif ext == "flac":
                 os.replace(upload_path, final_path)
         else:
             if ext == "png":
-                Utils.toJpg(id)
-            jpg_path = os.path.join(tmp_dir, f"{id}.jpg")
-            os.replace(jpg_path, final_path)
+                jpg_path = os.path.join(tmp_dir, f"{id}.jpg")
+                convertToJPG(upload_path, jpg_path)
+                os.replace(jpg_path, final_path)
+            elif ext == "jpg":
+                os.replace(upload_path, final_path)
 
     except Exception as e:
         print(f"[ERROR] Upload failed for track {id} ({ext}): {e}")
@@ -704,6 +699,10 @@ def addUpload():
     title_val = user_data.get('title', '')
     artist_val = user_data.get('artist', '')
     duration_val = user_data.get('duration', '')
+    
+    if len(str(title_val)) > 200 or len(str(artist_val)) > 100 or len(str(duration_val)) > 10:
+        return jsonify({"error": "Input length limit exceeded"}), 400
+
     req_hidden = user_data.get('hidden')
 
     sql = "INSERT INTO tracks (track_id, title, artist, duration, contributor, hidden) VALUES (?, ?, ?, ?, ?, ?)"
