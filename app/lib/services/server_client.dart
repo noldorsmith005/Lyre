@@ -354,12 +354,12 @@ class ServerClient {
     }
   }
 
-  Future<bool> pushLocalPlaylists({bool _internal = false}) async {
+  Future<bool> pushLocalPlaylists({bool internal = false}) async {
     if (!registered() || appUrl == null) {
       await mediaHandler.setPendingPlaylistPush(true);
       return false;
     }
-    if (!_internal) {
+    if (!internal) {
       _isSyncing = true;
       isSyncingNotifier.value = true;
     }
@@ -393,7 +393,7 @@ class ServerClient {
       await mediaHandler.setPendingPlaylistPush(true);
       return false;
     } finally {
-      if (!_internal) {
+      if (!internal) {
         _isSyncing = false;
         isSyncingNotifier.value = false;
       }
@@ -451,7 +451,7 @@ class ServerClient {
       // Process pending offline playlist changes
       final hasPendingPush = await mediaHandler.hasPendingPlaylistPush();
       if (hasPendingPush) {
-        await pushLocalPlaylists(_internal: true);
+        await pushLocalPlaylists(internal: true);
       }
 
       reportProgress(const SyncProgress(status: 'Preparing downloads...', progress: 0.15));
@@ -519,7 +519,7 @@ class ServerClient {
           if (serverPlaylists != null) {
             final hasUnsyncedLocal = await mediaHandler.syncLocalPlaylists(serverPlaylists);
             if (hasUnsyncedLocal) {
-              await pushLocalPlaylists(_internal: true);
+              await pushLocalPlaylists(internal: true);
             }
           }
         }(),

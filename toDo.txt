@@ -1,7 +1,6 @@
 Features: 
-    -Downloading state persist across scenes
+    -
 
 General:
     -Untrack sensitive files
-    -Copy server.crt to app/assets
-    -Install cachetools server-side
+
