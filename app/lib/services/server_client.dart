@@ -354,13 +354,15 @@ class ServerClient {
     }
   }
 
-  Future<bool> pushLocalPlaylists() async {
+  Future<bool> pushLocalPlaylists({bool _internal = false}) async {
     if (!registered() || appUrl == null) {
       await mediaHandler.setPendingPlaylistPush(true);
       return false;
     }
-    _isSyncing = true;
-    isSyncingNotifier.value = true;
+    if (!_internal) {
+      _isSyncing = true;
+      isSyncingNotifier.value = true;
+    }
     try {
       final isOnline = await ping();
       if (!isOnline) {
@@ -391,8 +393,10 @@ class ServerClient {
       await mediaHandler.setPendingPlaylistPush(true);
       return false;
     } finally {
-      _isSyncing = false;
-      isSyncingNotifier.value = false;
+      if (!_internal) {
+        _isSyncing = false;
+        isSyncingNotifier.value = false;
+      }
     }
   }
 
@@ -447,7 +451,7 @@ class ServerClient {
       // Process pending offline playlist changes
       final hasPendingPush = await mediaHandler.hasPendingPlaylistPush();
       if (hasPendingPush) {
-        await pushLocalPlaylists();
+        await pushLocalPlaylists(_internal: true);
       }
 
       reportProgress(const SyncProgress(status: 'Preparing downloads...', progress: 0.15));
@@ -515,7 +519,7 @@ class ServerClient {
           if (serverPlaylists != null) {
             final hasUnsyncedLocal = await mediaHandler.syncLocalPlaylists(serverPlaylists);
             if (hasUnsyncedLocal) {
-              await pushLocalPlaylists();
+              await pushLocalPlaylists(_internal: true);
             }
           }
         }(),
@@ -659,7 +663,7 @@ class ServerClient {
   }
 
   Future<String> _updateUploads(Track track, {bool hidden = false}) async {
-    final targetUrl = '$appUrl/tracks/new';
+    final targetUrl = '$appUrl/tracks/uploads/update';
     final jsonString = jsonEncode({
       'track_id': track.trackID,
       'title': track.title,

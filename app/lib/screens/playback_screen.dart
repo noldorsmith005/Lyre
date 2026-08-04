@@ -200,6 +200,11 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
           _stats = stats;
           _theme = selectedTheme;
         });
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('No stats available yet.')),
+        );
+        Navigator.of(context).pop();
       }
     }
   }
@@ -436,19 +441,22 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
               ),
             ),
             const SizedBox(height: 12),
-            ShaderMask(
-              shaderCallback: (bounds) => LinearGradient(
-                colors: [_theme.accent, Colors.white],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ).createShader(bounds),
-              child: Text(
-                '${_stats!.totalMinutes}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 68,
-                  fontWeight: FontWeight.w900,
-                  height: 1.0,
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              child: ShaderMask(
+                shaderCallback: (bounds) => LinearGradient(
+                  colors: [_theme.accent, Colors.white],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ).createShader(bounds),
+                child: Text(
+                  '${_stats!.totalMinutes}',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 68,
+                    fontWeight: FontWeight.w900,
+                    height: 1.0,
+                  ),
                 ),
               ),
             ),

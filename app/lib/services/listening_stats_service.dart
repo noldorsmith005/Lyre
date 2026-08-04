@@ -395,8 +395,6 @@ class ListeningStatsService {
 
     List<TrackStat> sortedTracks = trackStatsMap.values.toList()
       ..sort((a, b) => b.playCount.compareTo(a.playCount));
-
-    sortedTracks.sort((a, b) => b.playCount.compareTo(a.playCount));
     final top5Tracks = sortedTracks.take(5).toList();
 
     Map<String, List<TrackStat>> byArtist = {};

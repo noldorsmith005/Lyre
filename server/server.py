@@ -1,3 +1,4 @@
+import gevent
 from gevent import monkey, Timeout
 monkey.patch_all()
 
@@ -12,10 +13,13 @@ import subprocess
 import tempfile
 import threading
 from flask import Flask, send_file, request, jsonify, after_this_request, g, has_app_context
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 import resource
 import time
 import secrets
+from cachetools import TTLCache
 
 def _raise_file_descriptor_limit():
     try:
@@ -40,6 +44,7 @@ if os.path.exists(CONFIG_PATH):
         print(f"[Config] Failed to load config.json: {e}")
 
 app = Flask(__name__)
+limiter = Limiter(get_remote_address, app=app, default_limits=[])
 app.config['ENV'] = 'production'
 app.config['DEBUG'] = False
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
@@ -183,7 +188,7 @@ def hashPassword(password, salt=None):
     return hashed, salt
 
 # User creation and authentication
-_session_last_seen = {}
+_session_last_seen = TTLCache(maxsize=2000, ttl=60)
 
 def authUser(req):
     auth_header = req.headers.get("Authorization")
@@ -200,8 +205,6 @@ def authUser(req):
                     uid = row[0]
                     now = int(time.time())
                     if now - _session_last_seen.get(token, 0) > 60:
-                        if len(_session_last_seen) > 1000:
-                            _session_last_seen.clear()
                         _session_last_seen[token] = now
                         device = req.headers.get("X-Device")
                         if device:
@@ -226,6 +229,7 @@ def ping():
     return 'pong', 200
 
 @app.post("/auth/register")
+@limiter.limit("3/hour")
 def createUser():
     auth_token = request.headers.get("AppToken")
     if auth_token != APP_TOKEN:
@@ -236,6 +240,8 @@ def createUser():
     device = user_data.get('device') or 'Unknown'
     if not username or not password:
         return "Username and password required", 400
+    if len(username) > 50 or len(password) > 128:
+        return "Username or password exceeds maximum length", 400
     if userExists(username):
         return "User already exists", 409
 
@@ -271,6 +277,7 @@ def createUser():
 
 
 @app.post("/auth/login")
+@limiter.limit("10/minute")
 def loginUser():
     auth_token = request.headers.get("AppToken")
     if auth_token != APP_TOKEN:
@@ -995,6 +1002,7 @@ def calculate_all_user_monthly_stats():
             artist_user_plays.setdefault(artist, {})[uid] = artist_user_plays.get(artist, {}).get(uid, 0) + count
             user_track_plays.setdefault(uid, {})[tid] = count
 
+        successful_uids = []
         for uid in users:
             try:
                 u_history = user_track_plays.get(uid, {})
@@ -1088,10 +1096,13 @@ def calculate_all_user_monthly_stats():
                     "Top Music Listener", json.dumps(top_5_tracks), json.dumps(top_5_artists),
                     json.dumps(top_percentages), month_theme
                 ))
+                successful_uids.append(uid)
             except Exception as e:
                 print(f"[Stats Scheduler] Failed processing stats for user {uid}: {e}")
 
-        cursor.execute("DELETE FROM history")
+        if successful_uids:
+            placeholders = ",".join("?" * len(successful_uids))
+            cursor.execute(f"DELETE FROM history WHERE user_id IN ({placeholders})", successful_uids)
         conn.commit()
 import datetime
 
@@ -1111,19 +1122,19 @@ def monthly_stats_scheduler():
                     target_time = datetime.datetime(now.year, now.month + 1, 1, 0, 0, 0)
 
             sleep_seconds = (target_time - now).total_seconds()
-            time.sleep(min(sleep_seconds, 3600))
+            gevent.sleep(min(sleep_seconds, 3600))
 
             now_check = datetime.datetime.now()
             # If target_time is reached (within 1 hour window), calculate monthly stats
             if now_check >= target_time and (now_check - target_time).total_seconds() < 3600:
                 print(f"[{now_check}] Running scheduled monthly stats calculation for midnight on first day of month...")
                 calculate_all_user_monthly_stats()
-                time.sleep(65)
+                gevent.sleep(65)
         except Exception as e:
-            print(f"Error in monthly stats scheduler thread: {e}")
-            time.sleep(60)
+            print(f"Error in monthly stats scheduler: {e}")
+            gevent.sleep(60)
 
-threading.Thread(target=monthly_stats_scheduler, daemon=True).start()
+gevent.spawn(monthly_stats_scheduler)
 
 
 if __name__ == "__main__":

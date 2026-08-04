@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 
 PROCESS_NAME="lyre-server"

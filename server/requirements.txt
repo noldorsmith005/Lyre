@@ -1,5 +1,6 @@
 Flask==3.0.3
 Flask-Cors==4.0.1
-Flask-Compress==1.14
+Flask-Limiter==3.8.0
+cachetools==5.5.0
 gevent==24.2.1
 mutagen==1.47.0

@@ -50,6 +50,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
 
   Future<void> _loadTracks() async {
     final tracks = await widget.mediaHandler.loadPlaylistTracks(_playlist.playlistID);
+    if (!mounted) return;
     setState(() {
       _tracks = tracks;
       _isLoading = false;

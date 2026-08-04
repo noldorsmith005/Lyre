@@ -1,6 +1,6 @@
 class Playlist {
-  int playlistID;
-  String title;
+  final int playlistID;
+  final String title;
 
   Playlist({required this.playlistID, required this.title});
 }

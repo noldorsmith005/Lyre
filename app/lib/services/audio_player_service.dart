@@ -466,15 +466,7 @@ class AudioPlayerService extends ChangeNotifier {
 
   void toggleLoop([bool? value]) {
     loop = value ?? !loop;
-    notifyListeners();
   }
-
-  void setLoop([bool? value]) {
-    loop = value ?? !loop;
-    notifyListeners();
-  }
-
-  bool isShuffled() => shuffle;
 
   bool trackPlaying(Track track) {
     return currentTrack?.trackID == track.trackID;
