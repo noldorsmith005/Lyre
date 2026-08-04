@@ -191,7 +191,8 @@ class AudioPlayerService extends ChangeNotifier {
   List<Track> queue = [];
   List<Track> nextUp = [];
   String? _appDataPath;
-  int? _lastCompletedTrackId;
+  ProcessingState _lastProcessingState = ProcessingState.idle;
+  int _loadedPlayRequestId = 0;
 
   String? get appDataPath => _appDataPath;
 
@@ -238,12 +239,13 @@ class AudioPlayerService extends ChangeNotifier {
       }
 
       _stateSubscription = _player.playerStateStream.listen((state) {
-        if (state.processingState == ProcessingState.completed) {
-          if (currentTrack != null && currentTrack!.trackID != _lastCompletedTrackId) {
-            _lastCompletedTrackId = currentTrack!.trackID;
+        if (state.processingState == ProcessingState.completed && 
+            _lastProcessingState != ProcessingState.completed) {
+          if (_loadedPlayRequestId == _playRequestId) {
             next();
           }
         }
+        _lastProcessingState = state.processingState;
         isPlaying = state.playing;
         notifyListeners();
       });
@@ -259,6 +261,9 @@ class AudioPlayerService extends ChangeNotifier {
   Stream<Duration?> get durationStream => _player.durationStream;
 
   Duration get currentTrackDuration {
+    if (_player.duration != null && _player.duration! > Duration.zero) {
+      return _player.duration!;
+    }
     if (currentTrack != null && currentTrack!.duration.isNotEmpty) {
       try {
         final parts = currentTrack!.duration.split(':');
@@ -269,7 +274,7 @@ class AudioPlayerService extends ChangeNotifier {
         }
       } catch (_) {}
     }
-    return _player.duration ?? Duration.zero;
+    return Duration.zero;
   }
 
   @override
@@ -318,6 +323,8 @@ class AudioPlayerService extends ChangeNotifier {
 
       await _player.setFilePath(file.path);
       if (currentRequestId != _playRequestId) return;
+      
+      _loadedPlayRequestId = currentRequestId;
 
       if (_appDataPath != null) {
         _audioHandler?.updateTrackMediaItem(track, _appDataPath!);
