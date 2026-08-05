@@ -74,8 +74,8 @@ class ServerClient {
       fallbackUrl = _normalizeUrl(config['fallback_url'] as String?);
       appKey = config['app_key'] as String?;
     } catch (e) {
-      primaryUrl = 'http://127.0.0.1:57967';
-      fallbackUrl = 'http://localhost:57967';
+      primaryUrl = 'https://127.0.0.1:57967';
+      fallbackUrl = 'https://localhost:57967';
       appKey = '';
     }
   }
@@ -139,7 +139,7 @@ class ServerClient {
     await mediaHandler.clearAllLocalData();
   }
 
-  Future<bool> _pingUrl(String targetUrl, {int timeoutMs = 1500}) async {
+  Future<bool> _pingUrl(String targetUrl, {int timeoutMs = 3500}) async {
     try {
       final url = '$targetUrl/ping';
       final response = await http.get(
@@ -152,7 +152,7 @@ class ServerClient {
     }
   }
 
-  Future<bool> autoDetectServer({int timeoutMs = 1500}) async {
+  Future<bool> autoDetectServer({int timeoutMs = 3500}) async {
     if (primaryUrl == null) {
       appUrl = fallbackUrl;
       return appUrl != null;
@@ -618,7 +618,7 @@ class ServerClient {
     if (lastDot >= 0) {
       ext = path.substring(lastDot + 1).toLowerCase();
     }
-    if (ext != 'wav' && ext != 'mp3' && ext != 'jpg' && ext != 'png') {
+    if (ext != 'wav' && ext != 'mp3' && ext != 'flac' && ext != 'jpg' && ext != 'png') {
       ext = type == 'audio' ? 'wav' : 'jpg';
     }
     final targetUrl = '$appUrl/tracks/$id/upload/$ext';
@@ -627,9 +627,15 @@ class ServerClient {
     String contentType;
     if (ext == 'wav') {
       contentType = 'audio/wav';
-    } else if (ext == 'mp3') contentType = 'audio/mpeg';
-    else if (ext == 'png') contentType = 'image/png';
-    else contentType = 'image/jpeg';
+    } else if (ext == 'mp3') {
+      contentType = 'audio/mpeg';
+    } else if (ext == 'flac') {
+      contentType = 'audio/flac';
+    } else if (ext == 'png') {
+      contentType = 'image/png';
+    } else {
+      contentType = 'image/jpeg';
+    }
 
     final rawRequest = http.StreamedRequest('POST', Uri.parse(targetUrl))
       ..headers.addAll(_headers())
@@ -646,7 +652,14 @@ class ServerClient {
         debugPrint('Upload succeeded for $type/$id');
       } else {
         debugPrint('Upload failed for $type/$id: HTTP ${response.statusCode} - $responseBody');
-        throw Exception('Upload failed for $type/$id: HTTP ${response.statusCode}');
+        String errDetail = responseBody;
+        try {
+          final decoded = jsonDecode(responseBody);
+          if (decoded is Map && decoded.containsKey('error')) {
+            errDetail = decoded['error'].toString();
+          }
+        } catch (_) {}
+        throw Exception('Upload failed ($type): $errDetail');
       }
     } catch (e) {
       debugPrint('An error occurred during upload transmission: $e');
@@ -679,7 +692,17 @@ class ServerClient {
       headers: _headers(json: true),
       body: jsonString,
     ).timeout(const Duration(seconds: 10));
-    return response.body;
+    if (response.statusCode != 201) {
+      String errDetail = response.body;
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map && decoded.containsKey('error')) {
+          errDetail = decoded['error'].toString();
+        }
+      } catch (_) {}
+      throw Exception('Failed to create track: $errDetail');
+    }
+    return response.body.trim();
   }
 
   Future<void> _updateRemoveDownloads(int id) async {
@@ -798,7 +821,14 @@ class ServerClient {
     }
   }
 
-  Future<void> uploadTrack(Track track, String audioPath, String coverPath, {bool hidden = false}) async {
+  Future<void> uploadTrack(
+    Track track,
+    String audioPath,
+    String? coverPath, {
+    bool hidden = false,
+    Function(double progress, String status)? onProgress,
+  }) async {
+    onProgress?.call(0.10, 'Calculating audio duration...');
     final player = AudioPlayer();
     try {
       final duration = await player.setFilePath(audioPath);
@@ -814,13 +844,18 @@ class ServerClient {
       await player.dispose();
     }
 
-    try {
-      final newId = await _updateUploads(track, hidden: hidden);
-      await _upload('audio', audioPath, newId);
+    onProgress?.call(0.25, 'Creating track record on server...');
+    final newId = await _updateUploads(track, hidden: hidden);
+
+    onProgress?.call(0.50, 'Uploading audio file...');
+    await _upload('audio', audioPath, newId);
+
+    if (coverPath != null && coverPath.isNotEmpty) {
+      onProgress?.call(0.85, 'Uploading cover artwork...');
       await _upload('cover', coverPath, newId);
-    } catch (e) {
-      debugPrint('Track upload failed: $e');
     }
+
+    onProgress?.call(1.0, 'Upload complete!');
   }
 
   Future<bool> removeDownload(Track track, {bool updateServerTracking = true}) async {

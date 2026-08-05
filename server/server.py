@@ -655,10 +655,9 @@ def uploadFile(id, ext):
                 os.replace(jpg_path, final_path)
             elif ext == "jpg":
                 os.replace(upload_path, final_path)
-
     except Exception as e:
         print(f"[ERROR] Upload failed for track {id} ({ext}): {e}")
-        return {"error": "Upload failed"}, 500
+        return jsonify({"error": f"Upload failed: {str(e)}"}), 500
     finally:
         for p in [os.path.join(tmp_dir, f"{id}.{ext}"), os.path.join(tmp_dir, f"{id}.wav"), os.path.join(tmp_dir, f"{id}.png"), os.path.join(tmp_dir, f"{id}.jpg"), os.path.join(tmp_dir, f"{id}.flac")]:
             try:
@@ -1142,17 +1141,19 @@ if __name__ == "__main__":
     import signal
     from gevent.pywsgi import WSGIServer
 
+    import ssl
+
     class CustomWSGIServer(WSGIServer):
         def wrap_socket_and_handle(self, client_socket, address):
             try:
                 super().wrap_socket_and_handle(client_socket, address)
-            except (ConnectionResetError, BrokenPipeError):
+            except (ConnectionResetError, BrokenPipeError, ssl.SSLEOFError, ssl.SSLError):
                 pass
 
         def handle_error(self, context, type_value_tb):
             if type_value_tb and len(type_value_tb) >= 2:
                 exc_val = type_value_tb[1]
-                if isinstance(exc_val, (ConnectionResetError, BrokenPipeError)):
+                if isinstance(exc_val, (ConnectionResetError, BrokenPipeError, ssl.SSLEOFError, ssl.SSLError)):
                     return
             super().handle_error(context, type_value_tb)
 
@@ -1172,11 +1173,18 @@ if __name__ == "__main__":
     
     ssl_key = config.get("ssl_key")
     ssl_cert = config.get("ssl_cert")
+    if ssl_key and not os.path.isabs(ssl_key):
+        ssl_key = os.path.join(BASE_DIR, ssl_key)
+    if ssl_cert and not os.path.isabs(ssl_cert):
+        ssl_cert = os.path.join(BASE_DIR, ssl_cert)
+
     if ssl_key and ssl_cert and os.path.exists(ssl_key) and os.path.exists(ssl_cert):
         kwargs["keyfile"] = ssl_key
         kwargs["certfile"] = ssl_cert
         proto = "https"
     else:
+        if config.get("ssl_key") or config.get("ssl_cert"):
+            print(f"[Warning] SSL certificates not found (key: {ssl_key}, cert: {ssl_cert}). Falling back to HTTP.", file=sys.stderr)
         proto = "http"
 
     print(f"Starting gevent WSGI server on {proto}://{host}:{port}", file=sys.stdout)

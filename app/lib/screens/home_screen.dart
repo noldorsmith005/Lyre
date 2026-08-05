@@ -229,19 +229,20 @@ class _HomeScreenState extends State<HomeScreen> {
     UploadModal.show(
       context,
       hasHiddenAccess: widget.serverClient.hasHiddenAccess,
-      onUpload: (title, artist, mediaPath, coverPath, hidden) async {
-        try {
-          final newTrack = Track(
-            trackID: 0,
-            title: title,
-            artist: artist,
-            duration: '',
-          );
-          await widget.serverClient.uploadTrack(newTrack, mediaPath, coverPath, hidden: hidden);
-          if (mounted) Navigator.of(context).pop();
-        } catch (e) {
-          _showAlert('Upload Error', e.toString());
-        }
+      onUpload: (title, artist, mediaPath, coverPath, hidden, updateProgress) async {
+        final newTrack = Track(
+          trackID: 0,
+          title: title,
+          artist: artist,
+          duration: '',
+        );
+        await widget.serverClient.uploadTrack(
+          newTrack,
+          mediaPath,
+          coverPath,
+          hidden: hidden,
+          onProgress: updateProgress,
+        );
       },
     );
   }

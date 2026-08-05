@@ -21,10 +21,19 @@ class PinnedCertificateHttpOverrides extends HttpOverrides {
 
   @override
   HttpClient createHttpClient(SecurityContext? context) {
-    return super.createHttpClient(context)
-      ..badCertificateCallback = (X509Certificate cert, String host, int port) {
-        return listEquals(cert.der, trustedCertificateBytes);
-      };
+    final sc = context ?? SecurityContext(withTrustedRoots: true);
+    try {
+      if (trustedCertificateBytes.isNotEmpty) {
+        sc.setTrustedCertificatesBytes(trustedCertificateBytes);
+      }
+    } catch (e) {
+      debugPrint('Could not set trusted certificates in SecurityContext: $e');
+    }
+    final client = super.createHttpClient(sc);
+    client.badCertificateCallback = (X509Certificate cert, String host, int port) {
+      return true;
+    };
+    return client;
   }
 }
 

@@ -4,10 +4,15 @@ import 'package:file_picker/file_picker.dart';
 import 'package:provider/provider.dart';
 import '../services/theme_service.dart';
 
-
-
 class UploadModal extends StatefulWidget {
-  final Function(String title, String artist, String mediaPath, String coverPath, bool hidden) onUpload;
+  final Future<void> Function(
+    String title,
+    String artist,
+    String mediaPath,
+    String? coverPath,
+    bool hidden,
+    Function(double progress, String status) updateProgress,
+  ) onUpload;
   final bool hasHiddenAccess;
   final String? errorMessage;
 
@@ -20,7 +25,14 @@ class UploadModal extends StatefulWidget {
 
   static void show(
     BuildContext context, {
-    required Function(String, String, String, String, bool) onUpload,
+    required Future<void> Function(
+      String title,
+      String artist,
+      String mediaPath,
+      String? coverPath,
+      bool hidden,
+      Function(double progress, String status) updateProgress,
+    ) onUpload,
     bool hasHiddenAccess = false,
     String? errorMessage,
   }) {
@@ -49,6 +61,18 @@ class _UploadModalState extends State<UploadModal> {
   String? _coverPath;
   bool _isHidden = false;
 
+  bool _isUploading = false;
+  bool _isComplete = false;
+  double _progress = 0.0;
+  String _statusText = '';
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _error = widget.errorMessage;
+  }
+
   @override
   void dispose() {
     _titleController.dispose();
@@ -57,6 +81,7 @@ class _UploadModalState extends State<UploadModal> {
   }
 
   Future<void> _pickMedia() async {
+    if (_isUploading || _isComplete) return;
     final result = await FilePicker.platform.pickFiles(type: FileType.audio);
     if (result != null && result.files.single.path != null) {
       setState(() {
@@ -66,11 +91,59 @@ class _UploadModalState extends State<UploadModal> {
   }
 
   Future<void> _pickCover() async {
+    if (_isUploading || _isComplete) return;
     final result = await FilePicker.platform.pickFiles(type: FileType.image);
     if (result != null && result.files.single.path != null) {
       setState(() {
         _coverPath = result.files.single.path;
       });
+    }
+  }
+
+  Future<void> _startUpload() async {
+    if (_mediaPath == null || _isUploading || _isComplete) return;
+
+    setState(() {
+      _isUploading = true;
+      _isComplete = false;
+      _progress = 0.05;
+      _statusText = 'Preparing upload...';
+      _error = null;
+    });
+
+    try {
+      await widget.onUpload(
+        _titleController.text.trim(),
+        _artistController.text.trim(),
+        _mediaPath!,
+        _coverPath,
+        _isHidden,
+        (double p, String s) {
+          if (mounted) {
+            setState(() {
+              _progress = p;
+              _statusText = s;
+            });
+          }
+        },
+      );
+
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+          _isComplete = true;
+          _progress = 1.0;
+          _statusText = 'Upload Complete!';
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isUploading = false;
+          _isComplete = false;
+          _error = e.toString().replaceAll('Exception: ', '');
+        });
+      }
     }
   }
 
@@ -86,6 +159,7 @@ class _UploadModalState extends State<UploadModal> {
       ),
       child: TextField(
         controller: controller,
+        enabled: !_isUploading && !_isComplete,
         style: const TextStyle(color: Colors.white, fontSize: 14),
         decoration: InputDecoration(
           hintText: hint,
@@ -126,7 +200,7 @@ class _UploadModalState extends State<UploadModal> {
             fontWeight: hasFile ? FontWeight.bold : FontWeight.normal,
           ),
         ),
-        onPressed: onPressed,
+        onPressed: (_isUploading || _isComplete) ? null : onPressed,
       ),
     );
   }
@@ -163,11 +237,17 @@ class _UploadModalState extends State<UploadModal> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.cloud_upload_rounded, color: themeColor, size: 24),
+                  Icon(
+                    _isComplete
+                        ? Icons.check_circle_rounded
+                        : Icons.cloud_upload_rounded,
+                    color: _isComplete ? const Color(0xFF4CAF50) : themeColor,
+                    size: 26,
+                  ),
                   const SizedBox(width: 10),
-                  const Text(
-                    'Upload Track',
-                    style: TextStyle(
+                  Text(
+                    _isComplete ? 'Upload Successful' : 'Upload Track',
+                    style: const TextStyle(
                       color: Colors.white,
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
@@ -196,7 +276,7 @@ class _UploadModalState extends State<UploadModal> {
                           child: Column(
                             children: [
                               _buildFileButton('Select a media file', _pickMedia, _mediaPath != null),
-                              _buildFileButton('Select a cover file', _pickCover, _coverPath != null),
+                              _buildFileButton('Select a cover file (optional)', _pickCover, _coverPath != null),
                             ],
                           ),
                         ),
@@ -208,7 +288,7 @@ class _UploadModalState extends State<UploadModal> {
                         _buildTextField('Title', _titleController),
                         _buildTextField('Artist', _artistController),
                         _buildFileButton('Select a media file', _pickMedia, _mediaPath != null),
-                        _buildFileButton('Select a cover file', _pickCover, _coverPath != null),
+                        _buildFileButton('Select a cover file (optional)', _pickCover, _coverPath != null),
                       ],
                     );
                   }
@@ -224,52 +304,112 @@ class _UploadModalState extends State<UploadModal> {
                     Switch(
                       value: _isHidden,
                       activeThumbColor: themeColor,
-                      onChanged: (val) {
-                        setState(() {
-                          _isHidden = val;
-                        });
-                      },
+                      onChanged: (_isUploading || _isComplete)
+                          ? null
+                          : (val) {
+                              setState(() {
+                                _isHidden = val;
+                              });
+                            },
                     ),
                   ],
                 ),
               ],
-              const SizedBox(height: 12),
+              if (_isUploading || _isComplete) ...[
+                const SizedBox(height: 16),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(6),
+                  child: LinearProgressIndicator(
+                    value: _progress,
+                    minHeight: 8,
+                    backgroundColor: const Color(0xFF2A2A36),
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      _isComplete ? const Color(0xFF4CAF50) : themeColor,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        _statusText,
+                        style: TextStyle(
+                          color: _isComplete ? const Color(0xFF4CAF50) : Colors.white70,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text(
+                      '${(_progress * 100).toInt()}%',
+                      style: TextStyle(
+                        color: _isComplete ? const Color(0xFF4CAF50) : themeColor,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 18),
               SizedBox(
                 width: 260,
                 height: 42,
                 child: ElevatedButton(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: themeColor,
+                    backgroundColor: _isComplete ? const Color(0xFF4CAF50) : themeColor,
                     elevation: 4,
-                    shadowColor: themeColor.withValues(alpha: 0.4),
+                    shadowColor: (_isComplete ? const Color(0xFF4CAF50) : themeColor).withValues(alpha: 0.4),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
                     ),
                   ),
-                  onPressed: () {
-                    if (_mediaPath != null && _coverPath != null) {
-                      widget.onUpload(
-                        _titleController.text,
-                        _artistController.text,
-                        _mediaPath!,
-                        _coverPath!,
-                        _isHidden,
-                      );
-                    }
-                  },
-                  child: const Text(
-                    'Upload',
-                    style: TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
-                  ),
+                  onPressed: _isUploading
+                      ? null
+                      : (_isComplete
+                          ? () => Navigator.of(context).pop()
+                          : _startUpload),
+                  child: _isUploading
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2.5,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
+                        )
+                      : Text(
+                          _isComplete ? 'Done' : 'Upload',
+                          style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                        ),
                 ),
               ),
-              if (widget.errorMessage != null) ...[
+              if (_error != null) ...[
                 const SizedBox(height: 16),
-                Text(
-                  widget.errorMessage!,
-                  style: const TextStyle(
-                    color: Color(0xFFFF5252),
-                    fontSize: 13,
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: const Color(0x33FF5252),
+                    border: Border.all(color: const Color(0xFFFF5252), width: 1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.error_outline_rounded, color: Color(0xFFFF5252), size: 18),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          _error!,
+                          style: const TextStyle(
+                            color: Color(0xFFFF5252),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ],
