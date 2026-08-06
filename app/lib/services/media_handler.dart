@@ -14,6 +14,28 @@ class MediaHandler {
   late Database _db;
   late String _appDataPath;
   VoidCallback? onPlaylistChanged;
+  final List<VoidCallback> _playlistChangedListeners = [];
+
+  void addPlaylistChangedListener(VoidCallback listener) {
+    if (!_playlistChangedListeners.contains(listener)) {
+      _playlistChangedListeners.add(listener);
+    }
+  }
+
+  void removePlaylistChangedListener(VoidCallback listener) {
+    _playlistChangedListeners.remove(listener);
+  }
+
+  void notifyPlaylistChanged() {
+    onPlaylistChanged?.call();
+    for (final listener in List.of(_playlistChangedListeners)) {
+      try {
+        listener();
+      } catch (e) {
+        debugPrint('Error in playlist change listener: $e');
+      }
+    }
+  }
 
   List<Playlist> _cachedPlaylists = [];
   List<Track> _cachedAllTracks = [];
@@ -161,7 +183,7 @@ class MediaHandler {
         for (var t in tracks) t.trackID: t,
       };
 
-      final ptResult = await _db.query('playlist_tracks', orderBy: 'order_index ASC');
+      final ptResult = await _db.query('playlist_tracks', orderBy: 'playlist_id ASC, order_index ASC');
       final playlistTracks = <int, List<Track>>{};
       for (var row in ptResult) {
         final pid = row['playlist_id'] as int;
@@ -335,7 +357,7 @@ class MediaHandler {
     if (index > 0) {
       final playlist = _cachedPlaylists.removeAt(index);
       _cachedPlaylists.insert(0, playlist);
-      onPlaylistChanged?.call();
+      notifyPlaylistChanged();
     }
   }
 
@@ -354,7 +376,7 @@ class MediaHandler {
       );
       await loadAllIntoMemory();
       await setPendingPlaylistPush(true);
-      onPlaylistChanged?.call();
+      notifyPlaylistChanged();
     } catch (e) {
       debugPrint('Could not add track to playlist: $e');
     }
@@ -365,7 +387,7 @@ class MediaHandler {
       await _db.delete('playlist_tracks', where: 'playlist_id = ? AND track_id = ?', whereArgs: [playlistId, trackId]);
       await loadAllIntoMemory();
       await setPendingPlaylistPush(true);
-      onPlaylistChanged?.call();
+      notifyPlaylistChanged();
     } catch (e) {
       debugPrint('Could not remove track from playlist: $e');
     }
@@ -373,10 +395,15 @@ class MediaHandler {
 
   Future<void> changeTrackOrder(int playlistId, int trackId, int newOrder) async {
     try {
-      await _db.update('playlist_tracks', {'order_index': newOrder}, where: 'playlist_id = ? AND track_id = ?', whereArgs: [playlistId, trackId]);
-      await loadAllIntoMemory();
-      await setPendingPlaylistPush(true);
-      onPlaylistChanged?.call();
+      final currentTracks = await loadPlaylistTracks(playlistId);
+      final trackIds = currentTracks.map((t) => t.trackID).toList();
+      final currentIndex = trackIds.indexOf(trackId);
+      if (currentIndex != -1) {
+        trackIds.removeAt(currentIndex);
+        final targetIndex = (newOrder - 1).clamp(0, trackIds.length);
+        trackIds.insert(targetIndex, trackId);
+      }
+      await reorderPlaylistTracks(playlistId, trackIds);
     } catch (e) {
       debugPrint('Could not change track order: $e');
     }
@@ -384,17 +411,19 @@ class MediaHandler {
 
   Future<void> reorderPlaylistTracks(int playlistId, List<int> orderedTrackIds) async {
     try {
-      await _db.delete('playlist_tracks', where: 'playlist_id = ?', whereArgs: [playlistId]);
-      for (int i = 0; i < orderedTrackIds.length; i++) {
-        await _db.insert('playlist_tracks', {
-          'playlist_id': playlistId,
-          'order_index': i + 1,
-          'track_id': orderedTrackIds[i],
-        });
-      }
+      await _db.transaction((txn) async {
+        await txn.delete('playlist_tracks', where: 'playlist_id = ?', whereArgs: [playlistId]);
+        for (int i = 0; i < orderedTrackIds.length; i++) {
+          await txn.insert('playlist_tracks', {
+            'playlist_id': playlistId,
+            'order_index': i + 1,
+            'track_id': orderedTrackIds[i],
+          }, conflictAlgorithm: ConflictAlgorithm.replace);
+        }
+      });
       await loadAllIntoMemory();
       await setPendingPlaylistPush(true);
-      onPlaylistChanged?.call();
+      notifyPlaylistChanged();
     } catch (e) {
       debugPrint('Could not reorder playlist tracks: $e');
     }
@@ -431,7 +460,7 @@ class MediaHandler {
       });
       await loadAllIntoMemory();
       await setPendingPlaylistPush(true);
-      onPlaylistChanged?.call();
+      notifyPlaylistChanged();
     } catch (e) {
       debugPrint('Could not create playlist: $e');
     }
@@ -444,7 +473,7 @@ class MediaHandler {
       await _db.delete('playlist_ids', where: 'playlist_id = ?', whereArgs: [playlistId]);
       await loadAllIntoMemory();
       await setPendingPlaylistPush(true);
-      onPlaylistChanged?.call();
+      notifyPlaylistChanged();
     } catch (e) {
       debugPrint('Could not delete playlist: $e');
     }
@@ -455,7 +484,7 @@ class MediaHandler {
       await _db.update('playlists', {'title': newTitle}, where: 'playlist_id = ?', whereArgs: [playlistId]);
       await loadAllIntoMemory();
       await setPendingPlaylistPush(true);
-      onPlaylistChanged?.call();
+      notifyPlaylistChanged();
     } catch (e) {
       debugPrint('Could not edit playlist title: $e');
     }

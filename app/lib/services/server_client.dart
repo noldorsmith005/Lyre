@@ -55,7 +55,7 @@ class ServerClient {
   Future<void> init() async {
     _appDataPath = mediaHandler.appDataPath;
     
-    mediaHandler.onPlaylistChanged = () => pushLocalPlaylists();
+    mediaHandler.addPlaylistChangedListener(() => pushLocalPlaylists());
     await _loadBundledConfig();
     await _loadSecureCredentials();
     await autoDetectServer();

@@ -132,13 +132,31 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
             child: ValueListenableBuilder<Set<int>>(
               valueListenable: widget.serverClient?.downloadingTrackIdsNotifier ?? ValueNotifier<Set<int>>({}),
               builder: (context, downloadingIds, child) {
-                return ListView.builder(
+                return ReorderableListView.builder(
                   itemCount: _tracks.length,
+                  onReorder: (oldIndex, newIndex) async {
+                    if (oldIndex < 0 || oldIndex >= _tracks.length) return;
+                    if (newIndex > oldIndex) {
+                      newIndex -= 1;
+                    }
+                    if (oldIndex == newIndex) return;
+
+                    setState(() {
+                      final item = _tracks.removeAt(oldIndex);
+                      _tracks.insert(newIndex, item);
+                    });
+
+                    final trackIds = _tracks.map((t) => t.trackID).toList();
+                    await widget.mediaHandler.reorderPlaylistTracks(_playlist.playlistID, trackIds);
+                    if (widget.isServerConnected && widget.serverClient != null) {
+                      await widget.serverClient.pushLocalPlaylists();
+                    }
+                  },
                   itemBuilder: (context, index) {
                     final track = _tracks[index];
                     final isDownloading = downloadingIds.contains(track.trackID);
                     return MobileTrackRow(
-                      key: ValueKey(track.trackID),
+                      key: ValueKey('${track.trackID}_$index'),
                       track: track,
                       isPlaying: audioService.currentTrack?.trackID == track.trackID,
                       isDownloading: isDownloading,
