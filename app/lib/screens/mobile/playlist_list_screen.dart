@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/playlist.dart';
 import '../../models/track.dart';
+import '../../services/audio_player_service.dart';
 import '../../services/theme_service.dart';
 import '../../widgets/sync_icon_button.dart';
 import '../../widgets/track_cover_image.dart';
@@ -237,6 +238,9 @@ class _PlaylistListScreenState extends State<PlaylistListScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final audioService = Provider.of<AudioPlayerService>(context);
+    final hasPlayBar = audioService.currentTrack != null;
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       endDrawer: _buildMobileDrawer(context),
@@ -352,7 +356,7 @@ class _PlaylistListScreenState extends State<PlaylistListScreen> {
                     ),
                   )
                 : GridView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: EdgeInsets.fromLTRB(16, 8, 16, hasPlayBar ? 15 : 25),
                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 2,
                       crossAxisSpacing: 16,

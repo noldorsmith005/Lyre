@@ -7,7 +7,6 @@ Bugs:
 
 Mods:
     -Enhance search
-    -Show total playlist duration on desktop
     -More bottom safe area on mobile for scrolling through playlists
 
 General:
