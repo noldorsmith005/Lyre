@@ -237,6 +237,21 @@ class _MainPanelState extends State<MainPanel> {
   }
 
   Widget _buildHeaderRow() {
+    int totalDuration = 0;
+    for (var track in widget.tracks) {
+      final parts = track.duration.split(':');
+      if (parts.length == 2) {
+        totalDuration += (int.tryParse(parts[0]) ?? 0) * 60 + (int.tryParse(parts[1]) ?? 0);
+      } else if (parts.length == 3) {
+        totalDuration += (int.tryParse(parts[0]) ?? 0) * 3600 + (int.tryParse(parts[1]) ?? 0) * 60 + (int.tryParse(parts[2]) ?? 0);
+      }
+    }
+
+    String formatDuration(int totalSeconds) {
+      final d = Duration(seconds: totalSeconds);
+      return '${d.inHours.toString().padLeft(2, '0')}:${(d.inMinutes % 60).toString().padLeft(2, '0')}:${(d.inSeconds % 60).toString().padLeft(2, '0')}';
+    }
+
     return Container(
       padding: const EdgeInsets.fromLTRB(28, 24, 28, 24),
       decoration: const BoxDecoration(
@@ -274,6 +289,14 @@ class _MainPanelState extends State<MainPanel> {
               const SizedBox(height: 6),
               Text(
                 '${widget.tracks.length} tracks',
+                style: const TextStyle(
+                  color: Color(0xFFB3B3B3),
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                'Duration: ${formatDuration(totalDuration)}',
                 style: const TextStyle(
                   color: Color(0xFFB3B3B3),
                   fontSize: 14,
