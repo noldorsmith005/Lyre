@@ -320,7 +320,21 @@ class AudioPlayerService extends ChangeNotifier {
       await _player.stop();
       if (currentRequestId != _playRequestId) return;
 
-      await _player.setFilePath(file.path);
+      // preferPreciseDurationAndTiming forces AVFoundation to build a sample
+      // table instead of estimating time<->byte offsets from average bitrate.
+      // Our FLACs carry no SEEKTABLE, so without this a seek on macOS/iOS lands
+      // seconds away from the requested position and the seek bar runs ahead of
+      // the audio. Ignored on Android, where ExoPlayer seeks accurately anyway.
+      await _player.setAudioSource(
+        ProgressiveAudioSource(
+          Uri.file(file.path),
+          options: const ProgressiveAudioSourceOptions(
+            darwinAssetOptions: DarwinAssetOptions(
+              preferPreciseDurationAndTiming: true,
+            ),
+          ),
+        ),
+      );
       if (currentRequestId != _playRequestId) return;
       
       _loadedPlayRequestId = currentRequestId;
