@@ -3,7 +3,6 @@ Features:
 
 Bugs:
     -Fix macos seek bar not working
-    -Fix secure storage on macos, use Flare setup
 
 Mods:
     -
