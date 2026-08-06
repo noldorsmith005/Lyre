@@ -1,6 +1,16 @@
 Features: 
     -
 
+Bugs:
+    -Fix macos seek bar not working
+    -Fix secure storage on macos, use Flare setup
+
+Mods:
+    -No results in search
+    -Enhance search
+    -Show total playlist duration on desktop
+    -More bottom safe area on mobile for scrolling through playlists
+
 General:
     -Untrack sensitive files
 
