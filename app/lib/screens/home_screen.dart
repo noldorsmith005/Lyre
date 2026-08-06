@@ -42,6 +42,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<int, List<int>> _playlistTracksMap = {};
 
   String _searchQuery = '';
+  bool _isSearching = false;
   Timer? _searchDebounce;
 
   @override
@@ -161,6 +162,11 @@ class _HomeScreenState extends State<HomeScreen> {
     _searchDebounce?.cancel();
 
     if (query.trim().isEmpty) {
+      if (mounted) {
+        setState(() {
+          _isSearching = false;
+        });
+      }
       if (_currentPlaylist != null) {
         await _loadPlaylistTracks(_currentPlaylist!);
       } else {
@@ -171,24 +177,46 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     }
 
+    if (mounted) {
+      setState(() {
+        _isSearching = true;
+      });
+    }
+
     if (_serverConnection) {
       _searchDebounce = Timer(const Duration(milliseconds: 1000), () async {
         if (!mounted) return;
-        final results = await widget.serverClient.searchTracks(query);
+        try {
+          final results = await widget.serverClient.searchTracks(query);
+          if (mounted && _searchQuery == query) {
+            setState(() {
+              _currentPlaylist = null;
+              _tracks = results;
+            });
+          }
+        } finally {
+          if (mounted && _searchQuery == query) {
+            setState(() {
+              _isSearching = false;
+            });
+          }
+        }
+      });
+    } else {
+      try {
+        final results = await widget.mediaHandler.searchTracks(query);
         if (mounted && _searchQuery == query) {
           setState(() {
             _currentPlaylist = null;
             _tracks = results;
           });
         }
-      });
-    } else {
-      final results = await widget.mediaHandler.searchTracks(query);
-      if (mounted && _searchQuery == query) {
-        setState(() {
-          _currentPlaylist = null;
-          _tracks = results;
-        });
+      } finally {
+        if (mounted && _searchQuery == query) {
+          setState(() {
+            _isSearching = false;
+          });
+        }
       }
     }
   }
@@ -510,8 +538,10 @@ class _HomeScreenState extends State<HomeScreen> {
               currentPlaylist: _currentPlaylist,
               tracks: _tracks,
               onSearch: _onSearch,
+              isSearching: _isSearching,
               onClearSearch: () => setState(() {
                 _searchQuery = '';
+                _isSearching = false;
                 _currentPlaylist = null;
                 _tracks = [];
               }),

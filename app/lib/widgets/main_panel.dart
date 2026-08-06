@@ -35,6 +35,7 @@ class MainPanel extends StatefulWidget {
   final Function(Playlist, Track) onTogglePlaylist;
   final bool Function(Playlist, Track) isTrackInPlaylist;
   final bool isServerConnected;
+  final bool isSearching;
   final ServerClient? serverClient;
   final Function(int oldIndex, int newIndex)? onReorderTrack;
 
@@ -43,6 +44,7 @@ class MainPanel extends StatefulWidget {
     this.currentPlaylist,
     required this.tracks,
     required this.onSearch,
+    this.isSearching = false,
     required this.onClearSearch,
     required this.onRlsPressed,
     required this.onUploadPressed,
@@ -195,6 +197,7 @@ class _MainPanelState extends State<MainPanel> {
             controller: _searchController,
             onSearch: widget.onSearch,
             onClearSearch: widget.onClearSearch,
+            isSearching: widget.isSearching,
           ),
           if (showServerFeatures) ...[
             const SizedBox(width: 16),
@@ -308,7 +311,18 @@ class _MainPanelState extends State<MainPanel> {
           _buildTopBar(),
           _buildHeaderRow(),
           Expanded(
-            child: ValueListenableBuilder<Set<int>>(
+            child: (!widget.isSearching && _searchController.text.trim().isNotEmpty && widget.tracks.isEmpty)
+                ? const Center(
+                    child: Text(
+                      'No Results',
+                      style: TextStyle(
+                        color: Color(0xFF888888),
+                        fontSize: 18,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  )
+                : ValueListenableBuilder<Set<int>>(
               valueListenable: widget.serverClient?.downloadingTrackIdsNotifier ?? ValueNotifier<Set<int>>({}),
               builder: (context, downloadingIds, child) {
                 return ListView.builder(
@@ -380,11 +394,13 @@ class _SearchBar extends StatefulWidget {
   final TextEditingController controller;
   final Function(String) onSearch;
   final VoidCallback onClearSearch;
+  final bool isSearching;
 
   const _SearchBar({
     required this.controller,
     required this.onSearch,
     required this.onClearSearch,
+    this.isSearching = false,
   });
 
   @override
@@ -446,7 +462,21 @@ class _SearchBarState extends State<_SearchBar> {
               ),
             ),
           ),
-          if (widget.controller.text.isNotEmpty)
+          if (widget.isSearching)
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    Provider.of<ThemeService>(context).themeColor,
+                  ),
+                ),
+              ),
+            )
+          else if (widget.controller.text.isNotEmpty)
             MouseRegion(
               cursor: SystemMouseCursors.click,
               child: GestureDetector(

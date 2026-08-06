@@ -63,9 +63,14 @@ class _SearchScreenState extends State<SearchScreen> {
     if (query.trim().isEmpty) {
       setState(() {
         _searchResults = [];
+        _isSearching = false;
       });
       return;
     }
+
+    setState(() {
+      _isSearching = true;
+    });
 
     final isServer = _isServerConnected && widget.serverClient != null;
 
@@ -146,15 +151,29 @@ class _SearchScreenState extends State<SearchScreen> {
                         ),
                         contentPadding: const EdgeInsets.all(16),
                         prefixIcon: const Icon(Icons.search, color: Colors.white),
-                        suffixIcon: _searchController.text.isNotEmpty
-                            ? IconButton(
-                                icon: const Icon(Icons.clear, color: Color(0xFF555555)),
-                                onPressed: () {
-                                  _searchController.clear();
-                                  _performSearch('', immediate: true);
-                                },
+                        suffixIcon: _isSearching
+                            ? Padding(
+                                padding: const EdgeInsets.all(14.0),
+                                child: SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    valueColor: AlwaysStoppedAnimation<Color>(
+                                      context.watch<ThemeService>().themeColor,
+                                    ),
+                                  ),
+                                ),
                               )
-                            : null,
+                            : (_searchController.text.isNotEmpty
+                                ? IconButton(
+                                    icon: const Icon(Icons.clear, color: Color(0xFF555555)),
+                                    onPressed: () {
+                                      _searchController.clear();
+                                      _performSearch('', immediate: true);
+                                    },
+                                  )
+                                : null),
                       ),
                       onSubmitted: (q) => _performSearch(q, immediate: true),
                       onChanged: (q) => _performSearch(q),
@@ -186,8 +205,19 @@ class _SearchScreenState extends State<SearchScreen> {
                 ],
               ),
             ),
-            if (_isSearching)
-              Expanded(child: Center(child: CircularProgressIndicator(valueColor: AlwaysStoppedAnimation<Color>(context.watch<ThemeService>().themeColor))))
+            if (!_isSearching && _searchController.text.trim().isNotEmpty && _searchResults.isEmpty)
+              const Expanded(
+                child: Center(
+                  child: Text(
+                    'No Results',
+                    style: TextStyle(
+                      color: Color(0xFF888888),
+                      fontSize: 18,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              )
             else
               Expanded(
                 child: ValueListenableBuilder<Set<int>>(
