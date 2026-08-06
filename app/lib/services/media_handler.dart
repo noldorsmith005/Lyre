@@ -181,9 +181,124 @@ class MediaHandler {
     }
   }
 
+  String _normalizeString(String s) {
+    if (s.isEmpty) return '';
+    var str = s.toLowerCase();
+    const withCombining = 'àáâãäåèéêëìíîïòóôõöùúûüýÿñç';
+    const withoutCombining = 'aaaaaaeeeeiiiiooooouuuuyync';
+    for (int i = 0; i < withCombining.length; i++) {
+      str = str.replaceAll(withCombining[i], withoutCombining[i]);
+    }
+    str = str.replaceAll(RegExp(r'[^a-z0-9\s]'), ' ');
+    return str.replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  int _levenshteinDistance(String s1, String s2) {
+    if (s1 == s2) return 0;
+    if (s1.isEmpty) return s2.length;
+    if (s2.isEmpty) return s1.length;
+    List<int> v0 = List<int>.generate(s2.length + 1, (i) => i);
+    List<int> v1 = List<int>.filled(s2.length + 1, 0);
+    for (int i = 0; i < s1.length; i++) {
+      v1[0] = i + 1;
+      for (int j = 0; j < s2.length; j++) {
+        int cost = (s1[i] == s2[j]) ? 0 : 1;
+        v1[j + 1] = [v1[j] + 1, v0[j + 1] + 1, v0[j] + cost].reduce((a, b) => a < b ? a : b);
+      }
+      v0 = List<int>.from(v1);
+    }
+    return v0[s2.length];
+  }
+
+  (bool, double) _isFuzzyMatch(String word1, String word2) {
+    if (word1 == word2) return (true, 1.0);
+    int l1 = word1.length;
+    int l2 = word2.length;
+    if (l1 == 0 || l2 == 0) return (false, 0.0);
+    int maxLen = l1 > l2 ? l1 : l2;
+    int dist = _levenshteinDistance(word1, word2);
+
+    int maxAllowed = 0;
+    if (maxLen >= 8) {
+      maxAllowed = 2;
+    } else if (maxLen >= 4) {
+      maxAllowed = 1;
+    }
+
+    if (dist <= maxAllowed) {
+      double sim = 1.0 - (dist / maxLen.toDouble());
+      return (true, sim);
+    }
+    return (false, 0.0);
+  }
+
+  int _scoreSearchCandidate(String title, String artist, String query) {
+    final normTitle = _normalizeString(title);
+    final normArtist = _normalizeString(artist);
+    final normQuery = _normalizeString(query);
+
+    if (normQuery.isEmpty) return 0;
+
+    if (normTitle == normQuery) return 100;
+    if (normArtist == normQuery) return 90;
+
+    if (normTitle.startsWith(normQuery)) return 85;
+    if (normArtist.startsWith(normQuery)) return 75;
+
+    if (normTitle.contains(normQuery)) return 65;
+    if (normArtist.contains(normQuery)) return 55;
+
+    final qWords = normQuery.split(' ');
+    final tWords = normTitle.split(' ');
+    final aWords = normArtist.split(' ');
+
+    int matchedQTokens = 0;
+    double fuzzyTokenScore = 0.0;
+
+    for (final qw in qWords) {
+      bool matched = false;
+      for (final tw in tWords) {
+        if (tw == qw || tw.startsWith(qw)) {
+          matched = true;
+          fuzzyTokenScore += 1.0;
+          break;
+        }
+        final (isFuzz, sim) = _isFuzzyMatch(qw, tw);
+        if (isFuzz) {
+          matched = true;
+          fuzzyTokenScore += sim;
+          break;
+        }
+      }
+
+      if (!matched) {
+        for (final aw in aWords) {
+          if (aw == qw || aw.startsWith(qw)) {
+            matched = true;
+            fuzzyTokenScore += 0.8;
+            break;
+          }
+          final (isFuzz, sim) = _isFuzzyMatch(qw, aw);
+          if (isFuzz) {
+            matched = true;
+            fuzzyTokenScore += (sim * 0.8);
+            break;
+          }
+        }
+      }
+
+      if (matched) matchedQTokens++;
+    }
+
+    if (matchedQTokens == 0) return 0;
+
+    double ratio = matchedQTokens / qWords.length.toDouble();
+    int tokenScore = (ratio * 35 + (fuzzyTokenScore / qWords.length.toDouble()) * 15).round();
+    return tokenScore.clamp(1, 49);
+  }
+
   Future<List<Track>> searchTracks(String filter) async {
-    final normalizedFilter = filter.replaceAll(RegExp(r'[^a-zA-Z0-9 ]'), '').toLowerCase().trim();
-    if (normalizedFilter.isEmpty) {
+    if (filter.trim().isEmpty) {
       return [];
     }
 
@@ -191,11 +306,21 @@ class MediaHandler {
       await loadAllIntoMemory();
     }
 
-    return _cachedAllTracks.where((t) {
-      final titleNorm = t.title.toLowerCase();
-      final artistNorm = t.artist.toLowerCase();
-      return titleNorm.contains(normalizedFilter) || artistNorm.contains(normalizedFilter);
-    }).toList();
+    final scored = <({int score, Track track})>[];
+    for (final track in _cachedAllTracks) {
+      final score = _scoreSearchCandidate(track.title, track.artist, filter);
+      if (score > 0) {
+        scored.add((score: score, track: track));
+      }
+    }
+
+    scored.sort((a, b) {
+      int cmp = b.score.compareTo(a.score);
+      if (cmp != 0) return cmp;
+      return a.track.title.toLowerCase().compareTo(b.track.title.toLowerCase());
+    });
+
+    return scored.map((item) => item.track).toList();
   }
 
   Future<List<Playlist>> loadPlaylists() async {

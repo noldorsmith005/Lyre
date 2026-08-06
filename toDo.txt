@@ -6,8 +6,7 @@ Bugs:
     -Fix secure storage on macos, use Flare setup
 
 Mods:
-    -Enhance search
-    -More bottom safe area on mobile for scrolling through playlists
+    -
 
 General:
     -Untrack sensitive files

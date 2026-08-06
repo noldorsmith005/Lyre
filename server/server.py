@@ -12,6 +12,7 @@ import urllib.parse
 import subprocess
 import tempfile
 import threading
+import unicodedata
 from flask import Flask, send_file, request, jsonify, after_this_request, g, has_app_context
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -478,6 +479,112 @@ def getUserDownloads():
 
     return jsonify(tracks), 200
 
+def _normalize_search_string(s):
+    if not s:
+        return ""
+    s = unicodedata.normalize('NFKD', str(s))
+    s = ''.join(c for c in s if not unicodedata.combining(c))
+    s = s.lower()
+    s = re.sub(r'[^a-z0-9\s]', ' ', s)
+    return re.sub(r'\s+', ' ', s).strip()
+
+def _levenshtein_distance(s1, s2):
+    if s1 == s2:
+        return 0
+    if not s1:
+        return len(s2)
+    if not s2:
+        return len(s1)
+    v0 = list(range(len(s2) + 1))
+    v1 = [0] * (len(s2) + 1)
+    for i in range(len(s1)):
+        v1[0] = i + 1
+        for j in range(len(s2)):
+            cost = 0 if s1[i] == s2[j] else 1
+            v1[j + 1] = min(v1[j] + 1, v0[j + 1] + 1, v0[j] + cost)
+        v0 = list(v1)
+    return v0[len(s2)]
+
+def _is_fuzzy_match(word1, word2):
+    if word1 == word2:
+        return True, 1.0
+    l1, l2 = len(word1), len(word2)
+    if l1 == 0 or l2 == 0:
+        return False, 0.0
+    max_len = max(l1, l2)
+    dist = _levenshtein_distance(word1, word2)
+    max_allowed = 2 if max_len >= 8 else (1 if max_len >= 4 else 0)
+    if dist <= max_allowed:
+        sim = 1.0 - (dist / float(max_len))
+        return True, sim
+    return False, 0.0
+
+def _score_search_candidate(title, artist, query):
+    norm_title = _normalize_search_string(title)
+    norm_artist = _normalize_search_string(artist)
+    norm_query = _normalize_search_string(query)
+
+    if not norm_query:
+        return 0
+
+    if norm_title == norm_query:
+        return 100
+    if norm_artist == norm_query:
+        return 90
+
+    if norm_title.startswith(norm_query):
+        return 85
+    if norm_artist.startswith(norm_query):
+        return 75
+
+    if norm_query in norm_title:
+        return 65
+    if norm_query in norm_artist:
+        return 55
+
+    q_words = norm_query.split()
+    t_words = norm_title.split()
+    a_words = norm_artist.split()
+
+    matched_q_tokens = 0
+    fuzzy_token_score = 0.0
+
+    for qw in q_words:
+        matched = False
+        for tw in t_words:
+            if tw == qw or tw.startswith(qw):
+                matched = True
+                fuzzy_token_score += 1.0
+                break
+            is_fuzz, sim = _is_fuzzy_match(qw, tw)
+            if is_fuzz:
+                matched = True
+                fuzzy_token_score += sim
+                break
+
+        if not matched:
+            for aw in a_words:
+                if aw == qw or aw.startswith(qw):
+                    matched = True
+                    fuzzy_token_score += 0.8
+                    break
+                is_fuzz, sim = _is_fuzzy_match(qw, aw)
+                if is_fuzz:
+                    matched = True
+                    fuzzy_token_score += (sim * 0.8)
+                    break
+
+        if matched:
+            matched_q_tokens += 1
+
+    if matched_q_tokens == 0:
+        return 0
+
+    ratio = matched_q_tokens / float(len(q_words))
+    token_score = int(ratio * 35 + (fuzzy_token_score / float(len(q_words))) * 15)
+    return max(1, min(49, token_score))
+
+
 @app.get("/tracks/")
 @app.get("/tracks/<path:filter_text>")
 @app.get("/tracks/search/")
@@ -499,13 +606,7 @@ def searchTracks(filter_text=""):
     if len(filter_text) == 0:
         return jsonify([]), 200
 
-    normalized_filter = re.sub(r'[^a-zA-Z0-9 ]', ' ', filter_text).lower().strip()
-    words = normalized_filter.split()
-    if len(words) == 0:
-        return jsonify([]), 200
-
-    tracks = []
-    track_ids = set()
+    scored_tracks = []
 
     try:
         with get_db() as conn:
@@ -513,66 +614,42 @@ def searchTracks(filter_text=""):
             cursor.execute("SELECT COALESCE(hidden_access, 0) FROM users WHERE id = ?", (userID,))
             h_row = cursor.fetchone()
             has_hidden_access = bool(h_row[0]) if h_row else False
-            hidden_clause = "" if has_hidden_access else "AND COALESCE(t.hidden, 0) = 0"
+            hidden_clause = "" if has_hidden_access else "WHERE COALESCE(t.hidden, 0) = 0"
             
-            # 1. FTS search with prefix matching on tokens
-            match_val = ' '.join([f'"{w}"*' for w in words])
-            fts_sql = f"""
-                SELECT t.track_id, t.title, t.artist, t.duration, COALESCE(u.username, t.contributor), ud.user_id
-                FROM tracks_fts fts
-                JOIN tracks t ON fts.rowid = t.track_id
-                LEFT JOIN user_downloads ud ON t.track_id = ud.track_id AND ud.user_id = ?
-                LEFT JOIN users u ON CAST(t.contributor AS INTEGER) = u.id
-                WHERE tracks_fts MATCH ? {hidden_clause}
-                ORDER BY t.title ASC
-            """
-            try:
-                cursor.execute(fts_sql, (userID, match_val))
-                for row in cursor.fetchall():
-                    track_ids.add(row[0])
-                    tracks.append({
-                        "trackID": row[0],
-                        "track_id": row[0],
-                        "title": row[1],
-                        "artist": row[2],
-                        "duration": row[3],
-                        "contributor": str(row[4] or ""),
-                        "downloaded": row[5] is not None
-                    })
-            except sqlite3.Error as e:
-                print(f"FTS search error: {e}")
-
-            # 2. LIKE fallback for substring matches
-            like_filter = f"%{normalized_filter}%"
-            like_sql = f"""
+            sql = f"""
                 SELECT t.track_id, t.title, t.artist, t.duration, COALESCE(u.username, t.contributor), ud.user_id
                 FROM tracks t
                 LEFT JOIN user_downloads ud ON t.track_id = ud.track_id AND ud.user_id = ?
                 LEFT JOIN users u ON CAST(t.contributor AS INTEGER) = u.id
-                WHERE (LOWER(t.title) LIKE ? OR LOWER(t.artist) LIKE ?) {hidden_clause}
-                ORDER BY t.title ASC
+                {hidden_clause}
             """
-            try:
-                cursor.execute(like_sql, (userID, like_filter, like_filter))
-                for row in cursor.fetchall():
-                    if row[0] not in track_ids:
-                        track_ids.add(row[0])
-                        tracks.append({
+            cursor.execute(sql, (userID,))
+            for row in cursor.fetchall():
+                title = row[1] or ""
+                artist = row[2] or ""
+                score = _score_search_candidate(title, artist, filter_text)
+                if score > 0:
+                    scored_tracks.append({
+                        "score": score,
+                        "track": {
                             "trackID": row[0],
                             "track_id": row[0],
-                            "title": row[1],
-                            "artist": row[2],
+                            "title": title,
+                            "artist": artist,
                             "duration": row[3],
                             "contributor": str(row[4] or ""),
                             "downloaded": row[5] is not None
-                        })
-            except sqlite3.Error as e:
-                print(f"LIKE search error: {e}")
+                        }
+                    })
 
     except Exception as e:
-        print(f"Could not load tracks: {e}")
+        print(f"Could not load tracks for search: {e}")
 
-    return jsonify(tracks), 200
+    # Sort descending by score, then ascending by title
+    scored_tracks.sort(key=lambda item: (-item["score"], (item["track"]["title"] or "").lower()))
+    result = [item["track"] for item in scored_tracks]
+
+    return jsonify(result), 200
 
 
 @app.get("/tracks/<int:id>/download/<any(cover, audio):type>")
