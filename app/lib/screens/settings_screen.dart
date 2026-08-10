@@ -1,11 +1,35 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../models/playlist.dart';
+import '../models/track.dart';
+import '../services/server_client.dart';
 import '../services/theme_service.dart';
-
-
+import '../widgets/confirmation_dialog.dart';
+import 'mobile/search_screen.dart';
 
 class SettingsScreen extends StatelessWidget {
-  const SettingsScreen({super.key});
+  final VoidCallback? onLogoutPressed;
+  final ServerClient? serverClient;
+  final dynamic mediaHandler;
+  final String? appDataPath;
+  final List<Playlist>? playlists;
+  final bool isServerConnected;
+  final Function(Track)? onDownloadTrack;
+  final Function(Track)? onRemoveDownloadTrack;
+  final VoidCallback? onRlsPressed;
+
+  const SettingsScreen({
+    super.key,
+    this.onLogoutPressed,
+    this.serverClient,
+    this.mediaHandler,
+    this.appDataPath,
+    this.playlists,
+    this.isServerConnected = false,
+    this.onDownloadTrack,
+    this.onRemoveDownloadTrack,
+    this.onRlsPressed,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -18,6 +42,8 @@ class SettingsScreen extends StatelessWidget {
       {'key': 'blue', 'name': 'Blue', 'color': const Color(0xFF0F3178)},
       {'key': 'purple', 'name': 'Purple', 'color': const Color(0xFF4A148C)},
     ];
+
+    final serverClient = this.serverClient;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0A),
@@ -36,7 +62,7 @@ class SettingsScreen extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              "APPEARANCE & THEME",
+              "Appearance & Theme",
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.bold,
@@ -132,9 +158,200 @@ class SettingsScreen extends StatelessWidget {
                 ],
               ),
             ),
+            if (mediaHandler != null) ...[
+              const SizedBox(height: 24),
+              const Text(
+                "Manage Unused Downloads",
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.2,
+                  color: Colors.grey,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF14141E),
+                  borderRadius: BorderRadius.circular(16.0),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                ),
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Clean up tracks stored locally that are not included in any playlist.",
+                      style: TextStyle(fontSize: 13, color: Colors.grey[400]),
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: themeColor,
+                              side: BorderSide(color: themeColor.withValues(alpha: 0.5)),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                            ),
+                            onPressed: () async {
+                              final unused = await mediaHandler.getUnusedDownloadedTracks();
+                              if (context.mounted) {
+                                Navigator.of(context).pop();
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => SearchScreen(
+                                      mediaHandler: mediaHandler,
+                                      serverClient: serverClient,
+                                      isServerConnected: isServerConnected,
+                                      onRlsPressed: onRlsPressed,
+                                      onDownloadTrack: onDownloadTrack,
+                                      onRemoveDownloadTrack: onRemoveDownloadTrack,
+                                      appDataPath: appDataPath ?? '',
+                                      allPlaylists: playlists ?? [],
+                                      initialTracks: unused.cast<Track>(),
+                                      initialQuery: 'Unused Downloads',
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                            icon: const Icon(Icons.search_rounded, size: 18),
+                            label: const Text(
+                              'View Unused Downloads',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton.icon(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2A1515),
+                              foregroundColor: const Color(0xFFFF4444),
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: const BorderSide(color: Color(0xFF552222)),
+                              ),
+                              elevation: 0,
+                            ),
+                            onPressed: () async {
+                              final confirmed = await ConfirmationDialog.show(
+                                context,
+                                title: 'Clear Unused Downloads',
+                                message: 'Are you sure you want to delete all downloaded tracks that are not part of any playlist?',
+                                confirmText: 'Clear',
+                              );
+                              if (confirmed == true && mediaHandler != null) {
+                                final unused = await mediaHandler.getUnusedDownloadedTracks();
+                                for (final track in unused) {
+                                  if (serverClient != null) {
+                                    await serverClient.removeDownload(track);
+                                  } else {
+                                    await mediaHandler.deleteTrack(track);
+                                  }
+                                }
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Cleared ${unused.length} unused download(s).'),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                            icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                            label: const Text(
+                              'Clear Unused Downloads',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
+            const SizedBox(height: 24),
+            const Text(
+              "Account",
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+                letterSpacing: 1.2,
+                color: Colors.grey,
+              ),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              decoration: BoxDecoration(
+                color: const Color(0xFF14141E),
+                borderRadius: BorderRadius.circular(16.0),
+                border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+              ),
+              padding: const EdgeInsets.all(20.0),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(Icons.person_outline, color: themeColor, size: 24),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Text(
+                          (serverClient != null && serverClient.registered())
+                              ? (serverClient.username != null && serverClient.username.toString().isNotEmpty
+                                  ? serverClient.username.toString()
+                                  : 'Connected User')
+                              : 'Guest Account',
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (onLogoutPressed != null && (serverClient == null || serverClient.registered())) ...[
+                    const SizedBox(height: 16),
+                    const Divider(color: Color(0xFF262626), height: 1),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2A1515),
+                          foregroundColor: const Color(0xFFFF4444),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: const BorderSide(color: Color(0xFF552222)),
+                          ),
+                          elevation: 0,
+                        ),
+                        onPressed: () {
+                          Navigator.of(context).pop();
+                          onLogoutPressed!();
+                        },
+                        icon: const Icon(Icons.logout_rounded, size: 20),
+                        label: const Text(
+                          'Log Out',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
           ],
         ),
       ),
     );
   }
 }
+
+

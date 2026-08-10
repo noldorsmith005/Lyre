@@ -164,27 +164,27 @@ class _PlaylistListScreenState extends State<PlaylistListScreen> {
                       Navigator.pop(context);
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const SettingsScreen()),
+                        MaterialPageRoute(
+                          builder: (context) => SettingsScreen(
+                            onLogoutPressed: widget.onLogoutPressed,
+                            serverClient: widget.serverClient,
+                            mediaHandler: widget.mediaHandler,
+                            appDataPath: widget.appDataPath,
+                            playlists: widget.playlists,
+                            isServerConnected: widget.isServerConnected,
+                            onDownloadTrack: widget.onDownloadTrack,
+                            onRemoveDownloadTrack: widget.onRemoveDownloadTrack,
+                            onRlsPressed: widget.onRlsPressed,
+                          ),
+                        ),
                       );
                     },
                   ),
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12.0),
-                    child: Divider(color: Color(0xFF262626), height: 1),
-                  ),
-                  if (widget.serverClient.registered())
-                    _buildDrawerItem(
-                      context,
-                      icon: Icons.logout_rounded,
-                      title: 'Log Out',
-                      iconColor: const Color(0xFFFF4444),
-                      titleColor: const Color(0xFFFF4444),
-                      onTap: () {
-                        Navigator.pop(context);
-                        widget.onLogoutPressed();
-                      },
-                    )
-                  else
+                  if (!widget.serverClient.registered()) ...[
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12.0),
+                      child: Divider(color: Color(0xFF262626), height: 1),
+                    ),
                     _buildDrawerItem(
                       context,
                       icon: Icons.login_rounded,
@@ -196,6 +196,7 @@ class _PlaylistListScreenState extends State<PlaylistListScreen> {
                         widget.onOpenLogin();
                       },
                     ),
+                  ],
                 ],
               ),
             ),

@@ -20,6 +20,8 @@ class SearchScreen extends StatefulWidget {
   final Function(Track)? onRemoveDownloadTrack;
   final String appDataPath;
   final List<Playlist> allPlaylists;
+  final List<Track>? initialTracks;
+  final String? initialQuery;
 
   const SearchScreen({
     super.key,
@@ -31,6 +33,8 @@ class SearchScreen extends StatefulWidget {
     this.onRemoveDownloadTrack,
     required this.appDataPath,
     required this.allPlaylists,
+    this.initialTracks,
+    this.initialQuery,
   });
 
   @override
@@ -48,6 +52,12 @@ class _SearchScreenState extends State<SearchScreen> {
   void initState() {
     super.initState();
     _isServerConnected = widget.isServerConnected;
+    if (widget.initialQuery != null) {
+      _searchController.text = widget.initialQuery!;
+    }
+    if (widget.initialTracks != null) {
+      _searchResults = List<Track>.from(widget.initialTracks!);
+    }
   }
 
   @override

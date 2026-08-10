@@ -38,6 +38,8 @@ class MainPanel extends StatefulWidget {
   final bool isServerConnected;
   final bool isSearching;
   final ServerClient? serverClient;
+  final dynamic mediaHandler;
+  final String? appDataPath;
   final Function(int oldIndex, int newIndex)? onReorderTrack;
 
   const MainPanel({
@@ -63,8 +65,10 @@ class MainPanel extends StatefulWidget {
     required this.availablePlaylists,
     required this.onTogglePlaylist,
     required this.isTrackInPlaylist,
-    required this.isServerConnected,
+    this.isServerConnected = false,
     this.serverClient,
+    this.mediaHandler,
+    this.appDataPath,
     this.onReorderTrack,
   });
 
@@ -310,6 +314,12 @@ class _MainPanelState extends State<MainPanel> {
               onVibeQueuePressed: widget.onVibeQueuePressed,
               isServerConnected: widget.isServerConnected,
               serverClient: widget.serverClient,
+              mediaHandler: widget.mediaHandler,
+              appDataPath: widget.appDataPath,
+              availablePlaylists: widget.availablePlaylists,
+              onDownloadTrack: widget.onDownloadTrack,
+              onRemoveDownloadTrack: widget.onRemoveDownloadTrack,
+              onRlsPressed: widget.onRlsPressed,
             ),
           ],
         ],
@@ -662,6 +672,12 @@ class _AccountMenuButton extends StatefulWidget {
   final VoidCallback? onVibeQueuePressed;
   final bool isServerConnected;
   final ServerClient? serverClient;
+  final dynamic mediaHandler;
+  final String? appDataPath;
+  final List<Playlist>? availablePlaylists;
+  final Function(Track)? onDownloadTrack;
+  final Function(Track)? onRemoveDownloadTrack;
+  final VoidCallback? onRlsPressed;
 
   const _AccountMenuButton({
     required this.onUploadPressed,
@@ -670,6 +686,12 @@ class _AccountMenuButton extends StatefulWidget {
     this.onVibeQueuePressed,
     this.isServerConnected = false,
     this.serverClient,
+    this.mediaHandler,
+    this.appDataPath,
+    this.availablePlaylists,
+    this.onDownloadTrack,
+    this.onRemoveDownloadTrack,
+    this.onRlsPressed,
   });
 
   @override
@@ -710,10 +732,20 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
           } else if (value == 'settings') {
             Navigator.push(
               context,
-              MaterialPageRoute(builder: (context) => const SettingsScreen()),
+              MaterialPageRoute(
+                builder: (context) => SettingsScreen(
+                  onLogoutPressed: widget.onClearConfigPressed,
+                  serverClient: widget.serverClient,
+                  mediaHandler: widget.mediaHandler,
+                  appDataPath: widget.appDataPath,
+                  playlists: widget.availablePlaylists,
+                  isServerConnected: widget.isServerConnected,
+                  onDownloadTrack: widget.onDownloadTrack,
+                  onRemoveDownloadTrack: widget.onRemoveDownloadTrack,
+                  onRlsPressed: widget.onRlsPressed,
+                ),
+              ),
             );
-          } else if (value == 'logout') {
-            widget.onClearConfigPressed();
           }
         },
         itemBuilder: (context) => [
@@ -739,7 +771,6 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
           _buildMenuItem('playback', Icons.graphic_eq_rounded, 'Lyre Playback'),
           _buildMenuItem('upload', Icons.upload_rounded, 'Upload Track'),
           _buildMenuItem('settings', Icons.settings_rounded, 'Settings'),
-          _buildMenuItem('logout', Icons.logout_rounded, 'Log Out'),
         ],
         child: AnimatedScale(
           scale: _isHovered ? 1.08 : 1.0,

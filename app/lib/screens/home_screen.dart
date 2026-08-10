@@ -563,6 +563,8 @@ class _HomeScreenState extends State<HomeScreen> {
               isTrackInPlaylist: (playlist, track) => (_playlistTracksMap[playlist.playlistID] ?? []).contains(track.trackID),
               isServerConnected: _serverConnection,
               serverClient: widget.serverClient,
+              mediaHandler: widget.mediaHandler,
+              appDataPath: widget.mediaHandler.appDataPath,
               onReorderTrack: _onReorderTrack,
             ),
           ),

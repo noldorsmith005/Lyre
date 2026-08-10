@@ -525,6 +525,25 @@ class MediaHandler {
     return List<Track>.from(_cachedAllTracks);
   }
 
+  Future<List<Track>> getUnusedDownloadedTracks() async {
+    if (!_isCacheLoaded) {
+      await loadAllIntoMemory();
+    }
+    final result = await _db.rawQuery('''
+      SELECT t.track_id, t.title, t.artist, t.duration 
+      FROM tracks t 
+      WHERE t.track_id NOT IN (SELECT DISTINCT track_id FROM playlist_tracks)
+    ''');
+    return result.map((row) => Track(
+      trackID: row['track_id'] as int,
+      title: row['title'] as String,
+      artist: row['artist'] as String,
+      duration: row['duration'] as String,
+      downloaded: true,
+      contributor: '',
+    )).toList();
+  }
+
   Future<bool> syncLocalPlaylists(List<dynamic> serverPlaylists) async {
     try {
       final localPlaylists = await loadPlaylists();

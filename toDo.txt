@@ -1,11 +1,11 @@
 Features: 
-    -Manage unused downloads
+    -
 
 Bugs:
     -Subsequent track pauses
 
 Mods:
-    -Scroll on track drag
+    -
 
 General:
     -Untrack sensitive files
