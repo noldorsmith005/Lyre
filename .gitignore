@@ -22,3 +22,13 @@ assets/
 # OS metadata
 .DS_Store
 *.DS_Store
+
+# Sensitive configuration & TLS items
+server/config.json
+server/server.key
+server/server.crt
+server/deploy.sh
+server/restart.sh
+app/assets/server_config.json
+
+

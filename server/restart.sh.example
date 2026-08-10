@@ -1,14 +1,15 @@
 #!/bin/bash
 set -euo pipefail
 
-
+# Configuration template - copy to restart.sh and update paths
 PROCESS_NAME="lyre-server"
-SCRIPT_PATH="/home/nate_g/Desktop/lyre/server.py"
+APP_DIR="${APP_DIR:-/home/user/lyre}"
+SCRIPT_PATH="${APP_DIR}/server.py"
 
-LOG_FILE="/home/nate_g/Desktop/lyre/log.txt"
-PID_FILE="/home/nate_g/Desktop/lyre/pidfile.pid"
+LOG_FILE="${APP_DIR}/log.txt"
+PID_FILE="${APP_DIR}/pidfile.pid"
 
-PYTHON_EXEC="/home/nate_g/miniconda3/envs/lyre/bin/python3"
+PYTHON_EXEC="${PYTHON_EXEC:-python3}"
 
 echo "Restarting server..."
 
@@ -23,5 +24,3 @@ start-stop-daemon --start --background \
     -- "$SCRIPT_PATH" > "$LOG_FILE" 2>&1
 
 echo "Server restarted."
-
-

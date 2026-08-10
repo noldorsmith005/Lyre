@@ -52,44 +52,93 @@ Install Python dependencies listed in [server/requirements.txt](file:///Users/na
 pip install -r server/requirements.txt pillow pydub
 ```
 
-### 2. Configuration
-Server settings are defined in [server/config.json](file:///Users/nate/Desktop/Dev/temp/Lyre/server/config.json):
+### 2. Configuration & Security Setup
+Sensitive configuration files, TLS certificates, and platform-specific app icons are ignored by version control and must be created/configured manually for local development and deployment.
 
+#### Server Configuration (`server/config.json`)
+Create `server/config.json` in the `server/` directory:
 ```json
 {
   "host": "0.0.0.0",
   "port": 57967,
-  "app_token": "n8cQiw4z6oSHFixnEFK7",
+  "app_token": "<YOUR_SECURE_APP_TOKEN>",
   "database": "data.db",
   "ssl_key": "server.key",
   "ssl_cert": "server.crt"
 }
 ```
+- `host`: Address binding (e.g. `0.0.0.0`).
+- `port`: Server port (e.g. `57967`).
+- `app_token`: Shared secret token validated by the server in `AppToken` headers.
+- `database`: SQLite database filename.
+- `ssl_key` / `ssl_cert`: TLS private key and certificate file paths in `server/`.
 
-- `host`: Network interface binding address.
-- `port`: Server listening port.
-- `app_token`: Shared token required in `AppToken` request headers.
-- `database`: Relative or absolute path to the SQLite database file (`data.db`).
-- `ssl_key` / `ssl_cert`: Paths to SSL certificate and private key. If omitted or missing, the server automatically falls back to HTTP.
-
-### 3. Launch Server
-
-Run the Flask backend server:
-
+#### Server TLS Certificate Generation (`server/server.key` & `server/server.crt`)
+Generate self-signed SSL/TLS key and certificate files:
 ```bash
-python3 server/server.py
+openssl req -x509 -newkey rsa:4096 -keyout server/server.key -out server/server.crt -days 365 -nodes -subj "/CN=your_server_domain_or_ip"
 ```
+Place `server.crt` into `app/assets/server.crt` for HTTPS certificate pinning on the Flutter client.
 
-Upon startup, `server.py` automatically:
-1. Expands file descriptor limits (`resource.setrlimit`).
-2. Initializes the SQLite database schema (`data.db`) and FTS5 virtual tables if missing.
-3. Spawns the background monthly statistics scheduler.
-4. Binds the `gevent` CustomWSGIServer on HTTP or HTTPS depending on SSL certificate availability.
+#### Client Server Configuration (`app/assets/server_config.json`)
+Create `app/assets/server_config.json` in the `app/assets/` directory:
+```json
+{
+  "primary_url": "https://<SERVER_IP_OR_DOMAIN>:<PORT>",
+  "fallback_url": "https://<FALLBACK_IP_OR_DOMAIN>:<PORT>",
+  "app_key": "<YOUR_SECURE_APP_TOKEN>"
+}
+```
+- `primary_url`: Main server endpoint (HTTPS).
+- `fallback_url`: Secondary/local network fallback endpoint.
+- `app_key`: Shared security token matching `app_token` in `server/config.json`.
 
-### 4. Production Deployment & Process Management
+#### Deployment & Daemon Scripts (`server/deploy.sh` & `server/restart.sh`)
+The actual deployment scripts contain target host IPs and user directories and are untracked by Git. Template files are provided:
+- [server/deploy.sh.example](file:///Users/nate/Desktop/Dev/temp/Lyre/server/deploy.sh.example): Copy to `server/deploy.sh` and set `DEPLOY_USER`, `DEPLOY_HOST`, `DEPLOY_PORT`, and `REMOTE_PATH`.
+- [server/restart.sh.example](file:///Users/nate/Desktop/Dev/temp/Lyre/server/restart.sh.example): Copy to `server/restart.sh` on the target server and set `APP_DIR` and `PYTHON_EXEC`.
 
-- **Deploy Script**: [server/deploy.sh](file:///Users/nate/Desktop/Dev/temp/Lyre/server/deploy.sh) copies updated server code over SSH/SCP and invokes the restart script.
-- **Restart Daemon**: [server/restart.sh](file:///Users/nate/Desktop/Dev/temp/Lyre/server/restart.sh) manages the background server process using `start-stop-daemon`, maintaining PID (`pidfile.pid`) and log output (`log.txt`).
+
+---
+
+## App Icons Creation & Implementation Guide
+
+App icon assets across platforms are tracked in version control. Below are details for generating and placing icon files across platforms.
+
+### 1. Base Theme Icons (`app/assets/icons/`)
+Store primary app icon source images (1024x1024 PNG) and transparent variants for theme switching:
+- `app_icon_blue.png`, `app_icon_blue_transparent.png`
+- `app_icon_green.png`, `app_icon_green_transparent.png`
+- `app_icon_purple.png`, `app_icon_purple_transparent.png`
+- `app_icon_red.png`, `app_icon_red_transparent.png`
+
+### 2. Android App Icons (`app/android/app/src/main/res/`)
+Android icons are placed in density-specific `mipmap` resource directories:
+- **Res Densities**: `mipmap-hdpi/`, `mipmap-mdpi/`, `mipmap-xhdpi/`, `mipmap-xxhdpi/`, `mipmap-xxxhdpi/`.
+- **Launcher Icons**: `ic_launcher.png`, `ic_launcher_blue.png`, `ic_launcher_green.png`, `ic_launcher_purple.png`, `ic_launcher_red.png`.
+- **Adaptive Icons**: `mipmap-anydpi-v26/ic_launcher.xml` (defines adaptive foreground/background vectors).
+
+### 3. iOS App Icons (`app/ios/Runner/`)
+- **Asset Catalog**: `app/ios/Runner/Assets.xcassets/AppIcon.appiconset/` containing:
+  - `Contents.json`: Asset catalog metadata mapping icon sizes.
+  - Multi-density icons: `Icon-App-20x20@1x.png` through `Icon-App-1024x1024@1x.png`.
+- **Dynamic Theme Icons**: `app/ios/Runner/app_icon_<color>@<scale>.png` for dynamic iOS app icon switching.
+
+### 4. macOS App Icons (`app/macos/Runner/`)
+- **Asset Catalog**: `app/macos/Runner/Assets.xcassets/AppIcon.appiconset/` containing:
+  - `Contents.json`
+  - `app_icon_16.png`, `app_icon_32.png`, `app_icon_64.png`, `app_icon_128.png`, `app_icon_256.png`, `app_icon_512.png`, `app_icon_1024.png`.
+- **ICNS File**: `app/macos/Runner/Assets.xcassets/AppIcon.icns` generated from the PNG set using `iconutil`:
+  ```bash
+  iconutil -c icns app/macos/Runner/Assets.xcassets/AppIcon.appiconset -o app/macos/Runner/Assets.xcassets/AppIcon.icns
+  ```
+
+### 5. Windows App Icon (`app/windows/runner/resources/`)
+- **Resource File**: `app/windows/runner/resources/app_icon.ico` containing embedded 16x16, 32x32, 48x48, and 256x256 icon sizes.
+- Convert 1024x1024 PNG to ICO format using ImageMagick:
+  ```bash
+  magick convert app/assets/icons/app_icon_blue.png -define ico:bold-mask=false -icon:auto-resize=256,48,32,16 app/windows/runner/resources/app_icon.ico
+  ```
 
 ---
 
@@ -134,4 +183,5 @@ flutter build apk
 # iOS IPA
 flutter build ipa
 ```
+
 
