@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -73,11 +74,91 @@ class MainPanel extends StatefulWidget {
 
 class _MainPanelState extends State<MainPanel> {
   final TextEditingController _searchController = TextEditingController();
+  final ScrollController _scrollController = ScrollController();
+  final GlobalKey _listKey = GlobalKey();
+  Timer? _autoScrollTimer;
+  Offset? _lastDragPosition;
 
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
+    _autoScrollTimer?.cancel();
     super.dispose();
+  }
+
+  void _onDragStarted() {
+    _autoScrollTimer?.cancel();
+  }
+
+  void _onDragUpdate(Offset globalPosition) {
+    _lastDragPosition = globalPosition;
+    _updateAutoScrollTimer();
+  }
+
+  void _onDragEnd() {
+    _autoScrollTimer?.cancel();
+    _autoScrollTimer = null;
+    _lastDragPosition = null;
+  }
+
+  void _updateAutoScrollTimer() {
+    if (_lastDragPosition == null) return;
+    final RenderBox? box = _listKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || !_scrollController.hasClients) return;
+
+    final localOffset = box.globalToLocal(_lastDragPosition!);
+    final height = box.size.height;
+    const edgeThreshold = 70.0;
+
+    double scrollDelta = 0.0;
+    if (localOffset.dy < edgeThreshold) {
+      final ratio = ((edgeThreshold - localOffset.dy) / edgeThreshold).clamp(0.0, 1.0);
+      scrollDelta = -(5.0 + ratio * 15.0);
+    } else if (localOffset.dy > height - edgeThreshold) {
+      final ratio = ((localOffset.dy - (height - edgeThreshold)) / edgeThreshold).clamp(0.0, 1.0);
+      scrollDelta = 5.0 + ratio * 15.0;
+    }
+
+    if (scrollDelta != 0.0) {
+      if (_autoScrollTimer == null || !_autoScrollTimer!.isActive) {
+        _autoScrollTimer = Timer.periodic(const Duration(milliseconds: 16), (_) {
+          if (!_scrollController.hasClients || _lastDragPosition == null) {
+            _autoScrollTimer?.cancel();
+            return;
+          }
+          final RenderBox? currentBox = _listKey.currentContext?.findRenderObject() as RenderBox?;
+          if (currentBox == null) return;
+
+          final currentLocal = currentBox.globalToLocal(_lastDragPosition!);
+          final currentHeight = currentBox.size.height;
+          double delta = 0.0;
+          if (currentLocal.dy < edgeThreshold) {
+            final ratio = ((edgeThreshold - currentLocal.dy) / edgeThreshold).clamp(0.0, 1.0);
+            delta = -(5.0 + ratio * 15.0);
+          } else if (currentLocal.dy > currentHeight - edgeThreshold) {
+            final ratio = ((currentLocal.dy - (currentHeight - edgeThreshold)) / edgeThreshold).clamp(0.0, 1.0);
+            delta = 5.0 + ratio * 15.0;
+          }
+
+          if (delta != 0.0) {
+            final newOffset = (_scrollController.offset + delta).clamp(
+              _scrollController.position.minScrollExtent,
+              _scrollController.position.maxScrollExtent,
+            );
+            if (newOffset != _scrollController.offset) {
+              _scrollController.jumpTo(newOffset);
+            }
+          } else {
+            _autoScrollTimer?.cancel();
+            _autoScrollTimer = null;
+          }
+        });
+      }
+    } else {
+      _autoScrollTimer?.cancel();
+      _autoScrollTimer = null;
+    }
   }
 
   void _showEditPlaylistDialog() async {
@@ -348,7 +429,13 @@ class _MainPanelState extends State<MainPanel> {
                 : ValueListenableBuilder<Set<int>>(
               valueListenable: widget.serverClient?.downloadingTrackIdsNotifier ?? ValueNotifier<Set<int>>({}),
               builder: (context, downloadingIds, child) {
+                final bool isPlaylistView = widget.currentPlaylist != null &&
+                                            !widget.isSearching &&
+                                            _searchController.text.trim().isEmpty;
+
                 return ListView.builder(
+                  key: _listKey,
+                  controller: _scrollController,
                   padding: const EdgeInsets.all(20),
                   physics: const BouncingScrollPhysics(),
                   itemCount: widget.tracks.length,
@@ -373,12 +460,15 @@ class _MainPanelState extends State<MainPanel> {
                       isServerConnected: widget.isServerConnected,
                     );
 
-                    final trackWidget = (isDesktop && widget.onReorderTrack != null)
+                    final trackWidget = (isDesktop && isPlaylistView && widget.onReorderTrack != null)
                         ? _DraggableTrackItem(
                             index: index,
                             track: track,
                             onReorder: widget.onReorderTrack!,
                             appDataPath: appDataPath,
+                            onDragStarted: _onDragStarted,
+                            onDragUpdate: _onDragUpdate,
+                            onDragEnd: _onDragEnd,
                             child: card,
                           )
                         : card;
@@ -690,6 +780,9 @@ class _DraggableTrackItem extends StatefulWidget {
   final Widget child;
   final Function(int oldIndex, int newIndex) onReorder;
   final String appDataPath;
+  final VoidCallback? onDragStarted;
+  final Function(Offset globalPosition)? onDragUpdate;
+  final VoidCallback? onDragEnd;
 
   const _DraggableTrackItem({
     required this.index,
@@ -697,6 +790,9 @@ class _DraggableTrackItem extends StatefulWidget {
     required this.child,
     required this.onReorder,
     required this.appDataPath,
+    this.onDragStarted,
+    this.onDragUpdate,
+    this.onDragEnd,
   });
 
   @override
@@ -757,6 +853,10 @@ class _DraggableTrackItemState extends State<_DraggableTrackItem> {
               if (isTargeted && _hoverAbove) _buildPositionBar(themeColor),
               Draggable<int>(
                 data: widget.index,
+                onDragStarted: widget.onDragStarted,
+                onDragUpdate: (details) => widget.onDragUpdate?.call(details.globalPosition),
+                onDragEnd: (_) => widget.onDragEnd?.call(),
+                onDraggableCanceled: (_, _) => widget.onDragEnd?.call(),
                 feedback: Material(
                   color: Colors.transparent,
                   child: Container(

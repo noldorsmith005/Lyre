@@ -1,11 +1,11 @@
 Features: 
-    -
+    -Manage unused downloads
 
 Bugs:
-    -Fix macos seek bar not working
+    -Subsequent track pauses
 
 Mods:
-    -
+    -Scroll on track drag
 
 General:
     -Untrack sensitive files
