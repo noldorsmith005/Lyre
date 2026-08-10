@@ -2,7 +2,7 @@ Features:
     -
 
 Bugs:
-    -Subsequent track pauses
+    -
 
 Mods:
     -

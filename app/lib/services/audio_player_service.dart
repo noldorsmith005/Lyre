@@ -25,10 +25,6 @@ class LyreAudioHandler extends BaseAudioHandler {
       _updatePlaybackState();
     }));
 
-    _subscriptions.add(_player.positionStream.listen((position) {
-      _updatePlaybackState();
-    }));
-
     _subscriptions.add(_player.durationStream.listen((duration) {
       if (mediaItem.value != null && duration != null) {
         mediaItem.add(mediaItem.value!.copyWith(duration: duration));
@@ -221,15 +217,30 @@ class AudioPlayerService extends ChangeNotifier {
 
       try {
         final session = await AudioSession.instance;
-        await session.configure(const AudioSessionConfiguration.music());
+        await session.configure(AudioSessionConfiguration(
+          avAudioSessionCategory: AVAudioSessionCategory.playback,
+          avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.allowBluetooth |
+              AVAudioSessionCategoryOptions.allowBluetoothA2dp |
+              AVAudioSessionCategoryOptions.allowAirPlay,
+          avAudioSessionMode: AVAudioSessionMode.defaultMode,
+          avAudioSessionRouteSharingPolicy: AVAudioSessionRouteSharingPolicy.defaultPolicy,
+          avAudioSessionSetActiveOptions: AVAudioSessionSetActiveOptions.none,
+          androidAudioAttributes: const AndroidAudioAttributes(
+            contentType: AndroidAudioContentType.music,
+            flags: AndroidAudioFlags.none,
+            usage: AndroidAudioUsage.media,
+          ),
+          androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+          androidWillPauseWhenDucked: true,
+        ));
 
         _audioHandler = await AudioService.init(
           builder: () => LyreAudioHandler(_player),
-          config: const AudioServiceConfig(
+          config: AudioServiceConfig(
             androidNotificationChannelId: 'com.nategartland.lyre.audio',
             androidNotificationChannelName: 'Lyre Audio Playback',
             androidNotificationOngoing: true,
-            androidStopForegroundOnPause: true,
+            androidStopForegroundOnPause: false,
           ),
         );
         _audioHandler?.attachService(this);
@@ -317,7 +328,6 @@ class AudioPlayerService extends ChangeNotifier {
         await session.setActive(true);
       } catch (_) {}
 
-      await _player.stop();
       if (currentRequestId != _playRequestId) return;
 
       // preferPreciseDurationAndTiming forces AVFoundation to build a sample
