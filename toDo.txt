@@ -2,11 +2,13 @@ Features:
     -
 
 Bugs:
-    -
+    -dot sometimes not showing playlist manager desktop
+    -scroll playlist manager desktop
 
 Mods:
-    -
+    -Collage for playlist thumbnails
+    -reduce search debounce to 500ms
 
 General:
-    -Untrack sensitive files
+    -
 
