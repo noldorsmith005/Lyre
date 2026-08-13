@@ -392,17 +392,7 @@ def pushSyncPlaylists():
                 if len(raw_tracks) > 5000:
                     return jsonify({"error": "Too many tracks in playlist"}), 400
                 
-                valid_ids_in_playlist = set()
-                if isinstance(raw_tracks, list) and raw_tracks:
-                    int_tracks = [tid for tid in raw_tracks if isinstance(tid, int)]
-                    if int_tracks:
-                        for i in range(0, len(int_tracks), 500):
-                            chunk = int_tracks[i:i+500]
-                            placeholders = ",".join("?" * len(chunk))
-                            cursor.execute(f"SELECT track_id FROM tracks WHERE track_id IN ({placeholders})", chunk)
-                            valid_ids_in_playlist.update(row[0] for row in cursor.fetchall())
-                
-                sanitized_tracks = [tid for tid in raw_tracks if isinstance(tid, int) and tid in valid_ids_in_playlist]
+                sanitized_tracks = [tid for tid in raw_tracks if isinstance(tid, int)]
                 tracks_json = json.dumps(sanitized_tracks)
                 cursor.execute(
                     "INSERT INTO user_playlists (user_id, playlist_id, name, tracks) VALUES (?, ?, ?, ?)",
@@ -431,7 +421,7 @@ def pullSyncPlaylists():
     playlists = []
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT playlist_id, name, tracks FROM user_playlists WHERE user_id = ?", (user_id,))
+        cursor.execute("SELECT playlist_id, name, tracks FROM user_playlists WHERE user_id = ? ORDER BY id ASC", (user_id,))
         for row in cursor.fetchall():
             try:
                 tracks_list = json.loads(row[2])

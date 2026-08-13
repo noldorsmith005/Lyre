@@ -65,6 +65,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   @override
   Widget build(BuildContext context) {
     final audioService = Provider.of<AudioPlayerService>(context);
+    final hasPlayBar = audioService.currentTrack != null;
     int totalDuration = 0;
     for (var track in _tracks) {
       final parts = track.duration.split(':');
@@ -133,6 +134,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
               valueListenable: widget.serverClient?.downloadingTrackIdsNotifier ?? ValueNotifier<Set<int>>({}),
               builder: (context, downloadingIds, child) {
                 return ReorderableListView.builder(
+                  padding: EdgeInsets.only(bottom: hasPlayBar ? 15 : 96),
                   itemCount: _tracks.length,
                   onReorder: (oldIndex, newIndex) async {
                     if (oldIndex < 0 || oldIndex >= _tracks.length) return;

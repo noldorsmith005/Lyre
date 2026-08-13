@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path/path.dart' as p;
@@ -161,13 +162,55 @@ class MediaHandler {
     await loadAllIntoMemory();
   }
 
+  Future<void> _saveLocalPlaylistOrder(List<int> playlistIds) async {
+    try {
+      await _db.insert(
+        'sync_queue',
+        {'key': 'local_playlist_order', 'value': jsonEncode(playlistIds)},
+        conflictAlgorithm: ConflictAlgorithm.replace,
+      );
+    } catch (e) {
+      debugPrint('Error saving local playlist order: $e');
+    }
+  }
+
+  Future<List<int>> _getLocalPlaylistOrder() async {
+    try {
+      final rows = await _db.query('sync_queue', where: 'key = ?', whereArgs: ['local_playlist_order']);
+      if (rows.isNotEmpty) {
+        final val = rows.first['value'] as String?;
+        if (val != null) {
+          final List<dynamic> parsed = jsonDecode(val);
+          return parsed.map((e) => e as int).toList();
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading local playlist order: $e');
+    }
+    return [];
+  }
+
   Future<void> loadAllIntoMemory() async {
     try {
       final pResult = await _db.query('playlists');
-      final playlists = pResult.map((row) => Playlist(
+      final dbPlaylists = pResult.map((row) => Playlist(
         playlistID: row['playlist_id'] as int,
         title: row['title'] as String,
       )).toList();
+
+      final dbMap = {for (var p in dbPlaylists) p.playlistID: p};
+      final storedOrder = await _getLocalPlaylistOrder();
+      final referenceOrder = _cachedPlaylists.isNotEmpty
+          ? _cachedPlaylists.map((p) => p.playlistID).toList()
+          : storedOrder;
+
+      final List<Playlist> orderedPlaylists = [];
+      for (var pid in referenceOrder) {
+        if (dbMap.containsKey(pid)) {
+          orderedPlaylists.add(dbMap.remove(pid)!);
+        }
+      }
+      orderedPlaylists.addAll(dbMap.values);
 
       final tResult = await _db.query('tracks');
       final tracks = tResult.map((row) => Track(
@@ -191,10 +234,19 @@ class MediaHandler {
         final track = tracksById[tid];
         if (track != null) {
           playlistTracks.putIfAbsent(pid, () => []).add(track);
+        } else {
+          playlistTracks.putIfAbsent(pid, () => []).add(Track(
+            trackID: tid,
+            title: 'Track $tid',
+            artist: 'Unknown',
+            duration: '0:00',
+            downloaded: false,
+            contributor: '',
+          ));
         }
       }
 
-      _cachedPlaylists = playlists;
+      _cachedPlaylists = orderedPlaylists;
       _cachedAllTracks = tracks;
       _cachedPlaylistTracks = playlistTracks;
       _isCacheLoaded = true;
@@ -352,12 +404,33 @@ class MediaHandler {
     return List<Playlist>.from(_cachedPlaylists);
   }
 
-  void bringPlaylistToFront(int playlistID) {
+  Future<void> bringPlaylistToFront(int playlistID) async {
     final index = _cachedPlaylists.indexWhere((p) => p.playlistID == playlistID);
     if (index > 0) {
       final playlist = _cachedPlaylists.removeAt(index);
       _cachedPlaylists.insert(0, playlist);
+      await _saveLocalPlaylistOrder(_cachedPlaylists.map((p) => p.playlistID).toList());
+      await setPendingPlaylistPush(true);
       notifyPlaylistChanged();
+    }
+  }
+
+  Future<void> reorderPlaylists(List<int> orderedPlaylistIds) async {
+    try {
+      final map = {for (var p in _cachedPlaylists) p.playlistID: p};
+      final List<Playlist> reordered = [];
+      for (var id in orderedPlaylistIds) {
+        if (map.containsKey(id)) {
+          reordered.add(map.remove(id)!);
+        }
+      }
+      reordered.addAll(map.values);
+      _cachedPlaylists = reordered;
+      await _saveLocalPlaylistOrder(_cachedPlaylists.map((p) => p.playlistID).toList());
+      await setPendingPlaylistPush(true);
+      notifyPlaylistChanged();
+    } catch (e) {
+      debugPrint('Could not reorder playlists: $e');
     }
   }
 
@@ -459,6 +532,7 @@ class MediaHandler {
         'playlist_id': newPlaylistId
       });
       await loadAllIntoMemory();
+      await _saveLocalPlaylistOrder(_cachedPlaylists.map((p) => p.playlistID).toList());
       await setPendingPlaylistPush(true);
       notifyPlaylistChanged();
     } catch (e) {
@@ -472,6 +546,7 @@ class MediaHandler {
       await _db.delete('playlists', where: 'playlist_id = ?', whereArgs: [playlistId]);
       await _db.delete('playlist_ids', where: 'playlist_id = ?', whereArgs: [playlistId]);
       await loadAllIntoMemory();
+      await _saveLocalPlaylistOrder(_cachedPlaylists.map((p) => p.playlistID).toList());
       await setPendingPlaylistPush(true);
       notifyPlaylistChanged();
     } catch (e) {
@@ -549,6 +624,7 @@ class MediaHandler {
       final localPlaylists = await loadPlaylists();
       final localMap = {for (var p in localPlaylists) p.playlistID: p};
       final serverMap = <int, Map<String, dynamic>>{};
+      final List<Playlist> syncedOrder = [];
 
       await _db.transaction((txn) async {
         for (var sp in serverPlaylists) {
@@ -556,6 +632,7 @@ class MediaHandler {
           final name = (sp['name'] as String?) ?? 'Playlist $pid';
           final trackIds = (sp['tracks'] as List<dynamic>? ?? []).map((e) => e as int).toList();
           serverMap[pid] = {'name': name, 'tracks': trackIds};
+          syncedOrder.add(Playlist(playlistID: pid, title: name));
 
           if (!localMap.containsKey(pid)) {
             await txn.insert('playlists', {'playlist_id': pid, 'title': name}, conflictAlgorithm: ConflictAlgorithm.replace);
@@ -575,6 +652,10 @@ class MediaHandler {
           }
         }
       });
+
+      _cachedPlaylists = syncedOrder;
+      await _saveLocalPlaylistOrder(_cachedPlaylists.map((p) => p.playlistID).toList());
+      await loadAllIntoMemory();
 
       // Check if there are any local playlists not yet on the server
       bool hasUnsyncedLocal = false;

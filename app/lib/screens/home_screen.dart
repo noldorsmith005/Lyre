@@ -144,7 +144,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _loadPlaylistTracks(Playlist playlist) async {
     try {
-      widget.mediaHandler.bringPlaylistToFront(playlist.playlistID);
+      await widget.mediaHandler.bringPlaylistToFront(playlist.playlistID);
+      if (_serverConnection) {
+        await widget.serverClient.pushLocalPlaylists();
+      }
       final tracks = await widget.mediaHandler.loadPlaylistTracks(playlist.playlistID);
       if (mounted) {
         setState(() {
@@ -218,6 +221,17 @@ class _HomeScreenState extends State<HomeScreen> {
           });
         }
       }
+    }
+  }
+
+  void _onViewUnusedDownloads(List<Track> unusedTracks) {
+    if (mounted) {
+      setState(() {
+        _currentPlaylist = null;
+        _tracks = unusedTracks;
+        _searchQuery = '';
+        _isSearching = false;
+      });
     }
   }
 
@@ -481,9 +495,6 @@ class _HomeScreenState extends State<HomeScreen> {
         for (final track in tracks) {
           audioService.addToQueue(track);
         }
-        if (audioService.currentTrack == null && tracks.isNotEmpty) {
-          audioService.play(tracks.first);
-        }
         _showSnackBar('Queued ${tracks.length} songs for "${vibe.title}"');
       },
     );
@@ -566,6 +577,7 @@ class _HomeScreenState extends State<HomeScreen> {
               mediaHandler: widget.mediaHandler,
               appDataPath: widget.mediaHandler.appDataPath,
               onReorderTrack: _onReorderTrack,
+              onViewUnusedDownloads: _onViewUnusedDownloads,
             ),
           ),
           // Media Panel

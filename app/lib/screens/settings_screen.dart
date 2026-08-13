@@ -17,6 +17,7 @@ class SettingsScreen extends StatelessWidget {
   final Function(Track)? onDownloadTrack;
   final Function(Track)? onRemoveDownloadTrack;
   final VoidCallback? onRlsPressed;
+  final Function(List<Track>)? onViewUnusedDownloads;
 
   const SettingsScreen({
     super.key,
@@ -29,6 +30,7 @@ class SettingsScreen extends StatelessWidget {
     this.onDownloadTrack,
     this.onRemoveDownloadTrack,
     this.onRlsPressed,
+    this.onViewUnusedDownloads,
   });
 
   @override
@@ -185,94 +187,95 @@ class SettingsScreen extends StatelessWidget {
                       style: TextStyle(fontSize: 13, color: Colors.grey[400]),
                     ),
                     const SizedBox(height: 16),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: OutlinedButton.icon(
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor: themeColor,
-                              side: BorderSide(color: themeColor.withValues(alpha: 0.5)),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                            onPressed: () async {
-                              final unused = await mediaHandler.getUnusedDownloadedTracks();
-                              if (context.mounted) {
-                                Navigator.of(context).pop();
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => SearchScreen(
-                                      mediaHandler: mediaHandler,
-                                      serverClient: serverClient,
-                                      isServerConnected: isServerConnected,
-                                      onRlsPressed: onRlsPressed,
-                                      onDownloadTrack: onDownloadTrack,
-                                      onRemoveDownloadTrack: onRemoveDownloadTrack,
-                                      appDataPath: appDataPath ?? '',
-                                      allPlaylists: playlists ?? [],
-                                      initialTracks: unused.cast<Track>(),
-                                      initialQuery: 'Unused Downloads',
-                                    ),
-                                  ),
-                                );
-                              }
-                            },
-                            icon: const Icon(Icons.search_rounded, size: 18),
-                            label: const Text(
-                              'View Unused Downloads',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                            ),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.grey[300],
+                          side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton.icon(
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: const Color(0xFF2A1515),
-                              foregroundColor: const Color(0xFFFF4444),
-                              padding: const EdgeInsets.symmetric(vertical: 14),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                                side: const BorderSide(color: Color(0xFF552222)),
-                              ),
-                              elevation: 0,
-                            ),
-                            onPressed: () async {
-                              final confirmed = await ConfirmationDialog.show(
+                        onPressed: () async {
+                          final unused = await mediaHandler.getUnusedDownloadedTracks();
+                          if (context.mounted) {
+                            Navigator.of(context).pop();
+                            if (onViewUnusedDownloads != null) {
+                              onViewUnusedDownloads!(unused.cast<Track>());
+                            } else {
+                              Navigator.push(
                                 context,
-                                title: 'Clear Unused Downloads',
-                                message: 'Are you sure you want to delete all downloaded tracks that are not part of any playlist?',
-                                confirmText: 'Clear',
+                                MaterialPageRoute(
+                                  builder: (context) => SearchScreen(
+                                    mediaHandler: mediaHandler,
+                                    serverClient: serverClient,
+                                    isServerConnected: isServerConnected,
+                                    onRlsPressed: onRlsPressed,
+                                    onDownloadTrack: onDownloadTrack,
+                                    onRemoveDownloadTrack: onRemoveDownloadTrack,
+                                    appDataPath: appDataPath ?? '',
+                                    allPlaylists: playlists ?? [],
+                                    initialTracks: unused.cast<Track>(),
+                                  ),
+                                ),
                               );
-                              if (confirmed == true && mediaHandler != null) {
-                                final unused = await mediaHandler.getUnusedDownloadedTracks();
-                                for (final track in unused) {
-                                  if (serverClient != null) {
-                                    await serverClient.removeDownload(track);
-                                  } else {
-                                    await mediaHandler.deleteTrack(track);
-                                  }
-                                }
-                                if (context.mounted) {
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Cleared ${unused.length} unused download(s).'),
-                                    ),
-                                  );
-                                }
-                              }
-                            },
-                            icon: const Icon(Icons.delete_outline_rounded, size: 18),
-                            label: const Text(
-                              'Clear Unused Downloads',
-                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                            ),
-                          ),
+                            }
+                          }
+                        },
+                        icon: const Icon(Icons.search_rounded, size: 18),
+                        label: const Text(
+                          'View Unused Downloads',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                         ),
-                      ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2A1515),
+                          foregroundColor: const Color(0xFFFF4444),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                            side: const BorderSide(color: Color(0xFF552222)),
+                          ),
+                          elevation: 0,
+                        ),
+                        onPressed: () async {
+                          final confirmed = await ConfirmationDialog.show(
+                            context,
+                            title: 'Clear Unused Downloads',
+                            message: 'Are you sure you want to delete all downloaded tracks that are not part of any playlist?',
+                            confirmText: 'Clear',
+                          );
+                          if (confirmed == true && mediaHandler != null) {
+                            final unused = await mediaHandler.getUnusedDownloadedTracks();
+                            for (final track in unused) {
+                              if (serverClient != null) {
+                                await serverClient.removeDownload(track);
+                              } else {
+                                await mediaHandler.deleteTrack(track);
+                              }
+                            }
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Cleared ${unused.length} unused download(s).'),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                        icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                        label: const Text(
+                          'Clear Unused Downloads',
+                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                      ),
                     ),
                   ],
                 ),

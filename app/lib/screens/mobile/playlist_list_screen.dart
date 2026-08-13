@@ -357,7 +357,7 @@ class _PlaylistListScreenState extends State<PlaylistListScreen> {
                     ),
                   )
                 : GridView.builder(
-                    padding: EdgeInsets.fromLTRB(16, 8, 16, hasPlayBar ? 15 : 25),
+                    padding: EdgeInsets.fromLTRB(16, 8, 16, hasPlayBar ? 15 : 96),
                     gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
                       crossAxisCount: 2,
                       crossAxisSpacing: 16,
@@ -370,8 +370,12 @@ class _PlaylistListScreenState extends State<PlaylistListScreen> {
                       final firstTrackID = _firstTrackMap[playlist.playlistID];
 
                       return GestureDetector(
-                        onTap: () {
-                          widget.mediaHandler.bringPlaylistToFront(playlist.playlistID);
+                        onTap: () async {
+                          await widget.mediaHandler.bringPlaylistToFront(playlist.playlistID);
+                          if (widget.isServerConnected && widget.serverClient != null) {
+                            await widget.serverClient.pushLocalPlaylists();
+                          }
+                          if (!context.mounted) return;
                           Navigator.push(
                             context,
                             MaterialPageRoute(

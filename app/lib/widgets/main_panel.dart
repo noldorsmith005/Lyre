@@ -41,6 +41,7 @@ class MainPanel extends StatefulWidget {
   final dynamic mediaHandler;
   final String? appDataPath;
   final Function(int oldIndex, int newIndex)? onReorderTrack;
+  final Function(List<Track>)? onViewUnusedDownloads;
 
   const MainPanel({
     super.key,
@@ -70,6 +71,7 @@ class MainPanel extends StatefulWidget {
     this.mediaHandler,
     this.appDataPath,
     this.onReorderTrack,
+    this.onViewUnusedDownloads,
   });
 
   @override
@@ -320,6 +322,12 @@ class _MainPanelState extends State<MainPanel> {
               onDownloadTrack: widget.onDownloadTrack,
               onRemoveDownloadTrack: widget.onRemoveDownloadTrack,
               onRlsPressed: widget.onRlsPressed,
+              onViewUnusedDownloads: (tracks) {
+                _searchController.clear();
+                if (widget.onViewUnusedDownloads != null) {
+                  widget.onViewUnusedDownloads!(tracks);
+                }
+              },
             ),
           ],
         ],
@@ -678,6 +686,7 @@ class _AccountMenuButton extends StatefulWidget {
   final Function(Track)? onDownloadTrack;
   final Function(Track)? onRemoveDownloadTrack;
   final VoidCallback? onRlsPressed;
+  final Function(List<Track>)? onViewUnusedDownloads;
 
   const _AccountMenuButton({
     required this.onUploadPressed,
@@ -692,6 +701,7 @@ class _AccountMenuButton extends StatefulWidget {
     this.onDownloadTrack,
     this.onRemoveDownloadTrack,
     this.onRlsPressed,
+    this.onViewUnusedDownloads,
   });
 
   @override
@@ -743,6 +753,7 @@ class _AccountMenuButtonState extends State<_AccountMenuButton> {
                   onDownloadTrack: widget.onDownloadTrack,
                   onRemoveDownloadTrack: widget.onRemoveDownloadTrack,
                   onRlsPressed: widget.onRlsPressed,
+                  onViewUnusedDownloads: widget.onViewUnusedDownloads,
                 ),
               ),
             );
@@ -963,3 +974,4 @@ class _DraggableTrackItemState extends State<_DraggableTrackItem> {
     );
   }
 }
+
