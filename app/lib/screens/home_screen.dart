@@ -187,7 +187,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
 
     if (_serverConnection) {
-      _searchDebounce = Timer(const Duration(milliseconds: 1000), () async {
+      _searchDebounce = Timer(const Duration(milliseconds: 500), () async {
         if (!mounted) return;
         try {
           final results = await widget.serverClient.searchTracks(query);

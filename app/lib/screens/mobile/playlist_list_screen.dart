@@ -5,7 +5,7 @@ import '../../models/track.dart';
 import '../../services/audio_player_service.dart';
 import '../../services/theme_service.dart';
 import '../../widgets/sync_icon_button.dart';
-import '../../widgets/track_cover_image.dart';
+import '../../widgets/playlist_cover_image.dart';
 import '../settings_screen.dart';
 import 'playlist_detail_screen.dart';
 import 'search_screen.dart';
@@ -51,29 +51,43 @@ class PlaylistListScreen extends StatefulWidget {
 }
 
 class _PlaylistListScreenState extends State<PlaylistListScreen> {
-  final Map<int, int?> _firstTrackMap = {};
+  final Map<int, List<int>> _playlistTrackIdsMap = {};
 
   @override
   void initState() {
     super.initState();
-    _loadFirstTracks();
+    _loadPlaylistThumbnails();
   }
 
   @override
   void didUpdateWidget(covariant PlaylistListScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.playlists != widget.playlists) {
-      _loadFirstTracks();
+      _loadPlaylistThumbnails();
     }
   }
 
-  Future<void> _loadFirstTracks() async {
+  Future<void> _loadPlaylistThumbnails() async {
     for (final playlist in widget.playlists) {
       try {
         final tracks = await widget.mediaHandler.loadPlaylistTracks(playlist.playlistID);
         if (mounted) {
+          final List<int> ids = [];
+          if (tracks.isNotEmpty) {
+            final n = tracks.length;
+            final i0 = 0;
+            final i1 = (n * 0.25).floor().clamp(0, n - 1);
+            final i2 = (n * 0.50).floor().clamp(0, n - 1);
+            final i3 = n - 1;
+            ids.addAll([
+              tracks[i0].trackID,
+              tracks[i1].trackID,
+              tracks[i2].trackID,
+              tracks[i3].trackID,
+            ]);
+          }
           setState(() {
-            _firstTrackMap[playlist.playlistID] = tracks.isNotEmpty ? tracks.first.trackID : null;
+            _playlistTrackIdsMap[playlist.playlistID] = ids;
           });
         }
       } catch (_) {}
@@ -367,7 +381,7 @@ class _PlaylistListScreenState extends State<PlaylistListScreen> {
                     itemCount: widget.playlists.length,
                     itemBuilder: (context, index) {
                       final playlist = widget.playlists[index];
-                      final firstTrackID = _firstTrackMap[playlist.playlistID];
+                      final trackIDs = _playlistTrackIdsMap[playlist.playlistID] ?? [];
 
                       return GestureDetector(
                         onTap: () async {
@@ -398,32 +412,12 @@ class _PlaylistListScreenState extends State<PlaylistListScreen> {
                             Expanded(
                               child: Stack(
                                 children: [
-                                  Container(
+                                  PlaylistCoverImage(
+                                    trackIDs: trackIDs,
+                                    appDataPath: widget.appDataPath,
                                     width: double.infinity,
                                     height: double.infinity,
-                                    decoration: BoxDecoration(
-                                      color: const Color(0xFF1E1E1E),
-                                      borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(color: const Color(0xFF2A2A2A)),
-                                    ),
-                                    clipBehavior: Clip.antiAlias,
-                                    child: TrackCoverImage(
-                                      trackID: firstTrackID,
-                                      appDataPath: widget.appDataPath,
-                                      width: double.infinity,
-                                      height: double.infinity,
-                                      fit: BoxFit.cover,
-                                      fallback: Container(
-                                        color: const Color(0xFF1E1E1E),
-                                        child: const Center(
-                                          child: Icon(
-                                            Icons.music_note,
-                                            size: 48,
-                                            color: Color(0xFF555555),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
+                                    borderRadius: BorderRadius.circular(12),
                                   ),
                                   Positioned(
                                     top: 4,

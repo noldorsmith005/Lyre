@@ -85,7 +85,7 @@ class _SearchScreenState extends State<SearchScreen> {
     final isServer = _isServerConnected && widget.serverClient != null;
 
     if (isServer && !immediate) {
-      _searchDebounce = Timer(const Duration(milliseconds: 1000), () {
+      _searchDebounce = Timer(const Duration(milliseconds: 500), () {
         _executeSearch(query);
       });
     } else {

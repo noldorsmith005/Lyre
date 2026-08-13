@@ -6,8 +6,7 @@ Bugs:
     -scroll playlist manager desktop
 
 Mods:
-    -Collage for playlist thumbnails
-    -reduce search debounce to 500ms
+    -
 
 General:
     -

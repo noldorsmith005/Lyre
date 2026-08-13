@@ -16,6 +16,7 @@ class LayoutConstants {
 
   // Thumbnails
   static double get thumbSize => Platform.isWindows ? 48 : 56;
+  static double get playlistThumbSize => Platform.isWindows ? 64 : 72;
 
   // Padding
   static double get paddingV => Platform.isWindows ? 4 : 6;

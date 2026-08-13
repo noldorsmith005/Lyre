@@ -12,6 +12,7 @@ import '../utils/platform_utils.dart';
 import '../utils/layout_constants.dart';
 import 'track_card.dart';
 import 'track_cover_image.dart';
+import 'playlist_cover_image.dart';
 import 'sync_icon_button.dart';
 
 class MainPanel extends StatefulWidget {
@@ -358,7 +359,16 @@ class _MainPanelState extends State<MainPanel> {
         border: Border(bottom: BorderSide(color: Color(0xFF282828), width: 1)),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
+          PlaylistCoverImage(
+            tracks: widget.tracks,
+            appDataPath: widget.appDataPath,
+            width: LayoutConstants.playlistThumbSize,
+            height: LayoutConstants.playlistThumbSize,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          const SizedBox(width: 18),
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
