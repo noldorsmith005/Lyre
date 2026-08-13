@@ -438,20 +438,21 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   Future<void> _onTogglePlaylist(Playlist playlist, Track track) async {
-    final list = _playlistTracksMap[playlist.playlistID] ?? [];
+    final list = List<int>.from(_playlistTracksMap[playlist.playlistID] ?? []);
     final isIn = list.contains(track.trackID);
     if (isIn) {
-      await widget.mediaHandler.removeFromPlaylist(playlist.playlistID, track.trackID);
       list.remove(track.trackID);
+      _playlistTracksMap[playlist.playlistID] = list;
+      setState(() {});
+      await widget.mediaHandler.removeFromPlaylist(playlist.playlistID, track.trackID);
     } else {
-      await widget.mediaHandler.addToPlaylist(playlist.playlistID, track.trackID);
       list.add(track.trackID);
+      _playlistTracksMap[playlist.playlistID] = list;
+      setState(() {});
+      await widget.mediaHandler.addToPlaylist(playlist.playlistID, track.trackID);
     }
-    _playlistTracksMap[playlist.playlistID] = list;
     if (_currentPlaylist != null && _currentPlaylist!.playlistID == playlist.playlistID) {
       await _loadPlaylistTracks(_currentPlaylist!);
-    } else {
-      setState(() {});
     }
   }
 

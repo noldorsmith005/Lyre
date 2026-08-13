@@ -2,8 +2,7 @@ Features:
     -
 
 Bugs:
-    -dot sometimes not showing playlist manager desktop
-    -scroll playlist manager desktop
+    -
 
 Mods:
     -

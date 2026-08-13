@@ -50,6 +50,7 @@ class _TrackCardState extends State<TrackCard> {
   bool _isHovered = false;
 
   void _showPlaylistPopup(BuildContext context, Offset position) {
+    final themeColor = Provider.of<ThemeService>(context, listen: false).themeColor;
     showMenu(
       context: context,
       position: RelativeRect.fromLTRB(
@@ -60,70 +61,21 @@ class _TrackCardState extends State<TrackCard> {
       ),
       color: const Color(0xEE1E1E26),
       elevation: 8,
+      clipBehavior: Clip.antiAlias,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(14),
         side: const BorderSide(color: Color(0xFF2E2E3A), width: 1),
       ),
-      items: widget.availablePlaylists.isEmpty
-          ? [
-              const PopupMenuItem<Playlist>(
-                enabled: false,
-                child: Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  child: Text(
-                    'No playlists available',
-                    style: TextStyle(color: Colors.white70, fontSize: 13),
-                  ),
-                ),
-              ),
-            ]
-          : widget.availablePlaylists.map((playlist) {
-              return PopupMenuItem<Playlist>(
-                value: playlist,
-                padding: EdgeInsets.zero,
-                child: StatefulBuilder(
-                  builder: (context, setPopupState) {
-                    final inPlaylist = widget.isTrackInPlaylist(playlist, widget.track);
-                    return MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      child: GestureDetector(
-                        onTap: () {
-                          widget.onTogglePlaylist(playlist, widget.track);
-                          setPopupState(() {});
-                        },
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                          decoration: const BoxDecoration(
-                            border: Border(bottom: BorderSide(color: Color(0xFF3C3F41), width: 1)),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  playlist.title,
-                                  style: const TextStyle(color: Colors.white),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Container(
-                                width: 13,
-                                height: 13,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: inPlaylist ? context.watch<ThemeService>().themeColor : const Color(0xFF7F8C8D),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    );
-                  }
-                ),
-              );
-            }).toList(),
+      menuPadding: EdgeInsets.zero,
+      items: [
+        _PlaylistMenuContent(
+          availablePlaylists: widget.availablePlaylists,
+          track: widget.track,
+          onTogglePlaylist: widget.onTogglePlaylist,
+          isTrackInPlaylist: widget.isTrackInPlaylist,
+          themeColor: themeColor,
+        ),
+      ],
     );
   }
 
@@ -398,6 +350,187 @@ class _HoverIconButtonState extends State<_HoverIconButton> {
             widget.icon,
             size: widget.size,
             color: widget.color ?? Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PlaylistMenuContent extends PopupMenuEntry<Never> {
+  final List<Playlist> availablePlaylists;
+  final Track track;
+  final Function(Playlist, Track) onTogglePlaylist;
+  final bool Function(Playlist, Track) isTrackInPlaylist;
+  final Color themeColor;
+
+  const _PlaylistMenuContent({
+    required this.availablePlaylists,
+    required this.track,
+    required this.onTogglePlaylist,
+    required this.isTrackInPlaylist,
+    required this.themeColor,
+  });
+
+  @override
+  double get height {
+    if (availablePlaylists.isEmpty) return 48.0;
+    return (availablePlaylists.length * 44.0).clamp(44.0, 240.0);
+  }
+
+  @override
+  bool represents(Never? value) => false;
+
+  @override
+  State<_PlaylistMenuContent> createState() => _PlaylistMenuContentState();
+}
+
+class _PlaylistMenuContentState extends State<_PlaylistMenuContent> {
+  late final Set<int> _inPlaylistIds;
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _inPlaylistIds = widget.availablePlaylists
+        .where((pl) => widget.isTrackInPlaylist(pl, widget.track))
+        .map((pl) => pl.playlistID)
+        .toSet();
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _toggle(Playlist playlist) {
+    setState(() {
+      if (_inPlaylistIds.contains(playlist.playlistID)) {
+        _inPlaylistIds.remove(playlist.playlistID);
+      } else {
+        _inPlaylistIds.add(playlist.playlistID);
+      }
+    });
+    widget.onTogglePlaylist(playlist, widget.track);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (widget.availablePlaylists.isEmpty) {
+      return const SizedBox(
+        width: 220,
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Text(
+            'No playlists available',
+            style: TextStyle(color: Colors.white70, fontSize: 13),
+          ),
+        ),
+      );
+    }
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(
+        maxHeight: 240,
+        minWidth: 220,
+        maxWidth: 260,
+      ),
+      child: RawScrollbar(
+        controller: _scrollController,
+        thumbColor: Colors.white24,
+        radius: const Radius.circular(4),
+        thickness: 4,
+        thumbVisibility: true,
+        child: SingleChildScrollView(
+          controller: _scrollController,
+          physics: const ClampingScrollPhysics(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (int i = 0; i < widget.availablePlaylists.length; i++)
+                _PlaylistRowItem(
+                  playlist: widget.availablePlaylists[i],
+                  inPlaylist: _inPlaylistIds.contains(widget.availablePlaylists[i].playlistID),
+                  themeColor: widget.themeColor,
+                  isLast: i == widget.availablePlaylists.length - 1,
+                  onTap: () => _toggle(widget.availablePlaylists[i]),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PlaylistRowItem extends StatefulWidget {
+  final Playlist playlist;
+  final bool inPlaylist;
+  final Color themeColor;
+  final bool isLast;
+  final VoidCallback onTap;
+
+  const _PlaylistRowItem({
+    required this.playlist,
+    required this.inPlaylist,
+    required this.themeColor,
+    required this.isLast,
+    required this.onTap,
+  });
+
+  @override
+  State<_PlaylistRowItem> createState() => _PlaylistRowItemState();
+}
+
+class _PlaylistRowItemState extends State<_PlaylistRowItem> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: _isHovered ? const Color(0xFF2A2A38) : Colors.transparent,
+            border: widget.isLast
+                ? null
+                : const Border(
+                    bottom: BorderSide(color: Color(0xFF2E2E3A), width: 1),
+                  ),
+          ),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  widget.playlist.title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+              const SizedBox(width: 12),
+              AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                width: 12,
+                height: 12,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: widget.inPlaylist ? widget.themeColor : const Color(0xFF7F8C8D),
+                ),
+              ),
+            ],
           ),
         ),
       ),
