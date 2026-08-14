@@ -25,6 +25,10 @@ class LyreAudioHandler extends BaseAudioHandler {
       _updatePlaybackState();
     }));
 
+    _subscriptions.add(_player.positionStream.listen((position) {
+      _updatePlaybackState();
+    }));
+
     _subscriptions.add(_player.durationStream.listen((duration) {
       if (mediaItem.value != null && duration != null) {
         mediaItem.add(mediaItem.value!.copyWith(duration: duration));
@@ -60,6 +64,11 @@ class LyreAudioHandler extends BaseAudioHandler {
         MediaAction.seek,
         MediaAction.seekForward,
         MediaAction.seekBackward,
+        MediaAction.play,
+        MediaAction.pause,
+        MediaAction.stop,
+        MediaAction.skipToNext,
+        MediaAction.skipToPrevious,
       },
       androidCompactActionIndices: const [0, 1, 2],
       processingState: processingState,
@@ -217,30 +226,16 @@ class AudioPlayerService extends ChangeNotifier {
 
       try {
         final session = await AudioSession.instance;
-        await session.configure(AudioSessionConfiguration(
-          avAudioSessionCategory: AVAudioSessionCategory.playback,
-          avAudioSessionCategoryOptions: AVAudioSessionCategoryOptions.allowBluetooth |
-              AVAudioSessionCategoryOptions.allowBluetoothA2dp |
-              AVAudioSessionCategoryOptions.allowAirPlay,
-          avAudioSessionMode: AVAudioSessionMode.defaultMode,
-          avAudioSessionRouteSharingPolicy: AVAudioSessionRouteSharingPolicy.defaultPolicy,
-          avAudioSessionSetActiveOptions: AVAudioSessionSetActiveOptions.none,
-          androidAudioAttributes: const AndroidAudioAttributes(
-            contentType: AndroidAudioContentType.music,
-            flags: AndroidAudioFlags.none,
-            usage: AndroidAudioUsage.media,
-          ),
-          androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
-          androidWillPauseWhenDucked: true,
-        ));
+        await session.configure(const AudioSessionConfiguration.music());
 
         _audioHandler = await AudioService.init(
           builder: () => LyreAudioHandler(_player),
-          config: AudioServiceConfig(
+          config: const AudioServiceConfig(
             androidNotificationChannelId: 'com.nategartland.lyre.audio',
             androidNotificationChannelName: 'Lyre Audio Playback',
             androidNotificationOngoing: true,
-            androidStopForegroundOnPause: false,
+            androidStopForegroundOnPause: true,
+            androidNotificationIcon: 'mipmap/ic_launcher',
           ),
         );
         _audioHandler?.attachService(this);
