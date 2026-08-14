@@ -69,8 +69,8 @@ class VibeQueueService {
       try {
         final placeholders = List.filled(existingIds.length, '?').join(',');
         final query = existingIds.isNotEmpty 
-            ? 'SELECT track_id, title, artist, duration FROM tracks WHERE track_id NOT IN ($placeholders) ORDER BY RANDOM() LIMIT $needed'
-            : 'SELECT track_id, title, artist, duration FROM tracks ORDER BY RANDOM() LIMIT $needed';
+            ? 'SELECT track_id, title, artist, duration FROM tracks WHERE downloaded = 1 AND track_id NOT IN ($placeholders) ORDER BY RANDOM() LIMIT $needed'
+            : 'SELECT track_id, title, artist, duration FROM tracks WHERE downloaded = 1 ORDER BY RANDOM() LIMIT $needed';
             
         final rows = await db.rawQuery(query, existingIds);
         final randomTracks = rows.map<Track>((row) => Track(
@@ -97,7 +97,7 @@ class VibeQueueService {
         SELECT t.track_id, t.title, t.artist, t.duration, COUNT(lh.history_id) as play_count
         FROM tracks t
         JOIN listening_history lh ON t.track_id = lh.track_id
-        WHERE lh.timestamp >= ?
+        WHERE lh.timestamp >= ? AND t.downloaded = 1
         GROUP BY t.track_id
         ORDER BY play_count DESC
         LIMIT 50
@@ -125,6 +125,7 @@ class VibeQueueService {
         SELECT t.track_id, t.title, t.artist, t.duration, COUNT(lh.history_id) as play_count
         FROM tracks t
         LEFT JOIN listening_history lh ON t.track_id = lh.track_id
+        WHERE t.downloaded = 1
         GROUP BY t.track_id
         ORDER BY play_count ASC
         LIMIT 50
@@ -160,7 +161,7 @@ class VibeQueueService {
           SELECT DISTINCT t.track_id, t.title, t.artist, t.duration
           FROM tracks t
           JOIN playlist_tracks pt ON t.track_id = pt.track_id
-          WHERE pt.playlist_id IN ($placeholders)
+          WHERE pt.playlist_id IN ($placeholders) AND t.downloaded = 1
         ''', ids);
 
         if (trackRows.isNotEmpty) {

@@ -614,6 +614,22 @@ class MediaHandler {
     }
   }
 
+  bool isTrackDownloaded(int trackId) {
+    if (_isCacheLoaded) {
+      final matches = _cachedAllTracks.where((t) => t.trackID == trackId);
+      if (matches.isNotEmpty) {
+        if (!matches.first.downloaded) return false;
+      } else {
+        return false;
+      }
+    }
+    final flac = File(p.join(_appDataPath, 'audio', '$trackId.flac'));
+    if (flac.existsSync() && flac.lengthSync() > 0) return true;
+    final wav = File(p.join(_appDataPath, 'audio', '$trackId.wav'));
+    if (wav.existsSync() && wav.lengthSync() > 0) return true;
+    return false;
+  }
+
   Future<void> markTrackDownloaded(int trackId) async {
     try {
       await _db.update('tracks', {'downloaded': 1}, where: 'track_id = ?', whereArgs: [trackId]);
@@ -735,7 +751,7 @@ class MediaHandler {
     final result = await _db.rawQuery('''
       SELECT t.track_id, t.title, t.artist, t.duration 
       FROM tracks t 
-      WHERE t.track_id NOT IN (SELECT DISTINCT track_id FROM playlist_tracks)
+      WHERE t.track_id NOT IN (SELECT DISTINCT track_id FROM playlist_tracks) AND t.downloaded = 1
     ''');
     return result.map((row) => Track(
       trackID: row['track_id'] as int,

@@ -871,14 +871,18 @@ class ServerClient {
       ).timeout(const Duration(seconds: 8));
       if (response.statusCode == 200) {
         final List<dynamic> jsonList = jsonDecode(response.body);
-        return jsonList.map((json) => Track(
-          trackID: ((json['trackID'] ?? json['track_id']) ?? 0) as int,
-          title: (json['title'] ?? '') as String,
-          artist: (json['artist'] ?? '') as String,
-          duration: (json['duration'] ?? '') as String,
-          downloaded: (json['downloaded'] ?? false) as bool,
-          contributor: (json['contributor'] ?? '') as String,
-        )).toList();
+        return jsonList.map((json) {
+          final tid = ((json['trackID'] ?? json['track_id']) ?? 0) as int;
+          final isDownloadedLocally = mediaHandler.isTrackDownloaded(tid);
+          return Track(
+            trackID: tid,
+            title: (json['title'] ?? '') as String,
+            artist: (json['artist'] ?? '') as String,
+            duration: (json['duration'] ?? '') as String,
+            downloaded: isDownloadedLocally,
+            contributor: (json['contributor'] ?? '') as String,
+          );
+        }).toList();
       }
     } catch (e) {
       debugPrint('Error searching tracks: $e');

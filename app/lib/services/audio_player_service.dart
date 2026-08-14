@@ -69,6 +69,8 @@ class LyreAudioHandler extends BaseAudioHandler {
         MediaAction.stop,
         MediaAction.skipToNext,
         MediaAction.skipToPrevious,
+        MediaAction.setRepeatMode,
+        MediaAction.setShuffleMode,
       },
       androidCompactActionIndices: const [0, 1, 2],
       processingState: processingState,
@@ -76,6 +78,8 @@ class LyreAudioHandler extends BaseAudioHandler {
       updatePosition: _player.position,
       bufferedPosition: _player.bufferedPosition,
       speed: _player.speed,
+      repeatMode: _service?.loop == true ? AudioServiceRepeatMode.one : AudioServiceRepeatMode.none,
+      shuffleMode: _service?.shuffle == true ? AudioServiceShuffleMode.all : AudioServiceShuffleMode.none,
     ));
   }
 
@@ -169,6 +173,20 @@ class LyreAudioHandler extends BaseAudioHandler {
       _service!.previous();
     }
   }
+
+  @override
+  Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) async {
+    if (_service != null) {
+      _service!.toggleLoop(repeatMode == AudioServiceRepeatMode.one || repeatMode == AudioServiceRepeatMode.all);
+    }
+  }
+
+  @override
+  Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) async {
+    if (_service != null) {
+      _service!.setShuffle(shuffleMode == AudioServiceShuffleMode.all || shuffleMode == AudioServiceShuffleMode.group);
+    }
+  }
 }
 
 class AudioPlayerService extends ChangeNotifier {
@@ -182,6 +200,7 @@ class AudioPlayerService extends ChangeNotifier {
   bool get shuffle => _shuffle;
   set shuffle(bool value) {
     _shuffle = value;
+    _audioHandler?._updatePlaybackState();
     notifyListeners();
   }
 
@@ -189,11 +208,13 @@ class AudioPlayerService extends ChangeNotifier {
   bool get loop => _loop;
   set loop(bool value) {
     _loop = value;
+    _audioHandler?._updatePlaybackState();
     notifyListeners();
   }
 
   List<Track> queue = [];
   List<Track> nextUp = [];
+  List<Track> _unshuffledNextUp = [];
   String? _appDataPath;
   ProcessingState _lastProcessingState = ProcessingState.idle;
   int _loadedPlayRequestId = 0;
@@ -247,11 +268,12 @@ class AudioPlayerService extends ChangeNotifier {
         if (state.processingState == ProcessingState.completed && 
             _lastProcessingState != ProcessingState.completed) {
           if (_loadedPlayRequestId == _playRequestId) {
-            next();
+            _onTrackCompleted();
           }
         }
         _lastProcessingState = state.processingState;
         isPlaying = state.playing;
+        _audioHandler?._updatePlaybackState();
         notifyListeners();
       });
     } finally {
@@ -260,6 +282,35 @@ class AudioPlayerService extends ChangeNotifier {
         _initCompleter.complete();
       }
     }
+  }
+
+  void _onTrackCompleted() {
+    if (loop && currentTrack != null) {
+      final audioFile = _getAudioFile(currentTrack!.trackID);
+      if (audioFile != null) {
+        _player.seek(Duration.zero);
+        _player.play();
+        _playTimer?.cancel();
+        _playTimer = Timer(const Duration(seconds: 30), () {
+          if (currentTrack != null && isPlaying) {
+            ListeningStatsService.instance.logPlay(currentTrack!);
+          }
+        });
+        _audioHandler?._updatePlaybackState();
+        notifyListeners();
+        return;
+      }
+    }
+    next(ignoreLoop: true);
+  }
+
+  File? _getAudioFile(int trackId) {
+    if (_appDataPath == null) return null;
+    final flac = File('$_appDataPath/audio/$trackId.flac');
+    if (flac.existsSync() && flac.lengthSync() > 0) return flac;
+    final wav = File('$_appDataPath/audio/$trackId.wav');
+    if (wav.existsSync() && wav.lengthSync() > 0) return wav;
+    return null;
   }
 
   Stream<Duration> get positionStream => _player.positionStream;
@@ -285,6 +336,7 @@ class AudioPlayerService extends ChangeNotifier {
   @override
   void dispose() {
     _stateSubscription?.cancel();
+    _playTimer?.cancel();
     _player.dispose();
     super.dispose();
   }
@@ -300,12 +352,19 @@ class AudioPlayerService extends ChangeNotifier {
     final currentRequestId = ++_playRequestId;
 
     try {
-      final file = File('$_appDataPath/audio/${track.trackID}.flac');
-      if (!await file.exists()) {
-        debugPrint('FLAC file not found: ${file.path}');
-        currentTrack = null;
-        isPlaying = false;
-        notifyListeners();
+      final file = _getAudioFile(track.trackID);
+      if (file == null) {
+        debugPrint('Audio file not found for track ${track.trackID} (${track.title}). Auto-skipping...');
+        if (currentRequestId != _playRequestId) return;
+        if (queue.isNotEmpty || nextUp.isNotEmpty) {
+          next(ignoreLoop: true);
+        } else {
+          currentTrack = null;
+          isPlaying = false;
+          _player.stop();
+          _audioHandler?.clearMediaItem();
+          notifyListeners();
+        }
         return;
       }
 
@@ -356,29 +415,39 @@ class AudioPlayerService extends ChangeNotifier {
         }
       });
     } catch (e) {
-      debugPrint('Error playing audio: $e');
+      debugPrint('Error playing audio for track ${track.trackID}: $e');
       if (currentRequestId == _playRequestId) {
-        isPlaying = false;
-        notifyListeners();
+        if (queue.isNotEmpty || nextUp.isNotEmpty) {
+          next(ignoreLoop: true);
+        } else {
+          currentTrack = null;
+          isPlaying = false;
+          _player.stop();
+          _audioHandler?.clearMediaItem();
+          notifyListeners();
+        }
       }
     }
   }
 
   void playTrackInContext(Track track, List<Track> contextTracks) {
     clearNextUp();
+    _unshuffledNextUp.clear();
     final downloadedTracks = contextTracks.where((t) => t.downloaded || (_appDataPath != null && File('$_appDataPath/audio/${t.trackID}.flac').existsSync())).toList();
     final idx = downloadedTracks.indexWhere((t) => t.trackID == track.trackID);
     if (idx != -1) {
       if (shuffle) {
         final otherTracks = downloadedTracks.where((t) => t.trackID != track.trackID).toList();
-        otherTracks.shuffle();
-        for (final t in otherTracks) {
+        _unshuffledNextUp = List.from(otherTracks);
+        final shuffled = List<Track>.from(otherTracks)..shuffle();
+        for (final t in shuffled) {
           addToNextUp(t);
         }
       } else {
         for (int i = idx + 1; i < downloadedTracks.length; i++) {
           addToNextUp(downloadedTracks[i]);
         }
+        _unshuffledNextUp = List.from(nextUp);
       }
     }
     play(track);
@@ -392,12 +461,14 @@ class AudioPlayerService extends ChangeNotifier {
   Future<void> pause() async {
     isPlaying = false;
     await _player.pause();
+    _audioHandler?._updatePlaybackState();
     notifyListeners();
   }
 
   Future<void> resume() async {
     isPlaying = true;
     await _player.play();
+    _audioHandler?._updatePlaybackState();
     notifyListeners();
   }
 
@@ -413,11 +484,8 @@ class AudioPlayerService extends ChangeNotifier {
     _player.seek(Duration.zero);
   }
 
-  void next() {
-    if (loop) {
-      _player.seek(Duration.zero);
-      _player.play();
-    } else if (queue.isNotEmpty) {
+  void next({bool ignoreLoop = false}) {
+    if (queue.isNotEmpty) {
       final nextTrack = queue.removeAt(0);
       notifyListeners();
       play(nextTrack);
@@ -425,8 +493,29 @@ class AudioPlayerService extends ChangeNotifier {
       final Track nextTrack = nextUp.removeAt(0);
       notifyListeners();
       play(nextTrack);
+    } else if (loop && !ignoreLoop && currentTrack != null) {
+      final audioFile = _getAudioFile(currentTrack!.trackID);
+      if (audioFile != null) {
+        _player.seek(Duration.zero);
+        _player.play();
+        _playTimer?.cancel();
+        _playTimer = Timer(const Duration(seconds: 30), () {
+          if (currentTrack != null && isPlaying) {
+            ListeningStatsService.instance.logPlay(currentTrack!);
+          }
+        });
+        _audioHandler?._updatePlaybackState();
+        notifyListeners();
+      } else {
+        _player.stop();
+        currentTrack = null;
+        isPlaying = false;
+        _audioHandler?.clearMediaItem();
+        notifyListeners();
+      }
     } else {
       _player.stop();
+      currentTrack = null;
       isPlaying = false;
       _audioHandler?.clearMediaItem();
       notifyListeners();
@@ -434,7 +523,8 @@ class AudioPlayerService extends ChangeNotifier {
   }
 
   void addToQueue(Track track) {
-    final isDownloaded = track.downloaded || (_appDataPath != null && File('$_appDataPath/audio/${track.trackID}.flac').existsSync());
+    final hasAudio = _getAudioFile(track.trackID) != null;
+    final isDownloaded = track.downloaded || hasAudio;
     if (!isDownloaded) return;
     queue.add(track);
     notifyListeners();
@@ -460,6 +550,7 @@ class AudioPlayerService extends ChangeNotifier {
 
   void clearNextUp() {
     nextUp.clear();
+    _unshuffledNextUp.clear();
     notifyListeners();
   }
 
@@ -471,20 +562,34 @@ class AudioPlayerService extends ChangeNotifier {
     isPlaying = false;
     queue.clear();
     nextUp.clear();
+    _unshuffledNextUp.clear();
     _audioHandler?.clearMediaItem();
     notifyListeners();
   }
 
   void setShuffle([bool? value]) {
     _shuffle = value ?? !_shuffle;
-    if (_shuffle && nextUp.isNotEmpty) {
-      nextUp.shuffle();
+    if (_shuffle) {
+      if (nextUp.isNotEmpty) {
+        if (_unshuffledNextUp.isEmpty) {
+          _unshuffledNextUp = List.from(nextUp);
+        }
+        nextUp.shuffle();
+      }
+    } else {
+      if (_unshuffledNextUp.isNotEmpty) {
+        final nextUpIds = nextUp.map((t) => t.trackID).toSet();
+        nextUp = _unshuffledNextUp.where((t) => nextUpIds.contains(t.trackID)).toList();
+        _unshuffledNextUp.clear();
+      }
     }
+    _audioHandler?._updatePlaybackState();
     notifyListeners();
   }
 
   void toggleLoop([bool? value]) {
     loop = value ?? !loop;
+    _audioHandler?._updatePlaybackState();
   }
 
   bool trackPlaying(Track track) {
