@@ -308,8 +308,6 @@ class AudioPlayerService extends ChangeNotifier {
     if (_appDataPath == null) return null;
     final flac = File('$_appDataPath/audio/$trackId.flac');
     if (flac.existsSync() && flac.lengthSync() > 0) return flac;
-    final wav = File('$_appDataPath/audio/$trackId.wav');
-    if (wav.existsSync() && wav.lengthSync() > 0) return wav;
     return null;
   }
 

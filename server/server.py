@@ -755,7 +755,7 @@ def uploadFile(id, ext):
         print(f"[ERROR] Upload failed for track {id} ({ext}): {e}")
         return jsonify({"error": f"Upload failed: {str(e)}"}), 500
     finally:
-        for p in [os.path.join(tmp_dir, f"{id}.{ext}"), os.path.join(tmp_dir, f"{id}.wav"), os.path.join(tmp_dir, f"{id}.png"), os.path.join(tmp_dir, f"{id}.jpg"), os.path.join(tmp_dir, f"{id}.flac")]:
+        for p in [os.path.join(tmp_dir, f"{id}.{ext}"), os.path.join(tmp_dir, f"{id}.png"), os.path.join(tmp_dir, f"{id}.jpg"), os.path.join(tmp_dir, f"{id}.flac")]:
             try:
                 if os.path.exists(p):
                     os.remove(p)
@@ -970,11 +970,7 @@ def deleteTrackFromServer(id):
         # Delete server-side media files
         audio_files = [
             os.path.join(BASE_DIR, "audio", f"{id}.flac"),
-            os.path.join(BASE_DIR, "audio", f"{id}.wav"),
-            os.path.join(BASE_DIR, "audio", f"{id}.mp3"),
             os.path.join(BASE_DIR, "tmp", f"{id}.flac"),
-            os.path.join(BASE_DIR, "tmp", f"{id}.wav"),
-            os.path.join(BASE_DIR, "tmp", f"{id}.mp3"),
         ]
         cover_files = [
             os.path.join(BASE_DIR, "cover", f"{id}.jpg"),

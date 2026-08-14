@@ -740,7 +740,7 @@ class ServerClient {
       ext = path.substring(lastDot + 1).toLowerCase();
     }
     if (ext != 'wav' && ext != 'mp3' && ext != 'flac' && ext != 'jpg' && ext != 'png') {
-      ext = type == 'audio' ? 'wav' : 'jpg';
+      ext = type == 'audio' ? 'flac' : 'jpg';
     }
     final targetUrl = '$appUrl/tracks/$id/upload/$ext';
     final localFile = File(path);
@@ -1074,14 +1074,12 @@ class ServerClient {
   }
 
   Future<bool> removeDownload(Track track, {bool updateServerTracking = true}) async {
-    final wavFile = File('$_appDataPath/audio/${track.trackID}.wav');
     final flacFile = File('$_appDataPath/audio/${track.trackID}.flac');
     final coverFile = File('$_appDataPath/cover/${track.trackID}.jpg');
 
     bool filesDeleted = true;
     try {
       PaintingBinding.instance.imageCache.evict(FileImage(coverFile));
-      if (await wavFile.exists()) await wavFile.delete();
       if (await flacFile.exists()) await flacFile.delete();
       if (await coverFile.exists()) await coverFile.delete();
     } catch (e) {
@@ -1174,14 +1172,15 @@ class ServerClient {
       // If locally downloaded, update local file
       if (track.downloaded) {
         try {
-          final localAudioWav = File('$_appDataPath/audio/${track.trackID}.wav');
           final localAudioFlac = File('$_appDataPath/audio/${track.trackID}.flac');
-          if (await localAudioWav.exists()) await localAudioWav.delete();
           if (await localAudioFlac.exists()) await localAudioFlac.delete();
-          final sourceFile = File(audioPath);
           final ext = audioPath.split('.').last.toLowerCase();
-          final destExt = (ext == 'wav' || ext == 'flac') ? ext : 'flac';
-          await sourceFile.copy('$_appDataPath/audio/${track.trackID}.$destExt');
+          if (ext == 'flac') {
+            final sourceFile = File(audioPath);
+            await sourceFile.copy('$_appDataPath/audio/${track.trackID}.flac');
+          } else {
+            await _download('audio', track.trackID);
+          }
         } catch (e) {
           debugPrint('Error updating local audio file on edit: $e');
         }

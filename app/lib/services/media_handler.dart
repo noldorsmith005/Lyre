@@ -625,8 +625,6 @@ class MediaHandler {
     }
     final flac = File(p.join(_appDataPath, 'audio', '$trackId.flac'));
     if (flac.existsSync() && flac.lengthSync() > 0) return true;
-    final wav = File(p.join(_appDataPath, 'audio', '$trackId.wav'));
-    if (wav.existsSync() && wav.lengthSync() > 0) return true;
     return false;
   }
 
@@ -683,14 +681,9 @@ class MediaHandler {
 
         if (track.downloaded) {
           final flacFile = File(p.join(_appDataPath, 'audio', '${track.trackID}.flac'));
-          final wavFile = File(p.join(_appDataPath, 'audio', '${track.trackID}.wav'));
           bool hasAudio = false;
           if (await flacFile.exists()) {
             final len = await flacFile.length();
-            if (len > 0) hasAudio = true;
-          }
-          if (!hasAudio && await wavFile.exists()) {
-            final len = await wavFile.length();
             if (len > 0) hasAudio = true;
           }
           if (!hasAudio) {
@@ -714,10 +707,8 @@ class MediaHandler {
         await _db.delete('tracks', where: 'track_id = ?', whereArgs: [track.trackID]);
         // Delete audio and cover files
         final audioFlac = File(p.join(_appDataPath, 'audio', '${track.trackID}.flac'));
-        final audioWav = File(p.join(_appDataPath, 'audio', '${track.trackID}.wav'));
         final cover = File(p.join(_appDataPath, 'cover', '${track.trackID}.jpg'));
         if (await audioFlac.exists()) await audioFlac.delete();
-        if (await audioWav.exists()) await audioWav.delete();
         if (await cover.exists()) await cover.delete();
       }
       return toRemove;
@@ -757,13 +748,11 @@ class MediaHandler {
       } catch (_) {}
 
       // 2. Delete local files
-      final wavFile = File(p.join(_appDataPath, 'audio', '$trackID.wav'));
       final flacFile = File(p.join(_appDataPath, 'audio', '$trackID.flac'));
       final coverFile = File(p.join(_appDataPath, 'cover', '$trackID.jpg'));
 
       try {
         PaintingBinding.instance.imageCache.evict(FileImage(coverFile));
-        if (await wavFile.exists()) await wavFile.delete();
         if (await flacFile.exists()) await flacFile.delete();
         if (await coverFile.exists()) await coverFile.delete();
       } catch (e) {
