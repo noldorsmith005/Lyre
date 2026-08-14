@@ -13,6 +13,32 @@ import 'listening_stats_service.dart';
 
 
 
+class SyncProgress {
+  final String stage;
+  final int stepIndex;
+  final int totalSteps;
+  final double progress;
+  final bool isDownloadingPhase;
+  final int currentTrackIndex;
+  final int totalTracksToDownload;
+  final String? currentTrackTitle;
+  final double? trackProgress;
+  final String? trackProgressLabel;
+
+  const SyncProgress({
+    this.stage = '',
+    this.stepIndex = 0,
+    this.totalSteps = 5,
+    this.progress = 0.0,
+    this.isDownloadingPhase = false,
+    this.currentTrackIndex = 0,
+    this.totalTracksToDownload = 0,
+    this.currentTrackTitle,
+    this.trackProgress,
+    this.trackProgressLabel,
+  });
+}
+
 class ServerClient {
   late String _appDataPath;
   final MediaHandler mediaHandler;
@@ -30,7 +56,7 @@ class ServerClient {
   final ValueNotifier<Set<int>> downloadingTrackIdsNotifier = ValueNotifier<Set<int>>({});
   final ValueNotifier<bool> isSyncingNotifier = ValueNotifier<bool>(false);
   final ValueNotifier<bool> isOfflineNotifier = ValueNotifier<bool>(false);
-
+  final ValueNotifier<SyncProgress> syncProgressNotifier = ValueNotifier<SyncProgress>(const SyncProgress());
 
   bool isTrackDownloading(int trackID) => downloadingTrackIdsNotifier.value.contains(trackID);
 
@@ -388,19 +414,37 @@ class ServerClient {
   bool _isSyncing = false;
   bool get isSyncing => _isSyncing;
 
+  void _reportProgress(SyncProgress progress) {
+    syncProgressNotifier.value = progress;
+  }
+
   Future<bool> performPullSync() async {
     if (!registered() || appUrl == null || _isSyncing) return false;
 
     _isSyncing = true;
     isSyncingNotifier.value = true;
     try {
+      _reportProgress(const SyncProgress(
+        stage: 'Connecting to server...',
+        stepIndex: 1,
+        totalSteps: 5,
+        progress: 0.05,
+      ));
+
       final isOnline = await ping();
       if (!isOnline) {
         debugPrint('Offline or server unreachable: Skipping pull sync.');
         return false;
       }
 
-      // Process pending offline changes
+      // Step 1: Process pending offline changes
+      _reportProgress(const SyncProgress(
+        stage: 'Flushing offline changes...',
+        stepIndex: 1,
+        totalSteps: 5,
+        progress: 0.15,
+      ));
+
       final pendingDownloads = await mediaHandler.getPendingDownloads();
       if (pendingDownloads.isNotEmpty) {
         try {
@@ -422,7 +466,14 @@ class ServerClient {
         await pushLocalPlaylists(internal: true);
       }
 
-      // ── Stage 1: Database Sync ──
+      // ── Stage 1 (Step 2/5): Database Sync ──
+      _reportProgress(const SyncProgress(
+        stage: 'Syncing playlists & metadata...',
+        stepIndex: 2,
+        totalSteps: 5,
+        progress: 0.30,
+      ));
+
       // 1. Sync playlists from server first so all playlist track IDs are registered in local DB.
       final serverPlaylists = await pullSyncPlaylists();
       if (serverPlaylists != null) {
@@ -449,8 +500,14 @@ class ServerClient {
       await mediaHandler.loadAllIntoMemory();
       mediaHandler.notifyPlaylistChanged();
 
-      // ── Stage 2: Remove Stale Downloads ──
-      // Delete tracks and files that are no longer in the server manifest.
+      // ── Stage 2 (Step 3/5): Remove Stale Downloads ──
+      _reportProgress(const SyncProgress(
+        stage: 'Pruning stale downloads...',
+        stepIndex: 3,
+        totalSteps: 5,
+        progress: 0.45,
+      ));
+
       if (serverTrackIds.isNotEmpty) {
         final removedTracks = await mediaHandler.removeTracksNotIn(serverTrackIds);
         if (removedTracks.isNotEmpty) {
@@ -462,22 +519,54 @@ class ServerClient {
         }
       }
 
-      // ── Stage 3: Download Missing Tracks (Sequential) ──
-      // Download tracks one at a time where downloaded=false.
-      // Each completed download updates the DB and cache so the UI updates reactively.
+      // ── Stage 3 (Step 4/5): Download Missing Tracks (Sequential) ──
       final undownloaded = await mediaHandler.getUndownloadedTracks();
-      for (final track in undownloaded) {
-        final success = await downloadTrack(track, updateServerTracking: false);
-        if (success) {
-          await mediaHandler.markTrackDownloaded(track.trackID);
+      if (undownloaded.isEmpty) {
+        _reportProgress(const SyncProgress(
+          stage: 'All tracks up to date',
+          stepIndex: 4,
+          totalSteps: 5,
+          progress: 0.85,
+        ));
+      } else {
+        for (int i = 0; i < undownloaded.length; i++) {
+          final track = undownloaded[i];
+          final overallProgress = 0.45 + (0.40 * (i / undownloaded.length));
+          final trackProgressFraction = (i + 1) / undownloaded.length;
+          final title = track.title.isNotEmpty ? track.title : 'Track ${track.trackID}';
+          final displayTitle = track.artist.isNotEmpty ? '$title • ${track.artist}' : title;
+
+          _reportProgress(SyncProgress(
+            stage: 'Downloading new tracks...',
+            stepIndex: 4,
+            totalSteps: 5,
+            progress: overallProgress,
+            isDownloadingPhase: true,
+            currentTrackIndex: i + 1,
+            totalTracksToDownload: undownloaded.length,
+            currentTrackTitle: displayTitle,
+            trackProgress: trackProgressFraction,
+            trackProgressLabel: 'Track ${i + 1} of ${undownloaded.length}',
+          ));
+
+          final success = await downloadTrack(track, updateServerTracking: false);
+          if (success) {
+            await mediaHandler.markTrackDownloaded(track.trackID);
+          }
         }
       }
 
-      // ── Stage 4: Repair Broken Downloads & Metadata ──
-      // Fix placeholder titles ("Track {id}"), missing artist, or corrupted/missing audio files.
+      // ── Stage 4 (Step 5/5): Repair Broken Downloads & Metadata ──
+      _reportProgress(const SyncProgress(
+        stage: 'Checking library integrity...',
+        stepIndex: 5,
+        totalSteps: 5,
+        progress: 0.85,
+      ));
+
       final broken = await mediaHandler.getBrokenTracks();
 
-      // Step 4A: Repair metadata placeholders
+      // Step 5A: Repair metadata placeholders
       if (broken.metadataBroken.isNotEmpty) {
         final serverMap = serverTracks != null
             ? {for (var t in serverTracks) t.trackID: t}
@@ -502,19 +591,46 @@ class ServerClient {
         }
       }
 
-      // Step 4B: Repair missing/corrupted audio files
+      // Step 5B: Repair missing/corrupted audio files
       if (broken.downloadBroken.isNotEmpty) {
         for (final bTrack in broken.downloadBroken) {
           await mediaHandler.resetTrackDownloadState(bTrack.trackID);
         }
         final repairUndownloaded = await mediaHandler.getUndownloadedTracks();
-        for (final track in repairUndownloaded) {
+        for (int i = 0; i < repairUndownloaded.length; i++) {
+          final track = repairUndownloaded[i];
+          final overallProgress = 0.85 + (0.10 * (i / repairUndownloaded.length));
+          final trackProgressFraction = (i + 1) / repairUndownloaded.length;
+          final title = track.title.isNotEmpty ? track.title : 'Track ${track.trackID}';
+          final displayTitle = track.artist.isNotEmpty ? '$title • ${track.artist}' : title;
+
+          _reportProgress(SyncProgress(
+            stage: 'Repairing audio files...',
+            stepIndex: 5,
+            totalSteps: 5,
+            progress: overallProgress,
+            isDownloadingPhase: true,
+            currentTrackIndex: i + 1,
+            totalTracksToDownload: repairUndownloaded.length,
+            currentTrackTitle: displayTitle,
+            trackProgress: trackProgressFraction,
+            trackProgressLabel: 'Repairing ${i + 1} of ${repairUndownloaded.length}',
+          ));
+
           final success = await downloadTrack(track, updateServerTracking: false);
           if (success) {
             await mediaHandler.markTrackDownloaded(track.trackID);
           }
         }
       }
+
+      _reportProgress(const SyncProgress(
+        stage: 'Sync complete',
+        stepIndex: 5,
+        totalSteps: 5,
+        progress: 1.0,
+      ));
+      await Future.delayed(const Duration(milliseconds: 300));
 
       return true;
     } catch (e) {
