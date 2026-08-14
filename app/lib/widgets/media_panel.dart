@@ -5,8 +5,7 @@ import '../services/theme_service.dart';
 import '../utils/layout_constants.dart';
 import '../models/track.dart';
 import 'track_cover_image.dart';
-
-
+import 'main_panel.dart';
 
 class MediaPanel extends StatefulWidget {
   const MediaPanel({super.key});
@@ -77,16 +76,38 @@ class _MediaPanelState extends State<MediaPanel> {
   Widget build(BuildContext context) {
     final audioService = context.watch<AudioPlayerService>();
     final currentTrack = audioService.currentTrack;
+    final themeColor = context.watch<ThemeService>().themeColor;
 
     final appDataPath = audioService.appDataPath;
 
-    return Container(
-      width: LayoutConstants.coverSize + 60, // approximate width
-      decoration: const BoxDecoration(
-        color: Color(0xFF000000),
-        border: Border(left: BorderSide(color: Color(0xFF282828), width: 1)),
-      ),
-      child: Column(
+    return DragTarget<TrackDragData>(
+      onWillAcceptWithDetails: (details) => true,
+      onAcceptWithDetails: (details) {
+        audioService.addToQueue(details.data.track);
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Added "${details.data.track.title}" to Queue'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      },
+      builder: (context, candidateData, rejectedData) {
+        final isHovering = candidateData.isNotEmpty;
+
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          width: LayoutConstants.coverSize + 60,
+          decoration: BoxDecoration(
+            color: isHovering ? themeColor.withValues(alpha: 0.12) : const Color(0xFF000000),
+            border: Border(
+              left: BorderSide(
+                color: isHovering ? themeColor : const Color(0xFF282828),
+                width: isHovering ? 2.5 : 1.0,
+              ),
+            ),
+          ),
+          child: Column(
         children: [
           // Upper part (Cover, Title, Seek, Controls)
           Expanded(
@@ -374,6 +395,8 @@ class _MediaPanelState extends State<MediaPanel> {
         ],
       ),
     );
+  },
+);
   }
 }
 

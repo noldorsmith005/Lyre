@@ -46,7 +46,6 @@ class TrackSourceInfo {
   final String duration;
   final String contributor;
   final bool hidden;
-  final bool isContributor;
 
   const TrackSourceInfo({
     required this.trackID,
@@ -55,7 +54,6 @@ class TrackSourceInfo {
     required this.duration,
     required this.contributor,
     required this.hidden,
-    required this.isContributor,
   });
 }
 
@@ -1125,7 +1123,6 @@ class ServerClient {
           duration: data['duration'] as String? ?? '',
           contributor: data['contributor'] as String? ?? '',
           hidden: data['hidden'] as bool? ?? false,
-          isContributor: data['is_contributor'] as bool? ?? false,
         );
       }
     } catch (e) {

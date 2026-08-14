@@ -25,6 +25,7 @@ class MobileQueueModal extends StatelessWidget {
     final themeColor = context.watch<ThemeService>().themeColor;
     final audioService = Provider.of<AudioPlayerService>(context);
     final queue = audioService.queue;
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
 
     return DraggableScrollableSheet(
       initialChildSize: 0.65,
@@ -115,22 +116,30 @@ class MobileQueueModal extends StatelessWidget {
               Expanded(
                 child: queue.isEmpty
                     ? Center(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            Icon(Icons.music_off_outlined, color: Color(0xFF444456), size: 48),
-                            SizedBox(height: 12),
-                            Text(
-                              'Queue is empty',
-                              style: TextStyle(color: Color(0xFF777788), fontSize: 15, fontWeight: FontWeight.w500),
-                            ),
-                          ],
+                        child: Padding(
+                          padding: EdgeInsets.only(bottom: bottomPadding + 24),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: const [
+                              Icon(Icons.music_off_outlined, color: Color(0xFF444456), size: 48),
+                              SizedBox(height: 12),
+                              Text(
+                                'Queue is empty',
+                                style: TextStyle(color: Color(0xFF777788), fontSize: 15, fontWeight: FontWeight.w500),
+                              ),
+                            ],
+                          ),
                         ),
                       )
                     : ListView.builder(
                         controller: scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+                        padding: EdgeInsets.only(
+                          left: 16,
+                          right: 16,
+                          top: 6,
+                          bottom: bottomPadding + 36,
+                        ),
                         itemCount: queue.length,
                         itemBuilder: (context, index) {
                           final track = queue[index];

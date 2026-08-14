@@ -16,6 +16,17 @@ import 'track_cover_image.dart';
 import 'playlist_cover_image.dart';
 import 'sync_icon_button.dart';
 
+class TrackDragData {
+  final Track track;
+  final int index;
+
+  const TrackDragData({
+    required this.track,
+    required this.index,
+  });
+}
+
+
 class MainPanel extends StatefulWidget {
   final Playlist? currentPlaylist;
   final List<Track> tracks;
@@ -101,6 +112,7 @@ class _MainPanelState extends State<MainPanel> {
 
   void _onDragStarted() {
     _autoScrollTimer?.cancel();
+    _autoScrollTimer = null;
   }
 
   void _onDragUpdate(Offset globalPosition) {
@@ -115,9 +127,17 @@ class _MainPanelState extends State<MainPanel> {
   }
 
   void _updateAutoScrollTimer() {
-    if (_lastDragPosition == null) return;
+    if (_lastDragPosition == null) {
+      _autoScrollTimer?.cancel();
+      _autoScrollTimer = null;
+      return;
+    }
     final RenderBox? box = _listKey.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null || !_scrollController.hasClients) return;
+    if (box == null || !_scrollController.hasClients) {
+      _autoScrollTimer?.cancel();
+      _autoScrollTimer = null;
+      return;
+    }
 
     final localOffset = box.globalToLocal(_lastDragPosition!);
     final height = box.size.height;
@@ -137,10 +157,15 @@ class _MainPanelState extends State<MainPanel> {
         _autoScrollTimer = Timer.periodic(const Duration(milliseconds: 16), (_) {
           if (!_scrollController.hasClients || _lastDragPosition == null) {
             _autoScrollTimer?.cancel();
+            _autoScrollTimer = null;
             return;
           }
           final RenderBox? currentBox = _listKey.currentContext?.findRenderObject() as RenderBox?;
-          if (currentBox == null) return;
+          if (currentBox == null) {
+            _autoScrollTimer?.cancel();
+            _autoScrollTimer = null;
+            return;
+          }
 
           final currentLocal = currentBox.globalToLocal(_lastDragPosition!);
           final currentHeight = currentBox.size.height;
@@ -272,7 +297,9 @@ class _MainPanelState extends State<MainPanel> {
         },
       );
     } finally {
-      nameController.dispose();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        nameController.dispose();
+      });
     }
   }
 
@@ -469,6 +496,7 @@ class _MainPanelState extends State<MainPanel> {
                 return ListView.builder(
                   key: _listKey,
                   controller: _scrollController,
+                  cacheExtent: 1000.0,
                   padding: const EdgeInsets.all(20),
                   physics: const BouncingScrollPhysics(),
                   itemCount: widget.tracks.length,
@@ -859,8 +887,12 @@ class _DraggableTrackItem extends StatefulWidget {
   State<_DraggableTrackItem> createState() => _DraggableTrackItemState();
 }
 
-class _DraggableTrackItemState extends State<_DraggableTrackItem> {
+class _DraggableTrackItemState extends State<_DraggableTrackItem> with AutomaticKeepAliveClientMixin {
   bool _hoverAbove = true;
+  bool _isDragging = false;
+
+  @override
+  bool get wantKeepAlive => _isDragging;
 
   Widget _buildPositionBar(Color themeColor) {
     return Container(
@@ -880,14 +912,36 @@ class _DraggableTrackItemState extends State<_DraggableTrackItem> {
     );
   }
 
+  void _onDragStartInternal() {
+    if (!_isDragging) {
+      setState(() {
+        _isDragging = true;
+      });
+      updateKeepAlive();
+    }
+    widget.onDragStarted?.call();
+  }
+
+  void _onDragEndInternal() {
+    if (_isDragging) {
+      setState(() {
+        _isDragging = false;
+      });
+      updateKeepAlive();
+    }
+    widget.onDragEnd?.call();
+  }
+
   @override
   Widget build(BuildContext context) {
+    super.build(context);
     final themeColor = Provider.of<ThemeService>(context).themeColor;
 
-    return DragTarget<int>(
-      onWillAcceptWithDetails: (details) => details.data != widget.index,
+    return DragTarget<TrackDragData>(
+      onWillAcceptWithDetails: (details) => details.data.index != widget.index,
       onAcceptWithDetails: (details) {
-        final oldIndex = details.data;
+        _onDragEndInternal();
+        final oldIndex = details.data.index;
         final targetIndex = _hoverAbove ? widget.index : widget.index + 1;
         widget.onReorder(oldIndex, targetIndex);
       },
@@ -911,12 +965,13 @@ class _DraggableTrackItemState extends State<_DraggableTrackItem> {
             mainAxisSize: MainAxisSize.min,
             children: [
               if (isTargeted && _hoverAbove) _buildPositionBar(themeColor),
-              Draggable<int>(
-                data: widget.index,
-                onDragStarted: widget.onDragStarted,
+              Draggable<TrackDragData>(
+                data: TrackDragData(track: widget.track, index: widget.index),
+                onDragStarted: _onDragStartInternal,
                 onDragUpdate: (details) => widget.onDragUpdate?.call(details.globalPosition),
-                onDragEnd: (_) => widget.onDragEnd?.call(),
-                onDraggableCanceled: (_, _) => widget.onDragEnd?.call(),
+                onDragEnd: (_) => _onDragEndInternal(),
+                onDraggableCanceled: (_, _) => _onDragEndInternal(),
+                onDragCompleted: () => _onDragEndInternal(),
                 feedback: Material(
                   color: Colors.transparent,
                   child: Container(

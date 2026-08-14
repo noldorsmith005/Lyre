@@ -51,46 +51,34 @@ class PlaylistListScreen extends StatefulWidget {
 }
 
 class _PlaylistListScreenState extends State<PlaylistListScreen> {
-  final Map<int, List<int>> _playlistTrackIdsMap = {};
+  Map<int, List<Track>> _playlistTracksMap = {};
 
   @override
   void initState() {
     super.initState();
-    _loadPlaylistThumbnails();
+    _loadPlaylistTracks();
   }
 
   @override
   void didUpdateWidget(covariant PlaylistListScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.playlists != widget.playlists) {
-      _loadPlaylistThumbnails();
+      _loadPlaylistTracks();
     }
   }
 
-  Future<void> _loadPlaylistThumbnails() async {
+  Future<void> _loadPlaylistTracks() async {
+    final Map<int, List<Track>> map = {};
     for (final playlist in widget.playlists) {
       try {
         final tracks = await widget.mediaHandler.loadPlaylistTracks(playlist.playlistID);
-        if (mounted) {
-          final List<int> ids = [];
-          if (tracks.isNotEmpty) {
-            final n = tracks.length;
-            final i0 = 0;
-            final i1 = (n * 0.25).floor().clamp(0, n - 1);
-            final i2 = (n * 0.50).floor().clamp(0, n - 1);
-            final i3 = n - 1;
-            ids.addAll([
-              tracks[i0].trackID,
-              tracks[i1].trackID,
-              tracks[i2].trackID,
-              tracks[i3].trackID,
-            ]);
-          }
-          setState(() {
-            _playlistTrackIdsMap[playlist.playlistID] = ids;
-          });
-        }
+        map[playlist.playlistID] = List<Track>.from(tracks);
       } catch (_) {}
+    }
+    if (mounted) {
+      setState(() {
+        _playlistTracksMap = map;
+      });
     }
   }
 
@@ -381,7 +369,7 @@ class _PlaylistListScreenState extends State<PlaylistListScreen> {
                     itemCount: widget.playlists.length,
                     itemBuilder: (context, index) {
                       final playlist = widget.playlists[index];
-                      final trackIDs = _playlistTrackIdsMap[playlist.playlistID] ?? [];
+                      final tracks = _playlistTracksMap[playlist.playlistID];
 
                       return GestureDetector(
                         onTap: () async {
@@ -413,7 +401,7 @@ class _PlaylistListScreenState extends State<PlaylistListScreen> {
                               child: Stack(
                                 children: [
                                   PlaylistCoverImage(
-                                    trackIDs: trackIDs,
+                                    tracks: tracks,
                                     appDataPath: widget.appDataPath,
                                     width: double.infinity,
                                     height: double.infinity,
@@ -464,7 +452,9 @@ class _PlaylistListScreenState extends State<PlaylistListScreen> {
                                                 widget.onRenamePlaylist!(playlist, newName);
                                               }
                                             } finally {
-                                              controller.dispose();
+                                              WidgetsBinding.instance.addPostFrameCallback((_) {
+                                                controller.dispose();
+                                              });
                                             }
                                           } else if (value == 'delete' && widget.onDeletePlaylist != null) {
                                             widget.onDeletePlaylist!(playlist);

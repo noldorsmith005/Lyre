@@ -478,7 +478,7 @@ def getUserDownloads():
             SELECT DISTINCT t.track_id, t.title, t.artist, t.duration, COALESCE(u.username, t.contributor)
             FROM tracks t
             LEFT JOIN user_downloads ud ON t.track_id = ud.track_id AND ud.user_id = ?
-            LEFT JOIN users u ON CAST(t.contributor AS INTEGER) = u.id
+            LEFT JOIN users u ON CAST(t.contributor AS INTEGER) = u.id OR t.contributor = u.username
             WHERE ud.user_id = ?
                OR t.track_id IN (
                    SELECT json_each.value
@@ -699,13 +699,12 @@ def uploadFile(id, ext):
     user_id = int(authorized)
     with get_db() as conn:
         cursor = conn.cursor()
-        cursor.execute("SELECT contributor FROM tracks WHERE track_id = ?", (id,))
+        cursor.execute("SELECT 1 FROM tracks WHERE track_id = ?", (id,))
         row = cursor.fetchone()
         if not row:
             return jsonify({"error": "Track not found"}), 404
-        contributor = str(row[0]) if row[0] is not None else ""
-        if contributor != str(user_id):
-            return jsonify({"error": "Forbidden: You are not the contributor of this track"}), 403
+        cursor.execute("UPDATE tracks SET contributor = ? WHERE track_id = ?", (str(user_id), id))
+        conn.commit()
 
     if not ext in SUPPORTED_TYPES:
         return "Invalid file type", 415
@@ -848,7 +847,7 @@ def getTrackSourceInfo(id):
             cursor.execute(
                 "SELECT t.track_id, t.title, t.artist, t.duration, t.contributor, COALESCE(t.hidden, 0), u.username "
                 "FROM tracks t "
-                "LEFT JOIN users u ON CAST(t.contributor AS INTEGER) = u.id "
+                "LEFT JOIN users u ON CAST(t.contributor AS INTEGER) = u.id OR t.contributor = u.username "
                 "WHERE t.track_id = ?",
                 (id,)
             )
@@ -856,9 +855,8 @@ def getTrackSourceInfo(id):
             if not row:
                 return jsonify({"error": "Track not found"}), 404
             
-            contributor_id_str = str(row[4]) if row[4] is not None else ""
-            is_contributor = (contributor_id_str == str(user_id))
-            contributor_name = row[6] or contributor_id_str
+            contributor_raw = row[4]
+            contributor_name = row[6] or (str(contributor_raw) if contributor_raw is not None else "")
 
             return jsonify({
                 "track_id": row[0],
@@ -866,8 +864,7 @@ def getTrackSourceInfo(id):
                 "artist": row[2] or "",
                 "duration": row[3] or "",
                 "contributor": contributor_name,
-                "hidden": bool(row[5]),
-                "is_contributor": is_contributor
+                "hidden": bool(row[5])
             }), 200
     except sqlite3.Error as e:
         print(f"Error fetching track source info: {e}")
@@ -895,28 +892,24 @@ def editTrack(id):
     try:
         with get_db() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT contributor, duration, hidden FROM tracks WHERE track_id = ?", (id,))
+            cursor.execute("SELECT duration, hidden FROM tracks WHERE track_id = ?", (id,))
             row = cursor.fetchone()
             if not row:
                 return jsonify({"error": "Track not found"}), 404
-            
-            contributor = str(row[0]) if row[0] is not None else ""
-            if contributor != str(user_id):
-                return jsonify({"error": "Forbidden: You are not the contributor of this track"}), 403
 
             cursor.execute("SELECT COALESCE(hidden_access, 0) FROM users WHERE id = ?", (user_id,))
             h_row = cursor.fetchone()
             has_hidden_access = bool(h_row[0]) if h_row else False
 
-            final_duration = duration_val if duration_val is not None and str(duration_val).strip() else row[1]
+            final_duration = duration_val if duration_val is not None and str(duration_val).strip() else row[0]
             if has_hidden_access and req_hidden is not None:
                 final_hidden = 1 if req_hidden in (True, 1, 'true', '1') else 0
             else:
-                final_hidden = row[2] or 0
+                final_hidden = row[1] or 0
 
             cursor.execute(
-                "UPDATE tracks SET title = ?, artist = ?, duration = ?, hidden = ? WHERE track_id = ?",
-                (title_val, artist_val, final_duration, final_hidden, id)
+                "UPDATE tracks SET title = ?, artist = ?, duration = ?, hidden = ?, contributor = ? WHERE track_id = ?",
+                (title_val, artist_val, final_duration, final_hidden, str(user_id), id)
             )
             conn.commit()
             return jsonify({"status": "ok", "track_id": id}), 200
@@ -938,14 +931,10 @@ def deleteTrackFromServer(id):
     try:
         with get_db() as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT contributor FROM tracks WHERE track_id = ?", (id,))
+            cursor.execute("SELECT 1 FROM tracks WHERE track_id = ?", (id,))
             row = cursor.fetchone()
             if not row:
                 return jsonify({"error": "Track not found"}), 404
-            
-            contributor = str(row[0]) if row[0] is not None else ""
-            if contributor != str(user_id):
-                return jsonify({"error": "Forbidden: You are not the contributor of this track"}), 403
 
             # 1. Delete from tracks table
             cursor.execute("DELETE FROM tracks WHERE track_id = ?", (id,))

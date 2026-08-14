@@ -411,8 +411,9 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_currentPlaylist == null) return;
     final confirmed = await ConfirmationDialog.show(
       context,
-      title: 'Confirm',
-      message: 'Are you sure you want to delete ${_currentPlaylist!.title}?',
+      title: 'Delete Playlist',
+      message: 'Are you sure you want to delete "${_currentPlaylist!.title}"?',
+      confirmText: 'Delete',
     );
     if (confirmed == true) {
       await widget.mediaHandler.deletePlaylist(_currentPlaylist!.playlistID);
@@ -582,6 +583,28 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  Future<void> _onAddTrackToPlaylist(Playlist playlist, Track track) async {
+    final list = List<int>.from(_playlistTracksMap[playlist.playlistID] ?? []);
+    if (!list.contains(track.trackID)) {
+      list.add(track.trackID);
+      _playlistTracksMap[playlist.playlistID] = list;
+      setState(() {});
+      await widget.mediaHandler.addToPlaylist(playlist.playlistID, track.trackID);
+      if (_currentPlaylist != null && _currentPlaylist!.playlistID == playlist.playlistID) {
+        await _loadPlaylistTracks(_currentPlaylist!);
+      }
+      if (mounted) {
+        ScaffoldMessenger.of(context).hideCurrentSnackBar();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Added "${track.title}" to playlist "${playlist.title}"'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final audioService = context.watch<AudioPlayerService>();
@@ -602,6 +625,7 @@ class _HomeScreenState extends State<HomeScreen> {
               onPlaylistSelected: _loadPlaylistTracks,
               onCreatePlaylist: _onCreatePlaylist,
               selectedPlaylistId: _currentPlaylist?.playlistID.toString(),
+              onAddTrackToPlaylist: _onAddTrackToPlaylist,
             ),
           ),
           // Main Panel

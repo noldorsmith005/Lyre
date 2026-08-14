@@ -51,6 +51,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget build(BuildContext context) {
     final themeService = context.watch<ThemeService>();
     final themeColor = themeService.themeColor;
+    final bottomInset = MediaQuery.of(context).padding.bottom;
 
     final List<Map<String, dynamic>> themeOptions = [
       {'key': 'red', 'name': 'Red', 'color': const Color.fromARGB(255, 200, 30, 30)},
@@ -73,12 +74,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
         elevation: 0,
       ),
-      body: Scrollbar(
-        controller: _scrollController,
-        child: SingleChildScrollView(
+      body: SafeArea(
+        top: false,
+        child: Scrollbar(
           controller: _scrollController,
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(20.0),
+          child: SingleChildScrollView(
+            controller: _scrollController,
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: EdgeInsets.fromLTRB(20.0, 20.0, 20.0, 40.0 + bottomInset),
           child: Center(
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 800),
@@ -460,12 +463,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
           ],
         ),
-              ),
-            ),
-          ),
-        ),
       ),
-    );
+    ),
+  ),
+),
+),
+),
+);
   }
 }
 

@@ -111,10 +111,16 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> with WidgetsBinding
   }
 
   void _loadPlaylists() async {
-    final playlists = await widget.mediaHandler.loadPlaylists();
-    setState(() {
-      _playlists = playlists;
-    });
+    try {
+      final playlists = await widget.mediaHandler.loadPlaylists();
+      if (mounted) {
+        setState(() {
+          _playlists = playlists;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error loading mobile playlists: $e');
+    }
   }
 
   void _showSnackBar(String message, {bool isError = false}) {
@@ -182,8 +188,16 @@ class _MobileHomeScreenState extends State<MobileHomeScreen> with WidgetsBinding
   }
 
   void _onDeletePlaylist(Playlist playlist) async {
-    await widget.mediaHandler.deletePlaylist(playlist.playlistID);
-    _loadPlaylists();
+    final confirmed = await ConfirmationDialog.show(
+      context,
+      title: 'Delete Playlist',
+      message: 'Are you sure you want to delete "${playlist.title}"?',
+      confirmText: 'Delete',
+    );
+    if (confirmed == true) {
+      await widget.mediaHandler.deletePlaylist(playlist.playlistID);
+      _loadPlaylists();
+    }
   }
 
   void _onRenamePlaylist(Playlist playlist, String newName) async {

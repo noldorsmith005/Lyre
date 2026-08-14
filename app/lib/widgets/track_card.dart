@@ -150,7 +150,7 @@ class _TrackCardState extends State<TrackCard> {
 
     if (!mounted) return;
 
-    final isContributor = sourceInfo?.isContributor ?? false;
+    final canEditSource = widget.isServerConnected && widget.serverClient != null;
     final isDownloaded = widget.isDownloaded;
 
     showMenu(
@@ -172,7 +172,7 @@ class _TrackCardState extends State<TrackCard> {
       items: [
         _TrackOptionsMenuContent(
           isDownloaded: isDownloaded,
-          isContributor: isContributor,
+          canEditSource: canEditSource,
           themeColor: themeColor,
           onRemoveDownload: () {
             Navigator.of(context).pop();
@@ -473,14 +473,14 @@ class _HoverIconButtonState extends State<_HoverIconButton> {
 
 class _TrackOptionsMenuContent extends PopupMenuEntry<Never> {
   final bool isDownloaded;
-  final bool isContributor;
+  final bool canEditSource;
   final Color themeColor;
   final VoidCallback onRemoveDownload;
   final VoidCallback onEditSource;
 
   const _TrackOptionsMenuContent({
     required this.isDownloaded,
-    required this.isContributor,
+    required this.canEditSource,
     required this.themeColor,
     required this.onRemoveDownload,
     required this.onEditSource,
@@ -490,7 +490,7 @@ class _TrackOptionsMenuContent extends PopupMenuEntry<Never> {
   double get height {
     int count = 0;
     if (isDownloaded) count++;
-    if (isContributor) count++;
+    if (canEditSource) count++;
     if (count == 0) count = 1;
     return count * 44.0;
   }
@@ -514,12 +514,12 @@ class _TrackOptionsMenuContentState extends State<_TrackOptionsMenuContent> {
           label: 'Remove from downloads',
           iconColor: Colors.white70,
           onTap: widget.onRemoveDownload,
-          isLast: !widget.isContributor,
+          isLast: !widget.canEditSource,
         ),
       );
     }
 
-    if (widget.isContributor) {
+    if (widget.canEditSource) {
       items.add(
         _TrackActionRowItem(
           icon: Icons.edit_note_rounded,

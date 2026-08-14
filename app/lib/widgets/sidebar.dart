@@ -1,15 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/playlist.dart';
+import '../models/track.dart';
 import '../services/theme_service.dart';
-
-
+import 'main_panel.dart';
 
 class Sidebar extends StatefulWidget {
   final List<Playlist> playlists;
   final Function(Playlist) onPlaylistSelected;
   final VoidCallback onCreatePlaylist;
   final String? selectedPlaylistId;
+  final Function(Playlist, Track)? onAddTrackToPlaylist;
 
   const Sidebar({
     super.key,
@@ -17,6 +18,7 @@ class Sidebar extends StatefulWidget {
     required this.onPlaylistSelected,
     required this.onCreatePlaylist,
     this.selectedPlaylistId,
+    this.onAddTrackToPlaylist,
   });
 
   @override
@@ -80,6 +82,7 @@ class _SidebarState extends State<Sidebar> {
                   playlist: playlist,
                   isSelected: isSelected,
                   onTap: () => widget.onPlaylistSelected(playlist),
+                  onAddTrackToPlaylist: widget.onAddTrackToPlaylist,
                 );
               },
             ),
@@ -144,11 +147,13 @@ class _PlaylistListItem extends StatefulWidget {
   final Playlist playlist;
   final bool isSelected;
   final VoidCallback onTap;
+  final Function(Playlist, Track)? onAddTrackToPlaylist;
 
   const _PlaylistListItem({
     required this.playlist,
     required this.isSelected,
     required this.onTap,
+    this.onAddTrackToPlaylist,
   });
 
   @override
@@ -162,43 +167,57 @@ class __PlaylistListItemState extends State<_PlaylistListItem> {
   Widget build(BuildContext context) {
     final themeColor = context.watch<ThemeService>().themeColor;
 
-    final bgColor = widget.isSelected
-        ? const Color(0xFF141414)
-        : (_isHovered ? const Color(0xFF0F0F0F) : Colors.transparent);
-        
-    final textColor = widget.isSelected
-        ? Colors.white
-        : (_isHovered ? Colors.white : const Color(0xFFB3B3B3));
+    return DragTarget<TrackDragData>(
+      onWillAcceptWithDetails: (details) => widget.onAddTrackToPlaylist != null,
+      onAcceptWithDetails: (details) {
+        widget.onAddTrackToPlaylist?.call(widget.playlist, details.data.track);
+      },
+      builder: (context, candidateData, rejectedData) {
+        final isHovering = candidateData.isNotEmpty;
 
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          margin: const EdgeInsets.only(bottom: 4),
-          padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: BorderRadius.circular(6),
-            border: widget.isSelected
-                ? Border(left: BorderSide(color: themeColor, width: 4.0))
-                : null,
-          ),
-          child: Text(
-            widget.playlist.title,
-            style: TextStyle(
-              color: textColor,
-              fontSize: 16,
-              fontWeight: widget.isSelected ? FontWeight.bold : FontWeight.w500,
+        final bgColor = isHovering
+            ? themeColor.withValues(alpha: 0.2)
+            : (widget.isSelected
+                ? const Color(0xFF141414)
+                : (_isHovered ? const Color(0xFF0F0F0F) : Colors.transparent));
+            
+        final textColor = widget.isSelected || isHovering
+            ? Colors.white
+            : (_isHovered ? Colors.white : const Color(0xFFB3B3B3));
+
+        return MouseRegion(
+          onEnter: (_) => setState(() => _isHovered = true),
+          onExit: (_) => setState(() => _isHovered = false),
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            onTap: widget.onTap,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 150),
+              margin: const EdgeInsets.only(bottom: 4),
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+              decoration: BoxDecoration(
+                color: bgColor,
+                borderRadius: BorderRadius.circular(6),
+                border: isHovering
+                    ? Border.all(color: themeColor, width: 1.5)
+                    : (widget.isSelected
+                        ? Border(left: BorderSide(color: themeColor, width: 4.0))
+                        : null),
+              ),
+              child: Text(
+                widget.playlist.title,
+                style: TextStyle(
+                  color: textColor,
+                  fontSize: 16,
+                  fontWeight: widget.isSelected || isHovering ? FontWeight.bold : FontWeight.w500,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
