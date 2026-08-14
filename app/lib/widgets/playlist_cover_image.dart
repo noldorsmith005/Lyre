@@ -22,8 +22,8 @@ class PlaylistCoverImage extends StatelessWidget {
     this.fallback,
   });
 
-  List<int> _extractCollageTrackIDs() {
-    if (tracks != null && tracks!.isNotEmpty) {
+  List<int>? _extractCollageTrackIDs() {
+    if (tracks != null && tracks!.length >= 4) {
       final n = tracks!.length;
       final i0 = 0;
       final i1 = (n * 0.25).floor().clamp(0, n - 1);
@@ -35,10 +35,7 @@ class PlaylistCoverImage extends StatelessWidget {
         tracks![i2].trackID,
         tracks![i3].trackID,
       ];
-    } else if (trackIDs != null && trackIDs!.isNotEmpty) {
-      if (trackIDs!.length >= 4) {
-        return trackIDs!.sublist(0, 4);
-      }
+    } else if (trackIDs != null && trackIDs!.length >= 4) {
       final n = trackIDs!.length;
       final i0 = 0;
       final i1 = (n * 0.25).floor().clamp(0, n - 1);
@@ -51,7 +48,7 @@ class PlaylistCoverImage extends StatelessWidget {
         trackIDs![i3],
       ];
     }
-    return [];
+    return null;
   }
 
   Widget _buildFallback(double? effectiveWidth, double? effectiveHeight) {
@@ -97,11 +94,45 @@ class PlaylistCoverImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final ids = _extractCollageTrackIDs();
-    if (ids.isEmpty) {
+    final totalTracks = (tracks != null ? tracks!.length : (trackIDs != null ? trackIDs!.length : 0));
+    if (totalTracks == 0) {
       return _buildFallback(width, height);
     }
 
+    if (totalTracks < 4) {
+      final firstTrackID = tracks != null && tracks!.isNotEmpty
+          ? tracks!.first.trackID
+          : (trackIDs != null && trackIDs!.isNotEmpty ? trackIDs!.first : null);
+      final iconSize = width != null ? (width! * 0.4).clamp(16.0, 48.0) : 32.0;
+
+      return Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: const Color(0xFF1E1E1E),
+          borderRadius: borderRadius ?? BorderRadius.circular(8),
+          border: Border.all(color: const Color(0xFF2A2A2A)),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: TrackCoverImage(
+          trackID: firstTrackID,
+          appDataPath: appDataPath,
+          width: double.infinity,
+          height: double.infinity,
+          fit: BoxFit.cover,
+          fallback: fallback ??
+              Center(
+                child: Icon(
+                  Icons.music_note,
+                  size: iconSize,
+                  color: const Color(0xFF555555),
+                ),
+              ),
+        ),
+      );
+    }
+
+    final ids = _extractCollageTrackIDs()!;
     final tileIconSize = width != null ? (width! * 0.2).clamp(12.0, 24.0) : 16.0;
 
     return Container(
