@@ -474,22 +474,22 @@ class ServerClient {
         progress: 0.30,
       ));
 
-      // 1. Sync playlists from server first so all playlist track IDs are registered in local DB.
-      final serverPlaylists = await pullSyncPlaylists();
-      if (serverPlaylists != null) {
-        final hasUnsyncedLocal = await mediaHandler.syncLocalPlaylists(serverPlaylists);
-        if (hasUnsyncedLocal) {
-          await pushLocalPlaylists(internal: true);
-        }
-      }
-
-      // 2. Fetch server track metadata manifest and upsert into DB for all tracks.
+      // 1. Fetch server track metadata manifest and upsert into DB for all tracks.
       final serverTracks = await getUserDownloadedTracks();
       final serverTrackIds = <int>{};
       if (serverTracks != null) {
         for (final st in serverTracks) {
           serverTrackIds.add(st.trackID);
           await mediaHandler.upsertTrackMetadata(st);
+        }
+      }
+
+      // 2. Sync playlists from server.
+      final serverPlaylists = await pullSyncPlaylists();
+      if (serverPlaylists != null) {
+        final hasUnsyncedLocal = await mediaHandler.syncLocalPlaylists(serverPlaylists);
+        if (hasUnsyncedLocal) {
+          await pushLocalPlaylists(internal: true);
         }
       }
 
