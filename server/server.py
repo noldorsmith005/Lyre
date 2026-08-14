@@ -407,6 +407,30 @@ def pushSyncPlaylists():
     return jsonify({"status": "success"}), 200
 
 
+@app.post("/sync/playlists/clear_all")
+def clearAllPlaylists():
+    auth_token = request.headers.get("AppToken")
+    if auth_token != APP_TOKEN:
+        return "Invalid App Token", 401
+
+    authorized = authUser(request)
+    if authorized == False:
+        return "Unauthorized", 401
+
+    user_id = int(authorized)
+    with get_db() as conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute("DELETE FROM user_playlists WHERE user_id = ?", (user_id,))
+            conn.commit()
+        except Exception as e:
+            conn.rollback()
+            print(f"[ERROR] Failed to clear user playlists: {e}")
+            return jsonify({"error": "Failed to clear playlists"}), 500
+
+    return jsonify({"status": "success"}), 200
+
+
 @app.get("/sync/pull")
 def pullSyncPlaylists():
     auth_token = request.headers.get("AppToken")

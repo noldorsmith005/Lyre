@@ -7,7 +7,7 @@ import '../services/theme_service.dart';
 import '../widgets/confirmation_dialog.dart';
 import 'mobile/search_screen.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   final VoidCallback? onLogoutPressed;
   final ServerClient? serverClient;
   final dynamic mediaHandler;
@@ -34,6 +34,13 @@ class SettingsScreen extends StatelessWidget {
   });
 
   @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  bool _isResettingTracking = false;
+
+  @override
   Widget build(BuildContext context) {
     final themeService = context.watch<ThemeService>();
     final themeColor = themeService.themeColor;
@@ -45,7 +52,8 @@ class SettingsScreen extends StatelessWidget {
       {'key': 'purple', 'name': 'Purple', 'color': const Color(0xFF4A148C)},
     ];
 
-    final serverClient = this.serverClient;
+    final serverClient = widget.serverClient;
+    final mediaHandler = widget.mediaHandler;
 
     return Scaffold(
       backgroundColor: const Color(0xFF0A0A0A),
@@ -202,8 +210,8 @@ class SettingsScreen extends StatelessWidget {
                           final unused = await mediaHandler.getUnusedDownloadedTracks();
                           if (context.mounted) {
                             Navigator.of(context).pop();
-                            if (onViewUnusedDownloads != null) {
-                              onViewUnusedDownloads!(unused.cast<Track>());
+                            if (widget.onViewUnusedDownloads != null) {
+                              widget.onViewUnusedDownloads!(unused.cast<Track>());
                             } else {
                               Navigator.push(
                                 context,
@@ -211,12 +219,12 @@ class SettingsScreen extends StatelessWidget {
                                   builder: (context) => SearchScreen(
                                     mediaHandler: mediaHandler,
                                     serverClient: serverClient,
-                                    isServerConnected: isServerConnected,
-                                    onRlsPressed: onRlsPressed,
-                                    onDownloadTrack: onDownloadTrack,
-                                    onRemoveDownloadTrack: onRemoveDownloadTrack,
-                                    appDataPath: appDataPath ?? '',
-                                    allPlaylists: playlists ?? [],
+                                    isServerConnected: widget.isServerConnected,
+                                    onRlsPressed: widget.onRlsPressed,
+                                    onDownloadTrack: widget.onDownloadTrack,
+                                    onRemoveDownloadTrack: widget.onRemoveDownloadTrack,
+                                    appDataPath: widget.appDataPath ?? '',
+                                    allPlaylists: widget.playlists ?? [],
                                     initialTracks: unused.cast<Track>(),
                                   ),
                                 ),
@@ -281,6 +289,90 @@ class SettingsScreen extends StatelessWidget {
                 ),
               ),
             ],
+            if (serverClient != null && serverClient.registered()) ...[
+              const SizedBox(height: 24),
+              const Text(
+                "Server Tracking",
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.2,
+                  color: Colors.grey,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                decoration: BoxDecoration(
+                  color: const Color(0xFF14141E),
+                  borderRadius: BorderRadius.circular(16.0),
+                  border: Border.all(color: Colors.white.withValues(alpha: 0.08)),
+                ),
+                padding: const EdgeInsets.all(20.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      "Reset cloud-tracked playlists and download records by clearing server tracking and bulk re-syncing from this device.",
+                      style: TextStyle(fontSize: 13, color: Colors.grey[400]),
+                    ),
+                    const SizedBox(height: 16),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.grey[300],
+                          side: BorderSide(color: Colors.white.withValues(alpha: 0.2)),
+                          padding: const EdgeInsets.symmetric(vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        onPressed: _isResettingTracking
+                            ? null
+                            : () async {
+                                final messenger = ScaffoldMessenger.of(context);
+                                final confirmed = await ConfirmationDialog.show(
+                                  context,
+                                  title: 'Reset Server Tracking',
+                                  message:
+                                      'Are you sure you want to reset server tracking? This will clear all tracked playlists and downloads on the server and re-sync them from this device. Play history and metrics will not be affected.',
+                                  confirmText: 'Reset Tracking',
+                                );
+                                if (confirmed != true || !mounted) return;
+                                setState(() => _isResettingTracking = true);
+                                final success = await serverClient.resetServerTracking();
+                                if (!mounted) return;
+                                setState(() => _isResettingTracking = false);
+                                messenger.showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      success
+                                          ? 'Server tracking reset and re-synced successfully.'
+                                          : 'Failed to reset server tracking. Check server connection.',
+                                    ),
+                                  ),
+                                );
+                              },
+                        icon: _isResettingTracking
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                ),
+                              )
+                            : const Icon(Icons.cloud_sync_rounded, size: 18),
+                        label: Text(
+                          _isResettingTracking ? 'Resetting Tracking...' : 'Reset Server Tracking',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
             const SizedBox(height: 24),
             const Text(
               "Account",
@@ -318,7 +410,7 @@ class SettingsScreen extends StatelessWidget {
                       ),
                     ],
                   ),
-                  if (onLogoutPressed != null && (serverClient == null || serverClient.registered())) ...[
+                  if (widget.onLogoutPressed != null && (serverClient == null || serverClient.registered())) ...[
                     const SizedBox(height: 16),
                     const Divider(color: Color(0xFF262626), height: 1),
                     const SizedBox(height: 16),
@@ -337,7 +429,7 @@ class SettingsScreen extends StatelessWidget {
                         ),
                         onPressed: () {
                           Navigator.of(context).pop();
-                          onLogoutPressed!();
+                          widget.onLogoutPressed!();
                         },
                         icon: const Icon(Icons.logout_rounded, size: 20),
                         label: const Text(

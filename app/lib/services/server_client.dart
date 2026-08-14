@@ -834,6 +834,21 @@ class ServerClient {
     ).timeout(const Duration(seconds: 10));
   }
 
+  Future<bool> clearAllPlaylistsServerSide() async {
+    if (!registered() || appUrl == null || !await ping()) return false;
+    try {
+      final targetUrl = '$appUrl/sync/playlists/clear_all';
+      final response = await http.post(
+        Uri.parse(targetUrl),
+        headers: _headers(),
+      ).timeout(const Duration(seconds: 8));
+      return response.statusCode == 200;
+    } catch (e) {
+      debugPrint('Clear all playlists server-side failed: $e');
+      return false;
+    }
+  }
+
   Future<void> removeAllTrackedDownloadsServerSide() async {
     if (!registered() || appUrl == null || !await ping()) return;
     try {
@@ -844,6 +859,56 @@ class ServerClient {
       ).timeout(const Duration(seconds: 8));
     } catch (e) {
       debugPrint('Clear all tracked downloads server-side failed: $e');
+    }
+  }
+
+  Future<bool> resetServerTracking() async {
+    if (!registered() || appUrl == null || !await ping()) return false;
+    try {
+      // Stage 1: Clear all tracked playlists and downloads for this user server-side
+      await removeAllTrackedDownloadsServerSide();
+      await clearAllPlaylistsServerSide();
+
+      // Clear any pending sync queue items to prevent conflict
+      await mediaHandler.clearAllPendingDownloads();
+      await mediaHandler.clearAllPendingRemoveDownloads();
+
+      // Stage 2: Bulk re-sync all playlists and downloads to the server again
+      final playlists = await mediaHandler.loadPlaylists();
+      List<Map<String, dynamic>> syncPayload = [];
+
+      for (var pl in playlists) {
+        final tracks = await mediaHandler.loadPlaylistTracks(pl.playlistID);
+        final trackIds = tracks.map((t) => t.trackID).toList();
+        syncPayload.add({
+          'playlist_id': pl.playlistID,
+          'name': pl.title,
+          'tracks': trackIds,
+        });
+      }
+
+      final playlistSuccess = await pushSyncPlaylists(syncPayload);
+      if (playlistSuccess) {
+        await mediaHandler.setPendingPlaylistPush(false);
+      } else {
+        await mediaHandler.setPendingPlaylistPush(true);
+      }
+
+      final allTracks = await mediaHandler.getAllTracks();
+      final downloadedTrackIds = allTracks
+          .where((t) => t.downloaded || mediaHandler.isTrackDownloaded(t.trackID))
+          .map((t) => t.trackID)
+          .toSet()
+          .toList();
+
+      if (downloadedTrackIds.isNotEmpty) {
+        await _batchUpdateDownloads(downloadedTrackIds);
+      }
+
+      return playlistSuccess;
+    } catch (e) {
+      debugPrint('Reset server tracking failed: $e');
+      return false;
     }
   }
 
