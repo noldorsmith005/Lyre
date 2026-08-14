@@ -308,7 +308,7 @@ class ServerClient {
   }
 
   Future<bool> validateSession() async {
-    if (!registered() || appUrl == null) return false;
+    if (!registered() || appUrl == null || !await ping()) return false;
     try {
       final targetUrl = '$appUrl/auth/validate';
       final response = await http.get(
@@ -333,7 +333,7 @@ class ServerClient {
   }
 
   Future<bool> pushSyncPlaylists(List<Map<String, dynamic>> playlists) async {
-    if (!registered() || appUrl == null) return false;
+    if (!registered() || appUrl == null || !await ping()) return false;
     try {
       final targetUrl = '$appUrl/sync/push';
       final response = await http.post(
@@ -348,7 +348,7 @@ class ServerClient {
   }
 
   Future<List<dynamic>?> pullSyncPlaylists() async {
-    if (!registered() || appUrl == null) return null;
+    if (!registered() || appUrl == null || !await ping()) return null;
     try {
       final targetUrl = '$appUrl/sync/pull';
       final response = await http.get(
@@ -643,7 +643,7 @@ class ServerClient {
   }
 
   Future<List<Track>?> getUserDownloadedTracks() async {
-    if (!registered() || appUrl == null) return null;
+    if (!registered() || appUrl == null || !await ping()) return null;
     try {
       final targetUrl = '$appUrl/sync/user_downloads';
       final response = await http.get(
@@ -815,6 +815,7 @@ class ServerClient {
   }
 
   Future<void> _batchUpdateDownloads(List<int> trackIds) async {
+    if (!registered() || appUrl == null || !await ping()) return;
     final targetUrl = '$appUrl/tracks/downloads/update_batch';
     await http.post(
       Uri.parse(targetUrl),
@@ -824,6 +825,7 @@ class ServerClient {
   }
 
   Future<void> _batchRemoveDownloads(List<int> trackIds) async {
+    if (!registered() || appUrl == null || !await ping()) return;
     final targetUrl = '$appUrl/tracks/downloads/remove_batch';
     await http.post(
       Uri.parse(targetUrl),
@@ -833,7 +835,7 @@ class ServerClient {
   }
 
   Future<void> removeAllTrackedDownloadsServerSide() async {
-    if (!registered() || appUrl == null) return;
+    if (!registered() || appUrl == null || !await ping()) return;
     try {
       final targetUrl = '$appUrl/tracks/downloads/clear_all';
       await http.post(
@@ -860,6 +862,7 @@ class ServerClient {
     if (!registered() || appUrl == null) return [];
     final cleanFilter = filter.trim();
     if (cleanFilter.isEmpty) return [];
+    if (!await ping()) return [];
     try {
       final encodedFilter = Uri.encodeComponent(cleanFilter);
       final response = await http.get(
@@ -884,6 +887,7 @@ class ServerClient {
   }
 
   Future<bool> downloadTrack(Track track, {bool updateServerTracking = true, HttpClient? sharedClient}) async {
+    if (!registered() || appUrl == null || !await ping()) return false;
     final current = Set<int>.from(downloadingTrackIdsNotifier.value);
     current.add(track.trackID);
     downloadingTrackIdsNotifier.value = current;
@@ -947,6 +951,9 @@ class ServerClient {
     bool hidden = false,
     Function(double progress, String status)? onProgress,
   }) async {
+    if (!registered() || appUrl == null || !await ping()) {
+      throw Exception('Server unreachable.');
+    }
     onProgress?.call(0.10, 'Calculating audio duration...');
     final player = AudioPlayer();
     try {
@@ -996,11 +1003,15 @@ class ServerClient {
     await mediaHandler.deleteTrack(track);
 
     if (updateServerTracking) {
-      try {
-        await _updateRemoveDownloads(track.trackID);
-      } catch (e) {
-        debugPrint('Remove track from downloads failed: $e');
+      if (!await ping()) {
         await mediaHandler.addPendingRemoveDownload(track.trackID);
+      } else {
+        try {
+          await _updateRemoveDownloads(track.trackID);
+        } catch (e) {
+          debugPrint('Remove track from downloads failed: $e');
+          await mediaHandler.addPendingRemoveDownload(track.trackID);
+        }
       }
     }
 
@@ -1008,7 +1019,7 @@ class ServerClient {
   }
 
   Future<bool> syncHistoryToServer(List<Map<String, dynamic>> historyItems) async {
-    if (!registered() || appUrl == null || historyItems.isEmpty) return false;
+    if (!registered() || appUrl == null || historyItems.isEmpty || !await ping()) return false;
     try {
       final response = await http.post(
         Uri.parse('$appUrl/history/sync'),
@@ -1022,7 +1033,7 @@ class ServerClient {
   }
 
   Future<Map<String, dynamic>?> fetchServerStats() async {
-    if (!registered() || appUrl == null || userID == null) return null;
+    if (!registered() || appUrl == null || userID == null || !await ping()) return null;
     try {
       final response = await http.get(
         Uri.parse('$appUrl/stats/$userID'),
@@ -1038,7 +1049,7 @@ class ServerClient {
   }
 
   Future<bool> ackServerStats() async {
-    if (!registered() || appUrl == null || userID == null) return false;
+    if (!registered() || appUrl == null || userID == null || !await ping()) return false;
     try {
       final response = await http.post(
         Uri.parse('$appUrl/stats/ack/$userID'),
