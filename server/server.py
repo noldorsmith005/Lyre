@@ -451,12 +451,17 @@ def getUserDownloads():
     with get_db() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT t.track_id, t.title, t.artist, t.duration, COALESCE(u.username, t.contributor)
+            SELECT DISTINCT t.track_id, t.title, t.artist, t.duration, COALESCE(u.username, t.contributor)
             FROM tracks t
-            JOIN user_downloads ud ON t.track_id = ud.track_id
+            LEFT JOIN user_downloads ud ON t.track_id = ud.track_id AND ud.user_id = ?
             LEFT JOIN users u ON CAST(t.contributor AS INTEGER) = u.id
             WHERE ud.user_id = ?
-        """, (user_id,))
+               OR t.track_id IN (
+                   SELECT json_each.value
+                   FROM user_playlists up, json_each(up.tracks)
+                   WHERE up.user_id = ?
+               )
+        """, (user_id, user_id, user_id))
         for row in cursor.fetchall():
             tracks.append({
                 "trackID": row[0],

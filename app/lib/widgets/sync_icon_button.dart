@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../services/server_client.dart';
 import '../services/theme_service.dart';
-import 'sync_progress_dialog.dart';
 
 class SyncIconButton extends StatefulWidget {
   final ServerClient serverClient;
@@ -103,36 +102,25 @@ class _SyncIconButtonState extends State<SyncIconButton> with SingleTickerProvid
             return Padding(
               padding: widget.padding,
               child: Tooltip(
-                message: 'Syncing Library (Tap for progress)',
-                child: Material(
-                  color: Colors.transparent,
-                  shape: const CircleBorder(),
-                  clipBehavior: Clip.antiAlias,
-                  child: InkWell(
-                    onTap: () {
-                      SyncProgressDialog.show(context, widget.serverClient);
-                    },
-                    customBorder: const CircleBorder(),
-                    child: Container(
-                      width: widget.size,
-                      height: widget.size,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: const Color(0xFF181818),
-                        border: Border.all(
-                          color: themeColor.withValues(alpha: 0.4),
-                          width: 1.5,
-                        ),
-                      ),
-                      child: Center(
-                        child: RotationTransition(
-                          turns: Tween<double>(begin: 1.0, end: 0.0).animate(_rotationController),
-                          child: Icon(
-                            Icons.sync_rounded,
-                            color: themeColor,
-                            size: widget.size * 0.55,
-                          ),
-                        ),
+                message: 'Syncing Library',
+                child: Container(
+                  width: widget.size,
+                  height: widget.size,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: const Color(0xFF181818),
+                    border: Border.all(
+                      color: themeColor.withValues(alpha: 0.4),
+                      width: 1.5,
+                    ),
+                  ),
+                  child: Center(
+                    child: RotationTransition(
+                      turns: Tween<double>(begin: 1.0, end: 0.0).animate(_rotationController),
+                      child: Icon(
+                        Icons.sync_rounded,
+                        color: themeColor,
+                        size: widget.size * 0.55,
                       ),
                     ),
                   ),

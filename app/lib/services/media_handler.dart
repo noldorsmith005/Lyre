@@ -78,7 +78,7 @@ class MediaHandler {
     _db = await factory.openDatabase(
       dbPath,
       options: OpenDatabaseOptions(
-        version: 1,
+        version: 2,
         onCreate: (db, version) async {
           await db.execute('''
             CREATE TABLE IF NOT EXISTS playlist_ids (
@@ -96,7 +96,8 @@ class MediaHandler {
                 track_id   INTEGER PRIMARY KEY,
                 title      TEXT,
                 artist     TEXT,
-                duration   TEXT
+                duration   TEXT,
+                downloaded INTEGER DEFAULT 0
             )
           ''');
           await db.execute('''
@@ -149,6 +150,11 @@ class MediaHandler {
           await db.execute('''
             CREATE INDEX IF NOT EXISTS idx_listening_history_ts ON listening_history(timestamp)
           ''');
+        },
+        onUpgrade: (db, oldVersion, newVersion) async {
+          if (oldVersion < 2) {
+            await db.execute('ALTER TABLE tracks ADD COLUMN downloaded INTEGER DEFAULT 0');
+          }
         },
         onOpen: (db) async {
           try {
@@ -218,7 +224,7 @@ class MediaHandler {
         title: row['title'] as String,
         artist: row['artist'] as String,
         duration: row['duration'] as String,
-        downloaded: true,
+        downloaded: (row['downloaded'] as int? ?? 0) == 1,
         contributor: '',
       )).toList();
 
@@ -565,7 +571,7 @@ class MediaHandler {
     }
   }
 
-  Future<void> newTrack(Track track, {bool reloadCache = true}) async {
+  Future<void> newTrack(Track track, {bool reloadCache = true, bool downloaded = false}) async {
     try {
       await _db.insert(
         'tracks',
@@ -574,12 +580,134 @@ class MediaHandler {
           'title': track.title,
           'artist': track.artist,
           'duration': track.duration,
+          'downloaded': downloaded ? 1 : 0,
         },
         conflictAlgorithm: ConflictAlgorithm.ignore,
       );
       if (reloadCache) await loadAllIntoMemory();
     } catch (e) {
       debugPrint('Could not add track: $e');
+    }
+  }
+
+  /// Inserts or updates track metadata without changing download state for existing tracks.
+  Future<void> upsertTrackMetadata(Track track) async {
+    try {
+      final existing = await _db.query('tracks', where: 'track_id = ?', whereArgs: [track.trackID]);
+      if (existing.isEmpty) {
+        await _db.insert('tracks', {
+          'track_id': track.trackID,
+          'title': track.title,
+          'artist': track.artist,
+          'duration': track.duration,
+          'downloaded': 0,
+        });
+      } else {
+        await _db.update('tracks', {
+          'title': track.title,
+          'artist': track.artist,
+          'duration': track.duration,
+        }, where: 'track_id = ?', whereArgs: [track.trackID]);
+      }
+    } catch (e) {
+      debugPrint('Could not upsert track metadata: $e');
+    }
+  }
+
+  Future<void> markTrackDownloaded(int trackId) async {
+    try {
+      await _db.update('tracks', {'downloaded': 1}, where: 'track_id = ?', whereArgs: [trackId]);
+      await loadAllIntoMemory();
+      notifyPlaylistChanged();
+    } catch (e) {
+      debugPrint('Could not mark track as downloaded: $e');
+    }
+  }
+
+  Future<List<Track>> getUndownloadedTracks() async {
+    try {
+      final result = await _db.query('tracks', where: 'downloaded = 0');
+      return result.map((row) => Track(
+        trackID: row['track_id'] as int,
+        title: row['title'] as String? ?? '',
+        artist: row['artist'] as String? ?? '',
+        duration: row['duration'] as String? ?? '',
+        downloaded: false,
+        contributor: '',
+      )).toList();
+    } catch (e) {
+      debugPrint('Could not get undownloaded tracks: $e');
+      return [];
+    }
+  }
+
+  Future<void> resetTrackDownloadState(int trackId) async {
+    try {
+      await _db.update('tracks', {'downloaded': 0}, where: 'track_id = ?', whereArgs: [trackId]);
+      await loadAllIntoMemory();
+    } catch (e) {
+      debugPrint('Could not reset track download state: $e');
+    }
+  }
+
+  /// Scans local tracks for missing metadata (e.g. "Track {id}" placeholders) or corrupted/missing audio files.
+  Future<({List<Track> metadataBroken, List<Track> downloadBroken})> getBrokenTracks() async {
+    final metadataBroken = <Track>[];
+    final downloadBroken = <Track>[];
+    try {
+      final allTracks = await getAllTracks();
+      for (final track in allTracks) {
+        final isPlaceholder = track.title.trim() == 'Track ${track.trackID}' ||
+            track.title.trim().isEmpty ||
+            track.artist.trim() == 'Unknown' ||
+            track.artist.trim().isEmpty;
+        if (isPlaceholder) {
+          metadataBroken.add(track);
+        }
+
+        if (track.downloaded) {
+          final flacFile = File(p.join(_appDataPath, 'audio', '${track.trackID}.flac'));
+          final wavFile = File(p.join(_appDataPath, 'audio', '${track.trackID}.wav'));
+          bool hasAudio = false;
+          if (await flacFile.exists()) {
+            final len = await flacFile.length();
+            if (len > 0) hasAudio = true;
+          }
+          if (!hasAudio && await wavFile.exists()) {
+            final len = await wavFile.length();
+            if (len > 0) hasAudio = true;
+          }
+          if (!hasAudio) {
+            downloadBroken.add(track);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error scanning for broken tracks: $e');
+    }
+    return (metadataBroken: metadataBroken, downloadBroken: downloadBroken);
+  }
+
+  /// Removes tracks from the local DB and disk that are not in the given set of track IDs.
+  Future<List<Track>> removeTracksNotIn(Set<int> keepTrackIds) async {
+    try {
+      final allTracks = await getAllTracks();
+      final toRemove = allTracks.where((t) => !keepTrackIds.contains(t.trackID)).toList();
+      for (final track in toRemove) {
+        await _db.delete('playlist_tracks', where: 'track_id = ?', whereArgs: [track.trackID]);
+        await _db.delete('tracks', where: 'track_id = ?', whereArgs: [track.trackID]);
+        // Delete audio and cover files
+        final audioFlac = File(p.join(_appDataPath, 'audio', '${track.trackID}.flac'));
+        final audioWav = File(p.join(_appDataPath, 'audio', '${track.trackID}.wav'));
+        final cover = File(p.join(_appDataPath, 'cover', '${track.trackID}.jpg'));
+        if (await audioFlac.exists()) await audioFlac.delete();
+        if (await audioWav.exists()) await audioWav.delete();
+        if (await cover.exists()) await cover.delete();
+      }
+      return toRemove;
+    } catch (e) {
+      debugPrint('Could not remove stale tracks: $e');
+      return [];
     }
   }
 
@@ -644,10 +772,15 @@ class MediaHandler {
           // Clear and re-insert tracks for this playlist in sequence
           await txn.delete('playlist_tracks', where: 'playlist_id = ?', whereArgs: [pid]);
           for (int i = 0; i < trackIds.length; i++) {
+            final tid = trackIds[i];
+            await txn.rawInsert('''
+              INSERT OR IGNORE INTO tracks (track_id, title, artist, duration, downloaded)
+              VALUES (?, ?, ?, ?, 0)
+            ''', [tid, 'Track $tid', 'Unknown', '0:00']);
             await txn.insert('playlist_tracks', {
               'playlist_id': pid,
               'order_index': i + 1,
-              'track_id': trackIds[i],
+              'track_id': tid,
             });
           }
         }

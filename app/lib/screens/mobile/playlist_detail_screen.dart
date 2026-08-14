@@ -45,7 +45,18 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
   void initState() {
     super.initState();
     _playlist = widget.playlist;
+    widget.mediaHandler.addPlaylistChangedListener(_onPlaylistChanged);
     _loadTracks();
+  }
+
+  void _onPlaylistChanged() {
+    if (mounted) _loadTracks();
+  }
+
+  @override
+  void dispose() {
+    widget.mediaHandler.removePlaylistChangedListener(_onPlaylistChanged);
+    super.dispose();
   }
 
   Future<void> _loadTracks() async {

@@ -11,21 +11,7 @@ import 'listening_stats_service.dart';
 
 
 
-class SyncProgress {
-  final String status;
-  final double progress;
-  final String? detail;
-  final double? trackProgress;
-  final String? trackProgressLabel;
 
-  const SyncProgress({
-    required this.status,
-    required this.progress,
-    this.detail,
-    this.trackProgress,
-    this.trackProgressLabel,
-  });
-}
 
 class ServerClient {
   late String _appDataPath;
@@ -44,9 +30,7 @@ class ServerClient {
   final ValueNotifier<Set<int>> downloadingTrackIdsNotifier = ValueNotifier<Set<int>>({});
   final ValueNotifier<bool> isSyncingNotifier = ValueNotifier<bool>(false);
   final ValueNotifier<bool> isOfflineNotifier = ValueNotifier<bool>(false);
-  final ValueNotifier<SyncProgress> syncProgressNotifier = ValueNotifier<SyncProgress>(
-    const SyncProgress(status: 'Initializing sync...', progress: 0.0),
-  );
+
 
   bool isTrackDownloading(int trackID) => downloadingTrackIdsNotifier.value.contains(trackID);
 
@@ -359,6 +343,7 @@ class ServerClient {
       await mediaHandler.setPendingPlaylistPush(true);
       return false;
     }
+    if (_isSyncing && !internal) return false;
     if (!internal) {
       _isSyncing = true;
       isSyncingNotifier.value = true;
@@ -403,35 +388,19 @@ class ServerClient {
   bool _isSyncing = false;
   bool get isSyncing => _isSyncing;
 
-  Future<bool> performPullSync({void Function(SyncProgress progress)? onProgress}) async {
-    if (!registered() || appUrl == null || _isSyncing) {
-      final progress = const SyncProgress(status: 'Not registered, server missing, or sync in progress', progress: 1.0);
-      syncProgressNotifier.value = progress;
-      onProgress?.call(progress);
-      return false;
-    }
-
-    void reportProgress(SyncProgress progress) {
-      syncProgressNotifier.value = progress;
-      onProgress?.call(progress);
-    }
+  Future<bool> performPullSync() async {
+    if (!registered() || appUrl == null || _isSyncing) return false;
 
     _isSyncing = true;
     isSyncingNotifier.value = true;
     try {
-      reportProgress(const SyncProgress(status: 'Connecting to server...', progress: 0.05));
-
       final isOnline = await ping();
       if (!isOnline) {
-        debugPrint('Offline or server unreachable: Skipping startup pull sync.');
-        reportProgress(const SyncProgress(status: 'Server unreachable', progress: 1.0));
+        debugPrint('Offline or server unreachable: Skipping pull sync.');
         return false;
       }
 
-      reportProgress(const SyncProgress(status: 'Processing pending changes...', progress: 0.10));
-      final manifestFuture = getUserDownloadedTracks();
-
-      // Process pending offline download tracking (batch)
+      // Process pending offline changes
       final pendingDownloads = await mediaHandler.getPendingDownloads();
       if (pendingDownloads.isNotEmpty) {
         try {
@@ -448,92 +417,108 @@ class ServerClient {
         } catch (_) {}
       }
 
-      // Process pending offline playlist changes
       final hasPendingPush = await mediaHandler.hasPendingPlaylistPush();
       if (hasPendingPush) {
         await pushLocalPlaylists(internal: true);
       }
 
-      reportProgress(const SyncProgress(status: 'Preparing downloads...', progress: 0.15));
-      final serverTracks = await manifestFuture;
-      if (serverTracks != null) {
-        final serverTrackIds = serverTracks.map((t) => t.trackID).toSet();
-        final localTracks = await mediaHandler.getAllTracks();
-        final localTrackIds = localTracks.map((t) => t.trackID).toSet();
-
-        final tracksToDownload = serverTracks.where((st) => !localTrackIds.contains(st.trackID)).toList();
-        final tracksToRemove = localTracks.where((lt) => !serverTrackIds.contains(lt.trackID)).toList();
-
-        final totalTrackOps = tracksToDownload.length + tracksToRemove.length;
-        int completedOps = 0;
-
-        final syncClient = HttpClient()
-          ..connectionTimeout = const Duration(seconds: 15);
-
-        const int concurrency = 6;
-        try {
-          for (int i = 0; i < tracksToDownload.length; i += concurrency) {
-          final chunk = tracksToDownload.sublist(
-            i,
-            (i + concurrency > tracksToDownload.length) ? tracksToDownload.length : i + concurrency,
-          );
-          final progressVal = 0.20 + (0.50 * (completedOps / (totalTrackOps > 0 ? totalTrackOps : 1)));
-          reportProgress(SyncProgress(
-            status: concurrency > 1
-                ? 'Downloading tracks (${i + 1}-${i + chunk.length}/${tracksToDownload.length})'
-                : 'Downloading track (${i + 1}/${tracksToDownload.length})',
-            detail: chunk.map((t) => t.title).join(', '),
-            progress: progressVal,
-            trackProgress: completedOps / (totalTrackOps > 0 ? totalTrackOps : 1),
-            trackProgressLabel: '$completedOps of $totalTrackOps tracks',
-          ));
-          await Future.wait(chunk.map((st) => downloadTrack(st, updateServerTracking: false, sharedClient: syncClient)));
-          completedOps += chunk.length;
+      // ── Stage 1: Database Sync ──
+      // 1. Sync playlists from server first so all playlist track IDs are registered in local DB.
+      final serverPlaylists = await pullSyncPlaylists();
+      if (serverPlaylists != null) {
+        final hasUnsyncedLocal = await mediaHandler.syncLocalPlaylists(serverPlaylists);
+        if (hasUnsyncedLocal) {
+          await pushLocalPlaylists(internal: true);
         }
-
-        for (int i = 0; i < tracksToRemove.length; i++) {
-          final lt = tracksToRemove[i];
-          final progressVal = 0.20 + (0.50 * (completedOps / (totalTrackOps > 0 ? totalTrackOps : 1)));
-          reportProgress(SyncProgress(
-            status: 'Removing track (${i + 1}/${tracksToRemove.length})',
-            detail: '${lt.title} - ${lt.artist}',
-            progress: progressVal,
-            trackProgress: completedOps / (totalTrackOps > 0 ? totalTrackOps : 1),
-            trackProgressLabel: '$completedOps of $totalTrackOps tracks',
-          ));
-          await removeDownload(lt, updateServerTracking: false);
-          completedOps++;
-        }
-        } finally {
-          syncClient.close(force: true);
-        }
-        
-        reportProgress(const SyncProgress(status: 'Updating local library...', progress: 0.75));
-        await mediaHandler.loadAllIntoMemory();
       }
 
-      reportProgress(const SyncProgress(status: 'Syncing playlists & history...', progress: 0.85));
-      await Future.wait([
-        () async {
-          final serverPlaylists = await pullSyncPlaylists();
-          if (serverPlaylists != null) {
-            final hasUnsyncedLocal = await mediaHandler.syncLocalPlaylists(serverPlaylists);
-            if (hasUnsyncedLocal) {
-              await pushLocalPlaylists(internal: true);
+      // 2. Fetch server track metadata manifest and upsert into DB for all tracks.
+      final serverTracks = await getUserDownloadedTracks();
+      final serverTrackIds = <int>{};
+      if (serverTracks != null) {
+        for (final st in serverTracks) {
+          serverTrackIds.add(st.trackID);
+          await mediaHandler.upsertTrackMetadata(st);
+        }
+      }
+
+      // 3. Sync history
+      await ListeningStatsService.instance.syncLocalHistoryToServer(this);
+
+      // Reload cache and notify UI so new database tracks appear right away!
+      await mediaHandler.loadAllIntoMemory();
+      mediaHandler.notifyPlaylistChanged();
+
+      // ── Stage 2: Remove Stale Downloads ──
+      // Delete tracks and files that are no longer in the server manifest.
+      if (serverTrackIds.isNotEmpty) {
+        final removedTracks = await mediaHandler.removeTracksNotIn(serverTrackIds);
+        if (removedTracks.isNotEmpty) {
+          try {
+            await _batchRemoveDownloads(removedTracks.map((t) => t.trackID).toList());
+          } catch (_) {}
+          await mediaHandler.loadAllIntoMemory();
+          mediaHandler.notifyPlaylistChanged();
+        }
+      }
+
+      // ── Stage 3: Download Missing Tracks (Sequential) ──
+      // Download tracks one at a time where downloaded=false.
+      // Each completed download updates the DB and cache so the UI updates reactively.
+      final undownloaded = await mediaHandler.getUndownloadedTracks();
+      for (final track in undownloaded) {
+        final success = await downloadTrack(track, updateServerTracking: false);
+        if (success) {
+          await mediaHandler.markTrackDownloaded(track.trackID);
+        }
+      }
+
+      // ── Stage 4: Repair Broken Downloads & Metadata ──
+      // Fix placeholder titles ("Track {id}"), missing artist, or corrupted/missing audio files.
+      final broken = await mediaHandler.getBrokenTracks();
+
+      // Step 4A: Repair metadata placeholders
+      if (broken.metadataBroken.isNotEmpty) {
+        final serverMap = serverTracks != null
+            ? {for (var t in serverTracks) t.trackID: t}
+            : <int, Track>{};
+        bool metadataRepaired = false;
+        for (final bTrack in broken.metadataBroken) {
+          Track? sTrack = serverMap[bTrack.trackID];
+          if (sTrack == null || sTrack.title.isEmpty || sTrack.title == 'Track ${sTrack.trackID}') {
+            final searchResults = await searchTracks(bTrack.trackID.toString());
+            if (searchResults.isNotEmpty) {
+              sTrack = searchResults.firstWhere((t) => t.trackID == bTrack.trackID, orElse: () => searchResults.first);
             }
           }
-        }(),
-        ListeningStatsService.instance.syncLocalHistoryToServer(this),
-      ]);
+          if (sTrack != null && sTrack.title.isNotEmpty && sTrack.title != 'Track ${sTrack.trackID}') {
+            await mediaHandler.upsertTrackMetadata(sTrack);
+            metadataRepaired = true;
+          }
+        }
+        if (metadataRepaired) {
+          await mediaHandler.loadAllIntoMemory();
+          mediaHandler.notifyPlaylistChanged();
+        }
+      }
 
-      reportProgress(const SyncProgress(status: 'Sync complete!', progress: 1.0));
-      await Future.delayed(const Duration(milliseconds: 300));
+      // Step 4B: Repair missing/corrupted audio files
+      if (broken.downloadBroken.isNotEmpty) {
+        for (final bTrack in broken.downloadBroken) {
+          await mediaHandler.resetTrackDownloadState(bTrack.trackID);
+        }
+        final repairUndownloaded = await mediaHandler.getUndownloadedTracks();
+        for (final track in repairUndownloaded) {
+          final success = await downloadTrack(track, updateServerTracking: false);
+          if (success) {
+            await mediaHandler.markTrackDownloaded(track.trackID);
+          }
+        }
+      }
 
       return true;
     } catch (e) {
       debugPrint('Error performing pull sync: $e');
-      reportProgress(SyncProgress(status: 'Sync failed: $e', progress: 1.0));
-      await Future.delayed(const Duration(milliseconds: 500));
       return false;
     } finally {
       _isSyncing = false;
@@ -574,13 +559,13 @@ class ServerClient {
 
     final isShared = sharedClient != null;
     final client = sharedClient ?? (HttpClient()
-      ..connectionTimeout = const Duration(seconds: 15));
+      ..connectionTimeout = const Duration(seconds: 45));
 
     IOSink? sink;
     try {
-      final request = await client.getUrl(Uri.parse(targetUrl)).timeout(const Duration(seconds: 30));
+      final request = await client.getUrl(Uri.parse(targetUrl)).timeout(const Duration(seconds: 60));
       _headers().forEach((k, v) => request.headers.set(k, v));
-      final response = await request.close().timeout(const Duration(seconds: 30));
+      final response = await request.close().timeout(const Duration(seconds: 60));
 
       if (response.statusCode == 200) {
         if (!await tmpFile.parent.exists()) {
@@ -598,7 +583,7 @@ class ServerClient {
       }
     } catch (e) {
       if (e is! Exception || !e.toString().contains('Download failed for')) {
-        debugPrint('An error occurred during transmission: $e');
+        debugPrint('An error occurred during transmission ($type/$id): $e');
       }
       if (sink != null) {
         try { await sink.close(); } catch (_) {}
@@ -787,12 +772,31 @@ class ServerClient {
     current.add(track.trackID);
     downloadingTrackIdsNotifier.value = current;
     try {
-      await Future.wait([
-        _download('cover', track.trackID, sharedClient: sharedClient).catchError((e) {
-          debugPrint('Cover download note for track ${track.trackID}: $e');
-        }),
-        _download('audio', track.trackID, sharedClient: sharedClient),
-      ]);
+      const maxRetries = 3;
+      bool success = false;
+
+      for (int attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          try {
+            await _download('cover', track.trackID, sharedClient: sharedClient);
+          } catch (e) {
+            debugPrint('Cover download note for track ${track.trackID} (attempt $attempt): $e');
+          }
+
+          await _download('audio', track.trackID, sharedClient: sharedClient);
+          success = true;
+          break;
+        } catch (e) {
+          debugPrint('Track ${track.trackID} download attempt $attempt failed: $e');
+          if (attempt < maxRetries) {
+            await Future.delayed(Duration(seconds: attempt));
+          }
+        }
+      }
+
+      if (!success) {
+        throw Exception('All $maxRetries download attempts failed for track ${track.trackID}');
+      }
 
       if (updateServerTracking) {
         try {
@@ -806,7 +810,6 @@ class ServerClient {
       return true;
     } catch (e) {
       debugPrint('Track download failed: $e');
-      // Cleanup any partial files if download failed midway
       try {
         final flacFile = File('$_appDataPath/audio/${track.trackID}.flac');
         final coverFile = File('$_appDataPath/cover/${track.trackID}.jpg');

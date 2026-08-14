@@ -131,10 +131,17 @@ class _HomeScreenState extends State<HomeScreen> {
         final tracks = await widget.mediaHandler.loadPlaylistTracks(pl.playlistID);
         map[pl.playlistID] = tracks.map((t) => t.trackID).toList();
       }
+      List<Track>? currentTracks;
+      if (_currentPlaylist != null) {
+        currentTracks = await widget.mediaHandler.loadPlaylistTracks(_currentPlaylist!.playlistID);
+      }
       if (mounted) {
         setState(() {
           _playlists = playlists;
           _playlistTracksMap = map;
+          if (currentTracks != null) {
+            _tracks = currentTracks;
+          }
         });
       }
     } catch (e) {
