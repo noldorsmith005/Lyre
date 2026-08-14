@@ -832,6 +832,168 @@ def addUpload():
 
     return str(new_id), 201
 
+@app.get("/tracks/<int:id>/source_info")
+def getTrackSourceInfo(id):
+    auth_token = request.headers.get("AppToken")
+    if auth_token != APP_TOKEN:
+        return "Invalid App Token", 401
+    authorized = authUser(request)
+    if authorized == False:
+        return "Unauthorized", 401
+    user_id = int(authorized)
+
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT t.track_id, t.title, t.artist, t.duration, t.contributor, COALESCE(t.hidden, 0), u.username "
+                "FROM tracks t "
+                "LEFT JOIN users u ON CAST(t.contributor AS INTEGER) = u.id "
+                "WHERE t.track_id = ?",
+                (id,)
+            )
+            row = cursor.fetchone()
+            if not row:
+                return jsonify({"error": "Track not found"}), 404
+            
+            contributor_id_str = str(row[4]) if row[4] is not None else ""
+            is_contributor = (contributor_id_str == str(user_id))
+            contributor_name = row[6] or contributor_id_str
+
+            return jsonify({
+                "track_id": row[0],
+                "title": row[1] or "",
+                "artist": row[2] or "",
+                "duration": row[3] or "",
+                "contributor": contributor_name,
+                "hidden": bool(row[5]),
+                "is_contributor": is_contributor
+            }), 200
+    except sqlite3.Error as e:
+        print(f"Error fetching track source info: {e}")
+        return jsonify({"error": "Database error"}), 500
+
+@app.post("/tracks/<int:id>/edit")
+def editTrack(id):
+    auth_token = request.headers.get("AppToken")
+    if auth_token != APP_TOKEN:
+        return "Invalid App Token", 401
+    authorized = authUser(request)
+    if authorized == False:
+        return "Unauthorized", 401
+    user_id = int(authorized)
+
+    user_data = request.get_json() or {}
+    title_val = user_data.get('title', '').strip()
+    artist_val = user_data.get('artist', '').strip()
+    duration_val = user_data.get('duration')
+    req_hidden = user_data.get('hidden')
+
+    if len(str(title_val)) > 200 or len(str(artist_val)) > 100 or (duration_val and len(str(duration_val)) > 10):
+        return jsonify({"error": "Input length limit exceeded"}), 400
+
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT contributor, duration, hidden FROM tracks WHERE track_id = ?", (id,))
+            row = cursor.fetchone()
+            if not row:
+                return jsonify({"error": "Track not found"}), 404
+            
+            contributor = str(row[0]) if row[0] is not None else ""
+            if contributor != str(user_id):
+                return jsonify({"error": "Forbidden: You are not the contributor of this track"}), 403
+
+            cursor.execute("SELECT COALESCE(hidden_access, 0) FROM users WHERE id = ?", (user_id,))
+            h_row = cursor.fetchone()
+            has_hidden_access = bool(h_row[0]) if h_row else False
+
+            final_duration = duration_val if duration_val is not None and str(duration_val).strip() else row[1]
+            if has_hidden_access and req_hidden is not None:
+                final_hidden = 1 if req_hidden in (True, 1, 'true', '1') else 0
+            else:
+                final_hidden = row[2] or 0
+
+            cursor.execute(
+                "UPDATE tracks SET title = ?, artist = ?, duration = ?, hidden = ? WHERE track_id = ?",
+                (title_val, artist_val, final_duration, final_hidden, id)
+            )
+            conn.commit()
+            return jsonify({"status": "ok", "track_id": id}), 200
+    except sqlite3.Error as e:
+        print(f"Error editing track: {e}")
+        return jsonify({"error": "Failed to update track"}), 500
+
+@app.route("/tracks/<int:id>", methods=["DELETE"])
+@app.post("/tracks/<int:id>/delete")
+def deleteTrackFromServer(id):
+    auth_token = request.headers.get("AppToken")
+    if auth_token != APP_TOKEN:
+        return "Invalid App Token", 401
+    authorized = authUser(request)
+    if authorized == False:
+        return "Unauthorized", 401
+    user_id = int(authorized)
+
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT contributor FROM tracks WHERE track_id = ?", (id,))
+            row = cursor.fetchone()
+            if not row:
+                return jsonify({"error": "Track not found"}), 404
+            
+            contributor = str(row[0]) if row[0] is not None else ""
+            if contributor != str(user_id):
+                return jsonify({"error": "Forbidden: You are not the contributor of this track"}), 403
+
+            # 1. Delete from tracks table
+            cursor.execute("DELETE FROM tracks WHERE track_id = ?", (id,))
+            # 2. Delete from user_downloads
+            cursor.execute("DELETE FROM user_downloads WHERE track_id = ?", (id,))
+            # 3. Delete from history
+            cursor.execute("DELETE FROM history WHERE track_id = ?", (id,))
+            # 4. Remove track from all user_playlists JSON track lists
+            cursor.execute("SELECT id, tracks FROM user_playlists WHERE tracks LIKE ?", (f"%{id}%",))
+            pl_rows = cursor.fetchall()
+            for pl_id, tracks_json in pl_rows:
+                try:
+                    t_list = json.loads(tracks_json)
+                    if isinstance(t_list, list) and id in t_list:
+                        new_t_list = [t for t in t_list if t != id]
+                        cursor.execute("UPDATE user_playlists SET tracks = ? WHERE id = ?", (json.dumps(new_t_list), pl_id))
+                except Exception as pl_err:
+                    print(f"Error cleaning up playlist {pl_id}: {pl_err}")
+            
+            conn.commit()
+
+        # Delete server-side media files
+        audio_files = [
+            os.path.join(BASE_DIR, "audio", f"{id}.flac"),
+            os.path.join(BASE_DIR, "audio", f"{id}.wav"),
+            os.path.join(BASE_DIR, "audio", f"{id}.mp3"),
+            os.path.join(BASE_DIR, "tmp", f"{id}.flac"),
+            os.path.join(BASE_DIR, "tmp", f"{id}.wav"),
+            os.path.join(BASE_DIR, "tmp", f"{id}.mp3"),
+        ]
+        cover_files = [
+            os.path.join(BASE_DIR, "cover", f"{id}.jpg"),
+            os.path.join(BASE_DIR, "cover", f"{id}.png"),
+            os.path.join(BASE_DIR, "tmp", f"{id}.jpg"),
+            os.path.join(BASE_DIR, "tmp", f"{id}.png"),
+        ]
+        for fpath in audio_files + cover_files:
+            try:
+                if os.path.exists(fpath):
+                    os.remove(fpath)
+            except Exception as f_err:
+                print(f"Error removing media file {fpath}: {f_err}")
+
+        return jsonify({"status": "deleted", "track_id": id}), 200
+    except Exception as e:
+        print(f"Error deleting track from server: {e}")
+        return jsonify({"error": f"Failed to delete track: {str(e)}"}), 500
+
 @app.post("/tracks/downloads/remove/<int:id>")
 def removeDownloaded(id):
     auth_token = request.headers.get("AppToken")

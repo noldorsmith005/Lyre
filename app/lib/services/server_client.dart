@@ -39,6 +39,26 @@ class SyncProgress {
   });
 }
 
+class TrackSourceInfo {
+  final int trackID;
+  final String title;
+  final String artist;
+  final String duration;
+  final String contributor;
+  final bool hidden;
+  final bool isContributor;
+
+  const TrackSourceInfo({
+    required this.trackID,
+    required this.title,
+    required this.artist,
+    required this.duration,
+    required this.contributor,
+    required this.hidden,
+    required this.isContributor,
+  });
+}
+
 class ServerClient {
   late String _appDataPath;
   final MediaHandler mediaHandler;
@@ -1085,6 +1105,173 @@ class ServerClient {
     }
 
     return filesDeleted;
+  }
+
+  Future<TrackSourceInfo?> getTrackSourceInfo(int trackID) async {
+    if (!registered() || appUrl == null || !await ping()) {
+      return null;
+    }
+    final targetUrl = '$appUrl/tracks/$trackID/source_info';
+    try {
+      final response = await http.get(
+        Uri.parse(targetUrl),
+        headers: _headers(),
+      ).timeout(const Duration(seconds: 8));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return TrackSourceInfo(
+          trackID: data['track_id'] as int? ?? trackID,
+          title: data['title'] as String? ?? '',
+          artist: data['artist'] as String? ?? '',
+          duration: data['duration'] as String? ?? '',
+          contributor: data['contributor'] as String? ?? '',
+          hidden: data['hidden'] as bool? ?? false,
+          isContributor: data['is_contributor'] as bool? ?? false,
+        );
+      }
+    } catch (e) {
+      debugPrint('Error fetching track source info: $e');
+    }
+    return null;
+  }
+
+  Future<void> editTrackSource(
+    Track track, {
+    required String title,
+    required String artist,
+    String? audioPath,
+    String? coverPath,
+    bool? hidden,
+    Function(double progress, String status)? onProgress,
+  }) async {
+    if (!registered() || appUrl == null || !await ping()) {
+      throw Exception('Server unreachable.');
+    }
+
+    String duration = track.duration;
+
+    if (audioPath != null && audioPath.isNotEmpty) {
+      onProgress?.call(0.10, 'Calculating new audio duration...');
+      final player = AudioPlayer();
+      try {
+        final audioDuration = await player.setFilePath(audioPath);
+        if (audioDuration != null) {
+          final totalSeconds = audioDuration.inSeconds;
+          final minutes = totalSeconds ~/ 60;
+          final seconds = totalSeconds % 60;
+          duration = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
+        }
+      } catch (e) {
+        debugPrint('Error calculating audio duration: $e');
+      } finally {
+        await player.dispose();
+      }
+
+      onProgress?.call(0.30, 'Uploading replacement audio file...');
+      await _upload('audio', audioPath, track.trackID.toString());
+
+      // If locally downloaded, update local file
+      if (track.downloaded) {
+        try {
+          final localAudioWav = File('$_appDataPath/audio/${track.trackID}.wav');
+          final localAudioFlac = File('$_appDataPath/audio/${track.trackID}.flac');
+          if (await localAudioWav.exists()) await localAudioWav.delete();
+          if (await localAudioFlac.exists()) await localAudioFlac.delete();
+          final sourceFile = File(audioPath);
+          final ext = audioPath.split('.').last.toLowerCase();
+          final destExt = (ext == 'wav' || ext == 'flac') ? ext : 'flac';
+          await sourceFile.copy('$_appDataPath/audio/${track.trackID}.$destExt');
+        } catch (e) {
+          debugPrint('Error updating local audio file on edit: $e');
+        }
+      }
+    }
+
+    if (coverPath != null && coverPath.isNotEmpty) {
+      onProgress?.call(0.60, 'Uploading replacement cover artwork...');
+      await _upload('cover', coverPath, track.trackID.toString());
+
+      // If locally cached or downloaded, update local cover file and evict cache
+      try {
+        final localCover = File('$_appDataPath/cover/${track.trackID}.jpg');
+        PaintingBinding.instance.imageCache.evict(FileImage(localCover));
+        final sourceCover = File(coverPath);
+        await sourceCover.copy('$_appDataPath/cover/${track.trackID}.jpg');
+        PaintingBinding.instance.imageCache.evict(FileImage(localCover));
+      } catch (e) {
+        debugPrint('Error updating local cover file on edit: $e');
+      }
+    }
+
+    onProgress?.call(0.85, 'Updating track metadata on server...');
+    final targetUrl = '$appUrl/tracks/${track.trackID}/edit';
+    final editBody = jsonEncode({
+      'title': title,
+      'artist': artist,
+      'duration': duration,
+      'hidden': hidden,
+    });
+
+    final response = await http.post(
+      Uri.parse(targetUrl),
+      headers: _headers(json: true),
+      body: editBody,
+    ).timeout(const Duration(seconds: 10));
+
+    if (response.statusCode != 200) {
+      String errDetail = response.body;
+      try {
+        final decoded = jsonDecode(response.body);
+        if (decoded is Map && decoded.containsKey('error')) {
+          errDetail = decoded['error'].toString();
+        }
+      } catch (_) {}
+      throw Exception('Failed to update track: $errDetail');
+    }
+
+    // Update in-memory & local DB
+    track.title = title;
+    track.artist = artist;
+    track.duration = duration;
+    await mediaHandler.updateTrackMetadata(track.trackID, title, artist, duration);
+
+    onProgress?.call(1.0, 'Update complete!');
+  }
+
+  Future<void> deleteTrackFromServer(Track track) async {
+    if (!registered() || appUrl == null || !await ping()) {
+      throw Exception('Server unreachable.');
+    }
+
+    final targetUrl = '$appUrl/tracks/${track.trackID}';
+    final response = await http.delete(
+      Uri.parse(targetUrl),
+      headers: _headers(),
+    ).timeout(const Duration(seconds: 10));
+
+    if (response.statusCode != 200) {
+      // Try POST /tracks/<id>/delete fallback
+      final fallbackUrl = '$appUrl/tracks/${track.trackID}/delete';
+      final fbResponse = await http.post(
+        Uri.parse(fallbackUrl),
+        headers: _headers(),
+      ).timeout(const Duration(seconds: 10));
+
+      if (fbResponse.statusCode != 200) {
+        String errDetail = fbResponse.body;
+        try {
+          final decoded = jsonDecode(fbResponse.body);
+          if (decoded is Map && decoded.containsKey('error')) {
+            errDetail = decoded['error'].toString();
+          }
+        } catch (_) {}
+        throw Exception('Failed to delete track on server: $errDetail');
+      }
+    }
+
+    // Purge local references everywhere
+    await mediaHandler.purgeTrackReferences(track.trackID);
   }
 
   Future<bool> syncHistoryToServer(List<Map<String, dynamic>> historyItems) async {

@@ -44,6 +44,8 @@ class MainPanel extends StatefulWidget {
   final String? appDataPath;
   final Function(int oldIndex, int newIndex)? onReorderTrack;
   final Function(List<Track>)? onViewUnusedDownloads;
+  final VoidCallback? onTrackSourceEdited;
+  final VoidCallback? onTrackDeletedFromServer;
 
   const MainPanel({
     super.key,
@@ -74,6 +76,8 @@ class MainPanel extends StatefulWidget {
     this.appDataPath,
     this.onReorderTrack,
     this.onViewUnusedDownloads,
+    this.onTrackSourceEdited,
+    this.onTrackDeletedFromServer,
   });
 
   @override
@@ -487,6 +491,9 @@ class _MainPanelState extends State<MainPanel> {
                       isTrackInPlaylist: widget.isTrackInPlaylist,
                       appDataPath: appDataPath,
                       isServerConnected: widget.isServerConnected,
+                      serverClient: widget.serverClient,
+                      onTrackSourceEdited: widget.onTrackSourceEdited,
+                      onTrackDeletedFromServer: widget.onTrackDeletedFromServer,
                     );
 
                     final trackWidget = (isDesktop && isPlaylistView && widget.onReorderTrack != null)

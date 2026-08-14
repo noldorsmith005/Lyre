@@ -3,12 +3,12 @@ import 'package:provider/provider.dart';
 import '../models/track.dart';
 import '../models/playlist.dart';
 import '../services/theme_service.dart';
+import '../services/server_client.dart';
 import '../utils/layout_constants.dart';
 import 'play_bars.dart';
 import 'confirmation_dialog.dart';
 import 'track_cover_image.dart';
-
-
+import 'edit_source_modal.dart';
 
 class TrackCard extends StatefulWidget {
   final Track track;
@@ -24,6 +24,9 @@ class TrackCard extends StatefulWidget {
   final bool Function(Playlist, Track) isTrackInPlaylist;
   final String appDataPath;
   final bool isServerConnected;
+  final ServerClient? serverClient;
+  final VoidCallback? onTrackSourceEdited;
+  final VoidCallback? onTrackDeletedFromServer;
 
   const TrackCard({
     super.key,
@@ -40,6 +43,9 @@ class TrackCard extends StatefulWidget {
     required this.isTrackInPlaylist,
     required this.appDataPath,
     this.isServerConnected = true,
+    this.serverClient,
+    this.onTrackSourceEdited,
+    this.onTrackDeletedFromServer,
   });
 
   @override
@@ -74,6 +80,108 @@ class _TrackCardState extends State<TrackCard> {
           onTogglePlaylist: widget.onTogglePlaylist,
           isTrackInPlaylist: widget.isTrackInPlaylist,
           themeColor: themeColor,
+        ),
+      ],
+    );
+  }
+
+  Future<void> _handleRemoveDownload() async {
+    final confirmed = await ConfirmationDialog.show(
+      context,
+      title: 'Remove Download',
+      message: 'Are you sure you want to remove "${widget.track.title}" from your local downloads?',
+      confirmText: 'Remove',
+    );
+    if (confirmed == true && widget.onRemoveDownload != null) {
+      widget.onRemoveDownload!();
+    }
+  }
+
+  void _handleEditSource(TrackSourceInfo? sourceInfo) {
+    final serverClient = widget.serverClient;
+    if (serverClient == null) return;
+
+    final initialTitle = (sourceInfo != null && sourceInfo.title.isNotEmpty)
+        ? sourceInfo.title
+        : widget.track.title;
+    final initialArtist = (sourceInfo != null && sourceInfo.artist.isNotEmpty)
+        ? sourceInfo.artist
+        : widget.track.artist;
+    final initialHidden = sourceInfo?.hidden ?? false;
+
+    EditSourceModal.show(
+      context,
+      track: widget.track,
+      initialTitle: initialTitle,
+      initialArtist: initialArtist,
+      initialHidden: initialHidden,
+      hasHiddenAccess: serverClient.hasHiddenAccess,
+      onSave: (title, artist, mediaPath, coverPath, hidden, updateProgress) async {
+        await serverClient.editTrackSource(
+          widget.track,
+          title: title,
+          artist: artist,
+          audioPath: mediaPath,
+          coverPath: coverPath,
+          hidden: hidden,
+          onProgress: updateProgress,
+        );
+      },
+      onDeleteFromServer: (updateProgress) async {
+        await serverClient.deleteTrackFromServer(widget.track);
+      },
+      onComplete: () {
+        widget.onTrackSourceEdited?.call();
+        widget.onTrackDeletedFromServer?.call();
+        if (mounted) {
+          setState(() {});
+        }
+      },
+    );
+  }
+
+  Future<void> _showTrackOptionsPopup(Offset position) async {
+    final themeColor = Provider.of<ThemeService>(context, listen: false).themeColor;
+
+    TrackSourceInfo? sourceInfo;
+    if (widget.isServerConnected && widget.serverClient != null) {
+      sourceInfo = await widget.serverClient!.getTrackSourceInfo(widget.track.trackID);
+    }
+
+    if (!mounted) return;
+
+    final isContributor = sourceInfo?.isContributor ?? false;
+    final isDownloaded = widget.isDownloaded;
+
+    showMenu(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx - 180,
+        position.dy + 20,
+        position.dx + 40,
+        position.dy + 220,
+      ),
+      color: const Color(0xEE1E1E26),
+      elevation: 8,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: Color(0xFF2E2E3A), width: 1),
+      ),
+      menuPadding: EdgeInsets.zero,
+      items: [
+        _TrackOptionsMenuContent(
+          isDownloaded: isDownloaded,
+          isContributor: isContributor,
+          themeColor: themeColor,
+          onRemoveDownload: () {
+            Navigator.of(context).pop();
+            _handleRemoveDownload();
+          },
+          onEditSource: () {
+            Navigator.of(context).pop();
+            _handleEditSource(sourceInfo);
+          },
         ),
       ],
     );
@@ -228,81 +336,87 @@ class _TrackCardState extends State<TrackCard> {
               ),
               
               if (widget.isDownloaded) ...[
-              _buildTooltip(
-                message: 'Add to Queue',
-                child: _HoverIconButton(
-                  icon: Icons.playlist_add_rounded,
-                  size: 22,
-                  color: Colors.white,
-                  onTap: widget.onQueue ?? () {},
-                ),
-              ),
-              const SizedBox(width: 16),
-
-              Builder(
-                builder: (ctx) => _buildTooltip(
-                  message: 'Add to Playlist',
+                _buildTooltip(
+                  message: 'Add to Queue',
                   child: _HoverIconButton(
-                    icon: Icons.add_circle_outline_rounded,
+                    icon: Icons.playlist_add_rounded,
                     size: 22,
                     color: Colors.white,
-                    onTap: () {
-                      final renderBox = ctx.findRenderObject() as RenderBox;
-                      final position = renderBox.localToGlobal(Offset.zero);
-                      _showPlaylistPopup(context, position);
-                    },
+                    onTap: widget.onQueue ?? () {},
                   ),
                 ),
-              ),
-              if (widget.isServerConnected && widget.onRemoveDownload != null) ...[
                 const SizedBox(width: 16),
-                _buildTooltip(
-                  message: 'Remove Download',
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: GestureDetector(
-                      onTap: () async {
-                        final confirmed = await ConfirmationDialog.show(
-                          context,
-                          title: 'Remove Download',
-                          message: 'Are you sure you want to remove "${widget.track.title}" from your local downloads?',
-                          confirmText: 'Remove',
-                        );
-                        if (confirmed == true && widget.onRemoveDownload != null) {
-                          widget.onRemoveDownload!();
-                        }
+
+                Builder(
+                  builder: (ctx) => _buildTooltip(
+                    message: 'Add to Playlist',
+                    child: _HoverIconButton(
+                      icon: Icons.add_circle_outline_rounded,
+                      size: 22,
+                      color: Colors.white,
+                      onTap: () {
+                        final renderBox = ctx.findRenderObject() as RenderBox;
+                        final position = renderBox.localToGlobal(Offset.zero);
+                        _showPlaylistPopup(context, position);
                       },
-                      child: const Icon(
-                        Icons.delete_outline,
-                        size: 22,
-                        color: Colors.white,
-                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 16),
+
+                Builder(
+                  builder: (ctx) => _buildTooltip(
+                    message: 'More Options',
+                    child: _HoverIconButton(
+                      icon: Icons.more_vert_rounded,
+                      size: 22,
+                      color: Colors.white,
+                      onTap: () {
+                        final renderBox = ctx.findRenderObject() as RenderBox;
+                        final position = renderBox.localToGlobal(Offset.zero);
+                        _showTrackOptionsPopup(position);
+                      },
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 20),
+                
+                Text(
+                  widget.track.duration,
+                  style: const TextStyle(
+                    color: Color(0xFF555555),
+                    fontSize: 14,
+                  ),
+                ),
+              ] else ...[
+                Text(
+                  widget.track.contributor.isNotEmpty ? 'Uploaded by: ${widget.track.contributor}' : '',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Builder(
+                  builder: (ctx) => _buildTooltip(
+                    message: 'More Options',
+                    child: _HoverIconButton(
+                      icon: Icons.more_vert_rounded,
+                      size: 22,
+                      color: Colors.white,
+                      onTap: () {
+                        final renderBox = ctx.findRenderObject() as RenderBox;
+                        final position = renderBox.localToGlobal(Offset.zero);
+                        _showTrackOptionsPopup(position);
+                      },
                     ),
                   ),
                 ),
               ],
-              const SizedBox(width: 20),
-              
-              Text(
-                widget.track.duration,
-                style: const TextStyle(
-                  color: Color(0xFF555555),
-                  fontSize: 14,
-                ),
-              ),
-            ] else ...[
-              Text(
-                widget.track.contributor.isNotEmpty ? 'Uploaded by: ${widget.track.contributor}' : '',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                ),
-              ),
             ],
-          ],
+          ),
         ),
       ),
-    ),
     );
   }
   
@@ -350,6 +464,160 @@ class _HoverIconButtonState extends State<_HoverIconButton> {
             widget.icon,
             size: widget.size,
             color: widget.color ?? Colors.white,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _TrackOptionsMenuContent extends PopupMenuEntry<Never> {
+  final bool isDownloaded;
+  final bool isContributor;
+  final Color themeColor;
+  final VoidCallback onRemoveDownload;
+  final VoidCallback onEditSource;
+
+  const _TrackOptionsMenuContent({
+    required this.isDownloaded,
+    required this.isContributor,
+    required this.themeColor,
+    required this.onRemoveDownload,
+    required this.onEditSource,
+  });
+
+  @override
+  double get height {
+    int count = 0;
+    if (isDownloaded) count++;
+    if (isContributor) count++;
+    if (count == 0) count = 1;
+    return count * 44.0;
+  }
+
+  @override
+  bool represents(Never? value) => false;
+
+  @override
+  State<_TrackOptionsMenuContent> createState() => _TrackOptionsMenuContentState();
+}
+
+class _TrackOptionsMenuContentState extends State<_TrackOptionsMenuContent> {
+  @override
+  Widget build(BuildContext context) {
+    final List<Widget> items = [];
+
+    if (widget.isDownloaded) {
+      items.add(
+        _TrackActionRowItem(
+          icon: Icons.delete_outline_rounded,
+          label: 'Remove from downloads',
+          iconColor: Colors.white70,
+          onTap: widget.onRemoveDownload,
+          isLast: !widget.isContributor,
+        ),
+      );
+    }
+
+    if (widget.isContributor) {
+      items.add(
+        _TrackActionRowItem(
+          icon: Icons.edit_note_rounded,
+          label: 'Edit source',
+          iconColor: widget.themeColor,
+          onTap: widget.onEditSource,
+          isLast: true,
+        ),
+      );
+    }
+
+    if (items.isEmpty) {
+      items.add(
+        const SizedBox(
+          width: 220,
+          child: Padding(
+            padding: EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            child: Text(
+              'No actions available',
+              style: TextStyle(color: Colors.white54, fontSize: 13),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(
+        minWidth: 200,
+        maxWidth: 240,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: items,
+      ),
+    );
+  }
+}
+
+class _TrackActionRowItem extends StatefulWidget {
+  final IconData icon;
+  final String label;
+  final Color iconColor;
+  final VoidCallback onTap;
+  final bool isLast;
+
+  const _TrackActionRowItem({
+    required this.icon,
+    required this.label,
+    required this.iconColor,
+    required this.onTap,
+    required this.isLast,
+  });
+
+  @override
+  State<_TrackActionRowItem> createState() => _TrackActionRowItemState();
+}
+
+class _TrackActionRowItemState extends State<_TrackActionRowItem> {
+  bool _isHovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      onEnter: (_) => setState(() => _isHovered = true),
+      onExit: (_) => setState(() => _isHovered = false),
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: widget.onTap,
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: _isHovered ? const Color(0xFF2A2A38) : Colors.transparent,
+            border: widget.isLast
+                ? null
+                : const Border(
+                    bottom: BorderSide(color: Color(0xFF2E2E3A), width: 1),
+                  ),
+          ),
+          child: Row(
+            children: [
+              Icon(widget.icon, size: 18, color: widget.iconColor),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  widget.label,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
           ),
         ),
       ),

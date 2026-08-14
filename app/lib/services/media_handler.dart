@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/painting.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -733,6 +734,73 @@ class MediaHandler {
       await loadAllIntoMemory();
     } catch (e) {
       debugPrint('Could not delete track: $e');
+    }
+  }
+
+  Future<void> purgeTrackReferences(int trackID) async {
+    try {
+      // 1. Delete from database tables
+      await _db.delete('playlist_tracks', where: 'track_id = ?', whereArgs: [trackID]);
+      await _db.delete('tracks', where: 'track_id = ?', whereArgs: [trackID]);
+      await _db.delete('listening_history', where: 'track_id = ?', whereArgs: [trackID]);
+      
+      // Clean up sync queue if pending download or removal was queued
+      try {
+        final pendingDownloads = await getPendingDownloads();
+        if (pendingDownloads.contains(trackID)) {
+          await clearPendingDownload(trackID);
+        }
+        final pendingRemoves = await getPendingRemoveDownloads();
+        if (pendingRemoves.contains(trackID)) {
+          await clearPendingRemoveDownload(trackID);
+        }
+      } catch (_) {}
+
+      // 2. Delete local files
+      final wavFile = File(p.join(_appDataPath, 'audio', '$trackID.wav'));
+      final flacFile = File(p.join(_appDataPath, 'audio', '$trackID.flac'));
+      final coverFile = File(p.join(_appDataPath, 'cover', '$trackID.jpg'));
+
+      try {
+        PaintingBinding.instance.imageCache.evict(FileImage(coverFile));
+        if (await wavFile.exists()) await wavFile.delete();
+        if (await flacFile.exists()) await flacFile.delete();
+        if (await coverFile.exists()) await coverFile.delete();
+      } catch (e) {
+        debugPrint('Error deleting local asset files during purge: $e');
+      }
+
+      await loadAllIntoMemory();
+    } catch (e) {
+      debugPrint('Could not purge track references: $e');
+    }
+  }
+
+  Future<void> updateTrackMetadata(int trackID, String title, String artist, String duration) async {
+    try {
+      await _db.update(
+        'tracks',
+        {
+          'title': title,
+          'artist': artist,
+          'duration': duration,
+        },
+        where: 'track_id = ?',
+        whereArgs: [trackID],
+      );
+      await _db.update(
+        'listening_history',
+        {
+          'title': title,
+          'artist': artist,
+          'duration': duration,
+        },
+        where: 'track_id = ?',
+        whereArgs: [trackID],
+      );
+      await loadAllIntoMemory();
+    } catch (e) {
+      debugPrint('Could not update track metadata: $e');
     }
   }
 

@@ -466,6 +466,44 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() {});
   }
 
+  void _onTrackSourceEdited() async {
+    await _loadPlaylists();
+    if (_currentPlaylist != null) {
+      await _loadPlaylistTracks(_currentPlaylist!);
+    } else if (_searchQuery.trim().isNotEmpty) {
+      await _onSearch(_searchQuery);
+    } else {
+      final tracks = await widget.mediaHandler.getAllTracks();
+      if (mounted) {
+        setState(() {
+          _tracks = tracks;
+        });
+      }
+    }
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _onTrackDeletedFromServer() async {
+    await _loadPlaylists();
+    if (_currentPlaylist != null) {
+      await _loadPlaylistTracks(_currentPlaylist!);
+    } else if (_searchQuery.trim().isNotEmpty) {
+      await _onSearch(_searchQuery);
+    } else {
+      final tracks = await widget.mediaHandler.getAllTracks();
+      if (mounted) {
+        setState(() {
+          _tracks = tracks;
+        });
+      }
+    }
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
   void _onQueueTrack(Track track) {
     final audioService = Provider.of<AudioPlayerService>(context, listen: false);
     audioService.addToQueue(track);
@@ -601,6 +639,8 @@ class _HomeScreenState extends State<HomeScreen> {
               appDataPath: widget.mediaHandler.appDataPath,
               onReorderTrack: _onReorderTrack,
               onViewUnusedDownloads: _onViewUnusedDownloads,
+              onTrackSourceEdited: _onTrackSourceEdited,
+              onTrackDeletedFromServer: _onTrackDeletedFromServer,
             ),
           ),
           // Media Panel
