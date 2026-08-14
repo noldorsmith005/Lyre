@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:ui';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/track.dart';
@@ -421,7 +422,7 @@ class _MainPanelState extends State<MainPanel> {
               return Tooltip(
                 message: 'Shuffle',
                 child: _HoverIconButton(
-                  icon: Icons.shuffle_rounded,
+                  icon: CupertinoIcons.shuffle,
                   size: 34,
                   color: isShuffled ? themeColor : Colors.white,
                   onTap: widget.onShufflePressed,

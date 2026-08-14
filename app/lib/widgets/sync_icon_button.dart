@@ -132,9 +132,9 @@ class _SyncIconButtonState extends State<SyncIconButton> with SingleTickerProvid
                       ),
                       child: Center(
                         child: RotationTransition(
-                          turns: Tween<double>(begin: 1.0, end: 0.0).animate(_rotationController),
+                          turns: _rotationController,
                           child: Icon(
-                            Icons.sync_rounded,
+                            Icons.autorenew_rounded,
                             color: themeColor,
                             size: widget.size * 0.55,
                           ),

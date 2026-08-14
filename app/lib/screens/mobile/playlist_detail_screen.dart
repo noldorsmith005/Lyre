@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/playlist.dart';
@@ -131,7 +132,7 @@ class _PlaylistDetailScreenState extends State<PlaylistDetailScreen> {
                 ),
                 IconButton(
                   iconSize: 28,
-                  icon: const Icon(Icons.shuffle),
+                  icon: const Icon(CupertinoIcons.shuffle),
                   color: audioService.shuffle ? context.watch<ThemeService>().themeColor : Colors.white,
                   onPressed: () {
                     audioService.setShuffle();

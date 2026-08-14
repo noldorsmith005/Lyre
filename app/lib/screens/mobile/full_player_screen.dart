@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/audio_player_service.dart';
@@ -116,7 +117,7 @@ class FullPlayerScreen extends StatelessWidget {
                 // Shuffle
                 IconButton(
                   iconSize: 26,
-                  icon: const Icon(Icons.shuffle),
+                  icon: const Icon(CupertinoIcons.shuffle),
                   color: audioService.shuffle ? context.watch<ThemeService>().themeColor : Colors.white,
                   onPressed: () {
                     audioService.setShuffle();
