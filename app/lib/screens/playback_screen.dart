@@ -19,72 +19,8 @@ class PlaybackThemePalette {
     required this.accent,
     required this.gradientColors,
   });
-}
 
-class PlaybackScreen extends StatefulWidget {
-  final MonthlyPlaybackStats? stats;
-  final List<Track> allTracks;
-  final ServerClient? serverClient;
-
-  const PlaybackScreen({
-    super.key,
-    this.stats,
-    required this.allTracks,
-    this.serverClient,
-  });
-
-  static void showNoStatsModal(BuildContext context) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E2E),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: const BorderSide(color: Color(0xFF3A3A52), width: 1),
-        ),
-        title: Row(
-          children: const [
-            Icon(Icons.analytics_outlined, color: Colors.purpleAccent, size: 26),
-            SizedBox(width: 10),
-            Text(
-              'No Stats Yet',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                fontSize: 20,
-              ),
-            ),
-          ],
-        ),
-        content: const Text(
-          'Monthly playback statistics have not been generated yet. Check back at midnight on the first day of the month!',
-          style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.4),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            style: TextButton.styleFrom(
-              foregroundColor: Colors.purpleAccent,
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-            ),
-            child: const Text('Dismiss', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  State<PlaybackScreen> createState() => _PlaybackScreenState();
-}
-
-class _PlaybackScreenState extends State<PlaybackScreen> {
-  late PageController _pageController;
-  int _currentIndex = 0;
-  MonthlyPlaybackStats? _stats;
-  late PlaybackThemePalette _theme;
-
-  final List<PlaybackThemePalette> _palettes = [
+  static final List<PlaybackThemePalette> allPalettes = [
     PlaybackThemePalette(
       name: 'Neon Cyber Violet',
       primary: const Color(0xFF8A2BE2),
@@ -171,6 +107,80 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
     ),
   ];
 
+  static PlaybackThemePalette getPalette(String? name) {
+    if (name == null || name.isEmpty) return allPalettes.first;
+    return allPalettes.firstWhere(
+      (p) => p.name.toLowerCase() == name.toLowerCase(),
+      orElse: () => allPalettes.first,
+    );
+  }
+}
+
+class PlaybackScreen extends StatefulWidget {
+  final MonthlyPlaybackStats? stats;
+  final List<Track> allTracks;
+  final ServerClient? serverClient;
+
+  const PlaybackScreen({
+    super.key,
+    this.stats,
+    required this.allTracks,
+    this.serverClient,
+  });
+
+  static void showNoStatsModal(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E2E),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: const BorderSide(color: Color(0xFF3A3A52), width: 1),
+        ),
+        title: Row(
+          children: const [
+            Icon(Icons.analytics_outlined, color: Colors.purpleAccent, size: 26),
+            SizedBox(width: 10),
+            Text(
+              'No Stats Yet',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+              ),
+            ),
+          ],
+        ),
+        content: const Text(
+          'Monthly playback statistics have not been generated yet. Check back at midnight on the first day of the month!',
+          style: TextStyle(color: Colors.white70, fontSize: 14, height: 1.4),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            style: TextButton.styleFrom(
+              foregroundColor: Colors.purpleAccent,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+            ),
+            child: const Text('Dismiss', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
+  State<PlaybackScreen> createState() => _PlaybackScreenState();
+}
+
+class _PlaybackScreenState extends State<PlaybackScreen> {
+  late PageController _pageController;
+  int _currentIndex = 0;
+  MonthlyPlaybackStats? _stats;
+  late PlaybackThemePalette _theme;
+
+  final List<PlaybackThemePalette> _palettes = PlaybackThemePalette.allPalettes;
+
   @override
   void initState() {
     super.initState();
@@ -188,7 +198,7 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
   }
 
   Future<void> _loadStats() async {
-    final stats = await ListeningStatsService.instance.fetchOrGetStats(widget.serverClient, widget.allTracks);
+    final stats = await ListeningStatsService.instance.getCachedOrLocalStats();
 
     if (mounted) {
       if (stats != null) {
@@ -201,10 +211,8 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
           _theme = selectedTheme;
         });
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No stats available yet.')),
-        );
         Navigator.of(context).pop();
+        PlaybackScreen.showNoStatsModal(context);
       }
     }
   }
@@ -241,9 +249,9 @@ class _PlaybackScreenState extends State<PlaybackScreen> {
   Widget build(BuildContext context) {
     if (_stats == null) {
       return Scaffold(
-        backgroundColor: Colors.black,
+        backgroundColor: const Color(0xFF0F051D),
         body: Center(
-          child: CircularProgressIndicator(color: _theme.primary),
+          child: CircularProgressIndicator(color: _theme.accent),
         ),
       );
     }

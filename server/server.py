@@ -967,6 +967,39 @@ def syncHistory():
     return jsonify({"status": "success"}), 200
 
 
+@app.get("/stats/status/<int:user_id>")
+def getStatsStatus(user_id):
+    auth_token = request.headers.get("AppToken")
+    if auth_token != APP_TOKEN:
+        return "Invalid App Token", 401
+
+    authorized = authUser(request)
+    if authorized == False:
+        return "Unauthorized", 401
+
+    if int(authorized) != user_id:
+        return jsonify({"error": "Forbidden"}), 403
+
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("SELECT new_release, month_year, theme_color FROM stats WHERE user_id = ?", (user_id,))
+        row = cursor.fetchone()
+        if not row:
+            return jsonify({
+                "user_id": user_id,
+                "new_release": 0,
+                "month_year": "",
+                "theme_color": "Neon Cyber Violet"
+            }), 200
+
+        return jsonify({
+            "user_id": user_id,
+            "new_release": int(row[0] or 0),
+            "month_year": row[1] or "",
+            "theme_color": row[2] or "Neon Cyber Violet"
+        }), 200
+
+
 @app.get("/stats/<int:user_id>")
 def getUserStats(user_id):
     auth_token = request.headers.get("AppToken")
@@ -1016,7 +1049,7 @@ def getUserStats(user_id):
             "top_artists": json.loads(row[7] or "[]"),
             "top_percentages": json.loads(row[8] or "{}"),
             "theme_color": row[9] or "Neon Cyber Violet",
-            "new_release": int(row[10])
+            "new_release": int(row[10] if len(row) > 10 and row[10] is not None else 0)
         }), 200
 
 

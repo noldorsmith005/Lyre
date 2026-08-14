@@ -16,6 +16,7 @@ import '../widgets/upload_modal.dart';
 import '../widgets/confirmation_dialog.dart';
 import '../widgets/vibe_queue_modal.dart';
 import '../services/vibe_queue_service.dart';
+import '../widgets/playback_notification_modal.dart';
 import '../services/listening_stats_service.dart';
 
 
@@ -77,6 +78,31 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _isAutoConnecting = false;
   DateTime? _lastSyncTime;
 
+  Future<void> _checkMonthlyPlaybackNotification() async {
+    final stats = await ListeningStatsService.instance.checkAndFetchNewRelease(widget.serverClient);
+    if (stats != null && mounted) {
+      final allTracks = await widget.mediaHandler.getAllTracks();
+      if (!mounted) return;
+
+      PlaybackNotificationModal.show(
+        context,
+        stats: stats,
+        onViewPlayback: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => PlaybackScreen(
+                stats: stats,
+                allTracks: allTracks,
+                serverClient: widget.serverClient,
+              ),
+            ),
+          );
+        },
+      );
+    }
+  }
+
   Future<void> _autoConnectServer() async {
     if (_isAutoConnecting || widget.serverClient.isSyncing) return;
     if (_lastSyncTime != null && DateTime.now().difference(_lastSyncTime!) < const Duration(seconds: 15)) {
@@ -93,6 +119,7 @@ class _HomeScreenState extends State<HomeScreen> {
               _loadPlaylists();
             }
           });
+          _checkMonthlyPlaybackNotification();
         }
       }
     } finally {
@@ -467,27 +494,15 @@ class _HomeScreenState extends State<HomeScreen> {
     final allTracks = await widget.mediaHandler.getAllTracks();
     if (!mounted) return;
 
-    final stats = await ListeningStatsService.instance.fetchOrGetStats(
-      widget.serverClient,
-      allTracks,
-    );
-
-    if (!mounted) return;
-
-    if (stats != null) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => PlaybackScreen(
-            stats: stats,
-            allTracks: allTracks,
-            serverClient: widget.serverClient,
-          ),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => PlaybackScreen(
+          allTracks: allTracks,
+          serverClient: widget.serverClient,
         ),
-      );
-    } else {
-      PlaybackScreen.showNoStatsModal(context);
-    }
+      ),
+    );
   }
 
   void _onOpenVibeQueue() {

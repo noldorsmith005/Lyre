@@ -249,7 +249,15 @@ class ListeningStatsService {
     return int.tryParse(durationStr) ?? 180;
   }
 
-  String _getMonthYearLabel(DateTime now) {
+  MonthlyPlaybackStats? get cachedStats => _memoryStats;
+
+  Future<MonthlyPlaybackStats?> getCachedOrLocalStats() async {
+    if (_memoryStats != null) return _memoryStats;
+    await _loadLocalStatsFromDb();
+    return _memoryStats;
+  }
+
+  static String getPreviousMonthYearLabel(DateTime now) {
     const monthNames = [
       'January', 'February', 'March', 'April', 'May', 'June',
       'July', 'August', 'September', 'October', 'November', 'December'
@@ -259,78 +267,102 @@ class ListeningStatsService {
     return '${monthNames[prevMonth - 1]} $prevYear';
   }
 
+  Future<MonthlyPlaybackStats?> checkAndFetchNewRelease(ServerClient? serverClient) async {
+    if (serverClient == null || !serverClient.registered()) return null;
+    try {
+      final status = await serverClient.checkStatsStatus();
+      if (status != null && (status['new_release'] as int? ?? 0) == 1) {
+        return await _fetchAndPersistFullStats(serverClient);
+      }
+    } catch (e) {
+      debugPrint('Error checking for new stats release: $e');
+    }
+    return null;
+  }
+
+  Future<MonthlyPlaybackStats?> _fetchAndPersistFullStats(ServerClient serverClient) async {
+    try {
+      final serverRes = await serverClient.fetchServerStats();
+      if (serverRes != null) {
+        final totMin = (serverRes['total_minutes'] as int?) ?? 0;
+        final totPlays = (serverRes['total_plays'] as int?) ?? 0;
+        final rawTracks = serverRes['top_tracks'] as List<dynamic>? ?? [];
+        final topTracks = rawTracks.map((t) => TrackStat.fromJson(t as Map<String, dynamic>)).toList();
+
+        if (totMin > 0 || totPlays > 0 || topTracks.isNotEmpty) {
+          final monthLabel = (serverRes['month_year'] as String?) ?? getPreviousMonthYearLabel(DateTime.now());
+          final dAvg = (serverRes['daily_avg_minutes'] as int?) ?? 0;
+          final pctText = (serverRes['percentile_text'] as String?) ?? 'Top Music Listener';
+          final rawArtists = serverRes['top_artists'] as List<dynamic>? ?? [];
+          final topArtists = rawArtists.map((a) => ArtistStat.fromJson(a as Map<String, dynamic>)).toList();
+          final rawPct = serverRes['top_percentages'] as Map<String, dynamic>? ?? {};
+          final topPct = TopPercentages.fromJson(rawPct);
+          final themeCol = (serverRes['theme_color'] as String?) ?? 'Neon Cyber Violet';
+
+          final serverStats = MonthlyPlaybackStats(
+            monthYearLabel: monthLabel,
+            totalMinutes: totMin,
+            totalPlays: totPlays,
+            percentileText: pctText,
+            dailyAverageMinutes: dAvg,
+            topTracks: topTracks,
+            topArtists: topArtists,
+            topPercentages: topPct,
+            themeColor: themeCol,
+          );
+
+          _memoryStats = serverStats;
+
+          if (_db != null) {
+            final uid = int.tryParse(serverClient.userID ?? '0') ?? 0;
+            await _db!.insert(
+              'local_stats',
+              {
+                'user_id': uid,
+                'month_year': monthLabel,
+                'total_minutes': totMin,
+                'total_plays': totPlays,
+                'daily_avg_minutes': dAvg,
+                'percentile_text': pctText,
+                'top_tracks_json': jsonEncode(rawTracks),
+                'top_artists_json': jsonEncode(rawArtists),
+                'top_percentages_json': jsonEncode(rawPct),
+                'theme_color': themeCol,
+              },
+              conflictAlgorithm: ConflictAlgorithm.replace,
+            );
+          }
+
+          await serverClient.ackServerStats();
+          return _memoryStats;
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching and persisting server stats: $e');
+    }
+    return null;
+  }
+
   Future<MonthlyPlaybackStats?> fetchOrGetStats(ServerClient? serverClient, [List<Track>? allLocalTracks]) async {
-    // 1. Try querying server stats if server is online
+    // 1. Ensure local stats are loaded if not in memory
+    if (_memoryStats == null) {
+      await _loadLocalStatsFromDb();
+    }
+
+    // 2. Check if server has a new release available or if local stats are missing
     if (serverClient != null && serverClient.registered()) {
       try {
-        final serverRes = await serverClient.fetchServerStats();
-        if (serverRes != null) {
-          final totMin = (serverRes['total_minutes'] as int?) ?? 0;
-          final totPlays = (serverRes['total_plays'] as int?) ?? 0;
-          final rawTracks = serverRes['top_tracks'] as List<dynamic>? ?? [];
-          final topTracks = rawTracks.map((t) => TrackStat.fromJson(t as Map<String, dynamic>)).toList();
-
-          if (totMin > 0 || totPlays > 0 || topTracks.isNotEmpty) {
-            final isNewRelease = (serverRes['new_release'] as int? ?? 0) == 1;
-            final monthLabel = (serverRes['month_year'] as String?) ?? _getMonthYearLabel(DateTime.now());
-            final dAvg = (serverRes['daily_avg_minutes'] as int?) ?? 0;
-            final pctText = (serverRes['percentile_text'] as String?) ?? 'Top Music Listener';
-            final rawArtists = serverRes['top_artists'] as List<dynamic>? ?? [];
-            final topArtists = rawArtists.map((a) => ArtistStat.fromJson(a as Map<String, dynamic>)).toList();
-            final rawPct = serverRes['top_percentages'] as Map<String, dynamic>? ?? {};
-            final topPct = TopPercentages.fromJson(rawPct);
-            final themeCol = (serverRes['theme_color'] as String?) ?? 'Neon Cyber Violet';
-
-            final serverStats = MonthlyPlaybackStats(
-              monthYearLabel: monthLabel,
-              totalMinutes: totMin,
-              totalPlays: totPlays,
-              percentileText: pctText,
-              dailyAverageMinutes: dAvg,
-              topTracks: topTracks,
-              topArtists: topArtists,
-              topPercentages: topPct,
-              themeColor: themeCol,
-            );
-
-            _memoryStats = serverStats;
-
-            if (_db != null) {
-              final uid = int.tryParse(serverClient.userID ?? '0') ?? 0;
-              await _db!.insert(
-                'local_stats',
-                {
-                  'user_id': uid,
-                  'month_year': monthLabel,
-                  'total_minutes': totMin,
-                  'total_plays': totPlays,
-                  'daily_avg_minutes': dAvg,
-                  'percentile_text': pctText,
-                  'top_tracks_json': jsonEncode(rawTracks),
-                  'top_artists_json': jsonEncode(rawArtists),
-                  'top_percentages_json': jsonEncode(rawPct),
-                  'theme_color': themeCol,
-                  'new_release': 0,
-                },
-                conflictAlgorithm: ConflictAlgorithm.replace,
-              );
-            }
-
-            if (isNewRelease) {
-              await serverClient.ackServerStats();
-            }
-
-            return _memoryStats;
+        final status = await serverClient.checkStatsStatus();
+        final hasNewRelease = status != null && (status['new_release'] as int? ?? 0) == 1;
+        if (hasNewRelease || _memoryStats == null) {
+          final updated = await _fetchAndPersistFullStats(serverClient);
+          if (updated != null) {
+            return updated;
           }
         }
       } catch (e) {
-        debugPrint('Error checking server stats update: $e');
+        debugPrint('Error checking server stats status: $e');
       }
-    }
-
-    // 2. Return in-memory or cached SQLite stats
-    if (_memoryStats == null) {
-      await _loadLocalStatsFromDb();
     }
 
     return _memoryStats;
@@ -343,7 +375,7 @@ class ListeningStatsService {
 
   Future<MonthlyPlaybackStats> getMonthlyStats(List<Track> allLocalTracks) async {
     final now = DateTime.now();
-    final monthLabel = _getMonthYearLabel(now);
+    final monthLabel = getPreviousMonthYearLabel(now);
     final prevMonth = now.month == 1 ? 12 : now.month - 1;
     final prevYear = now.month == 1 ? now.year - 1 : now.year;
     final startOfPrevMonth = DateTime(prevYear, prevMonth, 1).toIso8601String();

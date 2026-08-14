@@ -130,8 +130,7 @@ class MediaHandler {
                 top_tracks_json      TEXT,
                 top_artists_json     TEXT,
                 top_percentages_json TEXT,
-                theme_color          TEXT,
-                new_release          INTEGER DEFAULT 0
+                theme_color          TEXT
             )
           ''');
           await db.execute('''

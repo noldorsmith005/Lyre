@@ -1101,6 +1101,22 @@ class ServerClient {
     }
   }
 
+  Future<Map<String, dynamic>?> checkStatsStatus() async {
+    if (!registered() || appUrl == null || userID == null || !await ping()) return null;
+    try {
+      final response = await http.get(
+        Uri.parse('$appUrl/stats/status/$userID'),
+        headers: _headers(),
+      );
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      }
+    } catch (e) {
+      debugPrint('Error checking stats status: $e');
+    }
+    return null;
+  }
+
   Future<Map<String, dynamic>?> fetchServerStats() async {
     if (!registered() || appUrl == null || userID == null || !await ping()) return null;
     try {
