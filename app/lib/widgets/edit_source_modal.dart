@@ -344,7 +344,7 @@ class _EditSourceModalState extends State<EditSourceModal> {
                 children: [
                   Icon(
                     _isComplete ? Icons.check_circle_rounded : Icons.edit_note_rounded,
-                    color: _isComplete ? const Color(0xFF4CAF50) : themeColor,
+                    color: _isComplete ? const Color(0xFF4CAF50) : Colors.white70,
                     size: 26,
                   ),
                   const SizedBox(width: 10),

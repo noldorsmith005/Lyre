@@ -144,13 +144,14 @@ class _TrackCardState extends State<TrackCard> {
     final themeColor = Provider.of<ThemeService>(context, listen: false).themeColor;
 
     TrackSourceInfo? sourceInfo;
-    if (widget.isServerConnected && widget.serverClient != null) {
-      sourceInfo = await widget.serverClient!.getTrackSourceInfo(widget.track.trackID);
+    final serverClient = widget.serverClient;
+    final canEditSource = serverClient != null && serverClient.registered();
+    if (canEditSource) {
+      sourceInfo = await serverClient.getTrackSourceInfo(widget.track.trackID);
     }
 
     if (!mounted) return;
 
-    final canEditSource = widget.isServerConnected && widget.serverClient != null;
     final isDownloaded = widget.isDownloaded;
 
     showMenu(
@@ -524,7 +525,7 @@ class _TrackOptionsMenuContentState extends State<_TrackOptionsMenuContent> {
         _TrackActionRowItem(
           icon: Icons.edit_note_rounded,
           label: 'Edit source',
-          iconColor: widget.themeColor,
+          iconColor: Colors.white70,
           onTap: widget.onEditSource,
           isLast: true,
         ),
