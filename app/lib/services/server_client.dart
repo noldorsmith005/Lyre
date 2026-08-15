@@ -1012,7 +1012,9 @@ class ServerClient {
           await mediaHandler.addPendingDownload(track.trackID);
         }
       }
-      await mediaHandler.newTrack(track, reloadCache: updateServerTracking);
+      track.downloaded = true;
+      await mediaHandler.newTrack(track, reloadCache: false, downloaded: true);
+      await mediaHandler.markTrackDownloaded(track.trackID);
       PaintingBinding.instance.imageCache.evict(FileImage(File('$_appDataPath/cover/${track.trackID}.jpg')));
       return true;
     } catch (e) {
