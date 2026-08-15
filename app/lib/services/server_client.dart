@@ -765,8 +765,8 @@ class ServerClient {
       rawRequest.contentLength = length;
       localFile.openRead().pipe(rawRequest.sink);
 
-      final response = await rawRequest.send().timeout(const Duration(seconds: 60));
-      final responseBody = await response.stream.bytesToString().timeout(const Duration(seconds: 60));
+      final response = await rawRequest.send().timeout(const Duration(seconds: 300));
+      final responseBody = await response.stream.bytesToString().timeout(const Duration(seconds: 300));
       if (response.statusCode == 201) {
         debugPrint('Upload succeeded for $type/$id');
       } else {

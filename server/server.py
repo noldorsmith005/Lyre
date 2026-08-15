@@ -48,7 +48,8 @@ app = Flask(__name__)
 limiter = Limiter(get_remote_address, app=app, default_limits=[])
 app.config['ENV'] = 'production'
 app.config['DEBUG'] = False
-app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024
+max_upload_mb = config.get("max_content_length_mb", 500)
+app.config['MAX_CONTENT_LENGTH'] = max_upload_mb * 1024 * 1024
 if config.get("secret_key"):
     app.config["SECRET_KEY"] = config["secret_key"]
 
@@ -666,7 +667,7 @@ def searchTracks(filter_text=""):
 
     # Sort descending by score, then ascending by title
     scored_tracks.sort(key=lambda item: (-item["score"], (item["track"]["title"] or "").lower()))
-    result = [item["track"] for item in scored_tracks]
+    result = [item["track"] for item in scored_tracks[:20]]
 
     return jsonify(result), 200
 
@@ -720,7 +721,7 @@ def uploadFile(id, ext):
 
     try:
         total_size = 0
-        max_size = app.config.get('MAX_CONTENT_LENGTH', 100 * 1024 * 1024)
+        max_size = app.config.get('MAX_CONTENT_LENGTH', 500 * 1024 * 1024)
         with open(upload_path, "wb") as f:
             while True:
                 try:
