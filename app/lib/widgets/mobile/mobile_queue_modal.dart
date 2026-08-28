@@ -131,8 +131,8 @@ class MobileQueueModal extends StatelessWidget {
                           ),
                         ),
                       )
-                    : ListView.builder(
-                        controller: scrollController,
+                    : ReorderableListView.builder(
+                        scrollController: scrollController,
                         physics: const AlwaysScrollableScrollPhysics(),
                         padding: EdgeInsets.only(
                           left: 16,
@@ -141,9 +141,27 @@ class MobileQueueModal extends StatelessWidget {
                           bottom: bottomPadding + 36,
                         ),
                         itemCount: queue.length,
+                        onReorder: (oldIndex, newIndex) {
+                          audioService.reorderQueue(oldIndex, newIndex);
+                        },
+                        proxyDecorator: (Widget child, int index, Animation<double> animation) {
+                          return AnimatedBuilder(
+                            animation: animation,
+                            builder: (BuildContext context, Widget? child) {
+                              return Material(
+                                color: Colors.transparent,
+                                elevation: 0,
+                                shadowColor: Colors.transparent,
+                                child: child,
+                              );
+                            },
+                            child: child,
+                          );
+                        },
                         itemBuilder: (context, index) {
                           final track = queue[index];
                           return Container(
+                            key: ValueKey('queue_mobile_${track.trackID}_$index'),
                             margin: const EdgeInsets.only(bottom: 8),
                             decoration: BoxDecoration(
                               color: const Color(0xFF14141E),

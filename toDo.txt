@@ -3,7 +3,6 @@ Features:
 
 Bugs:
     -improve search
-    -lock mobile rotation
 
 Mods:
     -

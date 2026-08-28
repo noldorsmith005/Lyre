@@ -372,13 +372,31 @@ class _MediaPanelState extends State<MediaPanel> {
                             ],
                           ),
                           const SizedBox(height: 12),
-                          ListView.builder(
+                          ReorderableListView.builder(
                             shrinkWrap: true,
                             physics: const NeverScrollableScrollPhysics(),
                             itemCount: audioService.queue.length,
+                            onReorder: (oldIndex, newIndex) {
+                              audioService.reorderQueue(oldIndex, newIndex);
+                            },
+                            proxyDecorator: (Widget child, int index, Animation<double> animation) {
+                              return AnimatedBuilder(
+                                animation: animation,
+                                builder: (BuildContext context, Widget? child) {
+                                  return Material(
+                                    color: Colors.transparent,
+                                    elevation: 0,
+                                    shadowColor: Colors.transparent,
+                                    child: child,
+                                  );
+                                },
+                                child: child,
+                              );
+                            },
                             itemBuilder: (context, index) {
                               final track = audioService.queue[index];
                               return _QueueCard(
+                                key: ValueKey('queue_desktop_${track.trackID}_$index'),
                                 track: track,
                                 onRemove: () => audioService.removeFromQueue(track),
                               );
@@ -438,6 +456,7 @@ class _QueueCard extends StatefulWidget {
   final VoidCallback onRemove;
 
   const _QueueCard({
+    super.key,
     required this.track,
     required this.onRemove,
   });

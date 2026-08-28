@@ -59,7 +59,7 @@ void main() async {
   audioPlayerService.serverClient = serverClient;
   await audioPlayerService.init();
 
-  // Desktop window setup
+  // Orientation setup for mobile & desktop window setup
   if (isDesktop) {
     await windowManager.ensureInitialized();
     const windowOptions = WindowOptions(
@@ -71,6 +71,10 @@ void main() async {
       await windowManager.setResizable(false);
       await windowManager.show();
     });
+  } else {
+    await SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+    ]);
   }
 
   final themeService = ThemeService();

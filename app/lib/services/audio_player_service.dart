@@ -546,6 +546,19 @@ class AudioPlayerService extends ChangeNotifier {
     notifyListeners();
   }
 
+  void reorderQueue(int oldIndex, int newIndex) {
+    if (oldIndex < 0 || oldIndex >= queue.length) return;
+    if (newIndex > oldIndex) {
+      newIndex -= 1;
+    }
+    if (newIndex < 0 || newIndex >= queue.length) return;
+    if (oldIndex == newIndex) return;
+
+    final track = queue.removeAt(oldIndex);
+    queue.insert(newIndex, track);
+    notifyListeners();
+  }
+
   void clearNextUp() {
     nextUp.clear();
     _unshuffledNextUp.clear();
